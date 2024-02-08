@@ -154,7 +154,7 @@ where
 
                 f = f - (U::one() << FRAC_SIZE);
 
-                Fp::from_bits(f + (e << FRAC_SIZE))
+                Fp::from_bits(f + (e << Self::EXP_POS))
             };
             if s {-n} else {n}
         }

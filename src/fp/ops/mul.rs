@@ -174,7 +174,7 @@ where
             f = f << 1usize;
         }
 
-        let s_bit = if s {U::one() << Self::BIT_SIZE - 1} else {U::zero()};
+        let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
 
         if e.is_zero() // subnormal
         {
@@ -189,7 +189,7 @@ where
 
             f = f - (U::one() << FRAC_SIZE);
 
-            return Fp::from_bits(s_bit + f + (e << FRAC_SIZE))
+            return Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
         }
     }
 }

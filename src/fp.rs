@@ -35,6 +35,13 @@ moddef::moddef!(
 
 pub trait UInt = Unsigned + PrimInt + OverflowingMul + Binary + CheckedShl + CheckedShr;
 
+/// A custom floating point type.
+/// 
+/// Bit layout is as follows:
+/// ```
+/// No data: | Sign: | Exponent:  | Fractional: |
+/// <  ..  > | < 1 > | <EXP_SIZE> | <FRAC_SIZE> |
+/// ```
 #[derive(Clone, Copy)]
 pub struct Fp<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize>(U)
 where
@@ -45,6 +52,10 @@ where
     [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
 {
     const BIT_SIZE: usize = EXP_SIZE + FRAC_SIZE + 1;
+    const SIGN_SIZE: usize = 1;
+    const SIGN_POS: usize = EXP_SIZE + FRAC_SIZE;
+    const EXP_POS: usize = FRAC_SIZE;
+    const FRAC_POS: usize = 0;
 
     pub fn from_fp<V: UInt, const E: usize, const F: usize>(fp: Fp<V, E, F>) -> Self
     where
@@ -139,7 +150,7 @@ where
             }
         };
         
-        let s_bit = s << Self::BIT_SIZE - 1;
+        let s_bit = s << Self::SIGN_POS;
         
         while f >= U::one() << FRAC_SIZE + 1
         {
@@ -165,7 +176,7 @@ where
 
             f = f - (U::one() << FRAC_SIZE);
 
-            return Fp::from_bits(s_bit + f + (e << FRAC_SIZE))
+            return Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
         }
     }
 
@@ -180,17 +191,17 @@ where
 
     fn sign_bit(self) -> U
     {
-        (self.to_bits() & U::max_value() >> bitsize_of::<U>() - Self::BIT_SIZE) >> (Self::BIT_SIZE - 1)
+        (self.to_bits() & U::max_value() >> bitsize_of::<U>() - Self::SIGN_POS - Self::SIGN_SIZE) >> Self::SIGN_POS
     }
     fn exp_bits(self) -> U
     {
         assert!(EXP_SIZE + 1 < Self::BIT_SIZE);
-        (self.to_bits() & U::max_value() >> bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE) >> FRAC_SIZE
+        (self.to_bits() & U::max_value() >> bitsize_of::<U>() - Self::EXP_POS - EXP_SIZE) >> Self::EXP_POS
     }
     fn frac_bits(self) -> U
     {
         assert!(EXP_SIZE + 1 < Self::BIT_SIZE);
-        self.to_bits() & U::max_value() >> bitsize_of::<U>() - FRAC_SIZE
+        (self.to_bits() & U::max_value() >> bitsize_of::<U>() - Self::FRAC_POS - FRAC_SIZE) >> Self::FRAC_POS
     }
 
     fn exp_bias() -> U
@@ -200,7 +211,7 @@ where
 
     fn infinity() -> Self
     {
-        Self::from_bits((U::max_value() >> bitsize_of::<U>() - EXP_SIZE) << FRAC_SIZE)
+        Self::from_bits((U::max_value() >> bitsize_of::<U>() - EXP_SIZE) << Self::EXP_POS)
     }
     fn negative_infinity() -> Self
     {
@@ -208,7 +219,7 @@ where
     }
     fn nan() -> Self
     {
-        Self::from_bits(U::max_value() >> bitsize_of::<U>() - Self::BIT_SIZE + 1usize)
+        Self::from_bits(U::max_value() >> bitsize_of::<U>() - Self::SIGN_POS)
     }
 
     /*#[deprecated]

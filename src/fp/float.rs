@@ -42,7 +42,7 @@ where
 
     fn max_value() -> Self
     {
-        Self::from_bits(((U::max_value() >> bitsize_of::<U>() - EXP_SIZE) << FRAC_SIZE) - U::one())
+        Self::from_bits(((U::max_value() >> bitsize_of::<U>() - EXP_SIZE) << Self::EXP_POS) - U::one())
     }
 
     fn is_nan(self) -> bool
@@ -109,8 +109,8 @@ where
         };
         let i = s && !(f & mask).is_zero();
         f = f & (!mask);
-        let s_bit = if s {U::one() << Self::BIT_SIZE - 1} else {U::zero()};
-        let n = Self::from_bits(s_bit + (e << FRAC_SIZE) + f);
+        let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
+        let n = Self::from_bits(s_bit + (e << Self::EXP_POS) + f);
         
         if i
         {
@@ -140,8 +140,8 @@ where
         };
         let i = !s && !(f & mask).is_zero();
         f = f & (!mask);
-        let s_bit = if s {U::one() << Self::BIT_SIZE - 1} else {U::zero()};
-        let n = Self::from_bits(s_bit + (e << FRAC_SIZE) + f);
+        let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
+        let n = Self::from_bits(s_bit + (e << Self::EXP_POS) + f);
         
         if i
         {
@@ -184,8 +184,8 @@ where
             None => U::zero()
         };
         f = f & (!mask);
-        let s_bit = if s {U::one() << Self::BIT_SIZE - 1} else {U::zero()};
-        return Self::from_bits(s_bit + (e << FRAC_SIZE) + f);
+        let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
+        return Self::from_bits(s_bit + (e << Self::EXP_POS) + f);
     }
 
     fn fract(self) -> Self
@@ -195,7 +195,7 @@ where
 
     fn abs(self) -> Self
     {
-        return Self::from_bits(self.to_bits() & (U::max_value() >> bitsize_of::<U>() - Self::BIT_SIZE + 1));
+        return Self::from_bits(self.to_bits() & (U::max_value() >> bitsize_of::<U>() - Self::SIGN_POS));
     }
 
     fn signum(self) -> Self
@@ -271,11 +271,11 @@ where
 
         let edge_x = {
             let e = (U::one() << EXP_SIZE) - U::one();
-            Self::from_bits(e << FRAC_SIZE)
+            Self::from_bits(e << Self::EXP_POS)
         };
         let edge_n = {
             let e = Self::exp_bias() + U::from(FRAC_SIZE).unwrap();
-            Self::from_bits(e << FRAC_SIZE)
+            Self::from_bits(e << Self::EXP_POS)
         };
         
         if n.is_zero()
@@ -438,12 +438,12 @@ where
         if n_x_abs_log2 >= NumCast::from(U::one() << (EXP_SIZE - 1)).unwrap()
         {
             // ???
-            return Self::from_bits(((U::one() << EXP_SIZE) - U::one()) << FRAC_SIZE)*n_x_abs_log2;
+            return Self::from_bits(((U::one() << EXP_SIZE) - U::one()) << Self::EXP_POS)*n_x_abs_log2;
         }
         if n_x_abs_log2 <= -<Self as NumCast>::from((U::one() << (EXP_SIZE - 1)) + U::from(FRAC_SIZE - 1).unwrap()).unwrap()
         {
             // ???
-            return -Self::from_bits(U::one() << (FRAC_SIZE - EXP_SIZE/2))*n_x_abs_log2;
+            return -Self::from_bits(U::one() << (Self::EXP_POS - EXP_SIZE/2))*n_x_abs_log2;
         }
         
         let e = n_x_abs_log2.floor();
@@ -496,7 +496,7 @@ where
             return Self::nan()
         }
         let e = U::from(e).unwrap();
-        let y = Self::from_bits(e << FRAC_SIZE);
+        let y = Self::from_bits(e << Self::EXP_POS);
 
         y*z
     }
@@ -620,8 +620,8 @@ where
             - <Self as NumCast>::from(Self::exp_bias() + U::one()).unwrap()
             - <Self as NumCast>::from(b).unwrap();
         let mut u = self.to_bits();
-        u = u & !(((U::one() << EXP_SIZE) - U::one()) << FRAC_SIZE);
-        u = u + (Self::exp_bias() << FRAC_SIZE);
+        u = u & !(((U::one() << EXP_SIZE) - U::one()) << Self::EXP_POS);
+        u = u + (Self::exp_bias() << Self::EXP_POS);
         let u = Self::from_bits(u);
         y += (<Self as From<_>>::from(-0.34484843) * u + <Self as From<_>>::from(2.02466578)) * u  - <Self as From<_>>::from(0.67487759); 
         return y;

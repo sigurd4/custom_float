@@ -13,6 +13,6 @@ where
 
     fn is_zero(&self) -> bool
     {
-        (self.to_bits() << 1usize).is_zero()
+        (self.to_bits() << Self::BIT_SIZE - Self::SIGN_POS).is_zero()
     }
 }

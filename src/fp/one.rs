@@ -9,6 +9,6 @@ where
     fn one() -> Self
     {
         let bias = Self::exp_bias();
-        Self::from_bits(bias << FRAC_SIZE)
+        Self::from_bits(bias << Self::EXP_POS)
     }
 }

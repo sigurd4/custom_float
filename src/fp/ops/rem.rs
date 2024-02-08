@@ -34,7 +34,7 @@ where
             /* normalize divisor */
             let expo_a = fa.exp_bits();
             let frac_b = fb.frac_bits();
-            let mut divisor = Self::from_bits((expo_a << FRAC_SIZE) + frac_b);
+            let mut divisor = Self::from_bits((expo_a << Self::EXP_POS) + frac_b);
             if divisor <= dividend*Self::from(0.5)
             {
                 divisor += divisor;
