@@ -1,3 +1,3 @@
 use crate::Fp;
 
-pub type G711Float = Fp<u32, 3, 4>;
+pub type FpG711 = Fp<u8, 3, 4>;

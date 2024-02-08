@@ -22,6 +22,7 @@ moddef::moddef!(
         float,
         float_const,
         float_core,
+        lower_exp,
         num_,
         num_cast,
         one,

@@ -16,13 +16,15 @@ mod tests
 {
     use array_math::ArrayMath;
     use num::Complex;
-    use num_traits::Zero;
+    use num_traits::{Float, Zero};
 
-    use crate::{google::BFloat16, ibm::{HFPLong, HFPShort}, ieee754::{FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, nvidia::TensorFloat, Fp};
+    use crate::{g_711::FpG711, google::BFloat16, ibm::{HFpLong, HFpShort}, ieee754::{FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, nvidia::{TensorFloat19, TensorFloat32}, Fp};
+
+    type F = TensorFloat32;
 
     #[test]
     fn it_works() {
-        let mut x = [1.0, 1.0, 0.0, 0.0].map(|x| HFPLong::from(x));
+        let mut x = [1.0, 1.0, 0.0, 0.0].map(|x| F::from(x));
         let mut y = [Complex::zero(); 3];
         x.real_fft(&mut y);
         x.real_ifft(&y);
@@ -52,14 +54,14 @@ mod tests
         ]
     }
     
-    pub fn test_op2(op1: impl Fn(f32, f32) -> f32, op2: impl Fn(FpSingle, FpSingle) -> FpSingle)
+    pub fn test_op2(op1: impl Fn(f32, f32) -> f32, op2: impl Fn(F, F) -> F)
     {
         for f0 in crate::tests::ttable()
         {
             for f1 in crate::tests::ttable()
             {
-                let fp0 = FpSingle::from(f0);
-                let fp1 = FpSingle::from(f1);
+                let fp0 = F::from(f0);
+                let fp1 = F::from(f1);
 
                 let s = op1(f0, f1);
                 let sp = op2(fp0, fp1).into();
@@ -74,17 +76,17 @@ mod tests
                     {
                         println!("y is subnormal");
                     }
-                    println!("{} ? {} == {} != {}", f0, f1, s, sp);
+                    println!("{:e} ? {:e} == {:e} != {:e}", f0, f1, s, sp);
                 }
             }
         }
     }
     
-    pub fn test_op1(op1: impl Fn(f32) -> f32, op2: impl Fn(FpSingle) -> FpSingle)
+    pub fn test_op1(op1: impl Fn(f32) -> f32, op2: impl Fn(F) -> F)
     {
         for f0 in crate::tests::ttable()
         {
-            let fp0 = FpSingle::from(f0);
+            let fp0 = F::from(f0);
 
             let s = op1(f0);
             let sp = op2(fp0).into();
@@ -99,7 +101,7 @@ mod tests
                 {
                     println!("y is subnormal");
                 }
-                println!("{} ? == {} != {}", f0, s, sp);
+                println!("{:e} ? == {:e} != {:e}", f0, s, sp);
             }
         }
     }
@@ -109,7 +111,7 @@ mod tests
     {
         for f0 in ttable()
         {
-            let fp = FpSingle::from(f0);
+            let fp = F::from(f0);
 
             let f1: f32 = fp.into();
 

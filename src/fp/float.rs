@@ -1060,6 +1060,39 @@ where
 
         (f, e, s)
     }
+
+    fn epsilon() -> Self
+    {
+        let frac_size = U::from(FRAC_SIZE).unwrap();
+        let bias = Self::exp_bias();
+        if bias <= frac_size
+        {
+            return Self::from_bits(U::one() << <usize as NumCast>::from(bias).unwrap() - 1)
+        }
+        Self::from_bits((bias - frac_size) << Self::EXP_POS)
+    }
+
+    fn copysign(self, sign: Self) -> Self
+    {
+        let s = sign.sign_bit();
+        let e = self.exp_bits();
+        let f = self.frac_bits();
+        Self::from_bits((s << Self::SIGN_POS) + (e << Self::EXP_POS) + (f << Self::FRAC_POS))
+    }
+
+    fn is_subnormal(self) -> bool
+    {
+        self.exp_bits() == U::zero() && !self.is_zero()
+    }
+
+    fn to_degrees(self) -> Self
+    {
+        self*(<Self as From<_>>::from(180.0)/Self::PI())
+    }
+    fn to_radians(self) -> Self
+    {
+        self*(Self::PI()/<Self as From<_>>::from(180.0))
+    }
 }
 
 #[cfg(test)]
@@ -1067,7 +1100,15 @@ mod test
 {
     use num_traits::{Float, Inv, One};
 
-    use crate::fp::ieee754::{FpDouble, FpHalf, FpQuadruple, FpSingle};
+    use crate::{fp::ieee754::{FpDouble, FpHalf, FpQuadruple, FpSingle}, g_711::FpG711};
+
+    #[test]
+    fn test_epsilon()
+    {
+        let eps = FpG711::epsilon();
+        assert!(eps + FpG711::one() != FpG711::one());
+        assert!(eps - FpG711::min_positive_value() + FpG711::one() == FpG711::one());
+    }
 
     #[test]
     fn test_trig()
