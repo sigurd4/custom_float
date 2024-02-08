@@ -1,6 +1,6 @@
 use num_traits::Float;
 
-use super::{bitsize_of, Fp, UInt};
+use crate::{bitsize_of, Fp, UInt};
 
 
 impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> PartialOrd for Fp<U, EXP_SIZE, FRAC_SIZE>

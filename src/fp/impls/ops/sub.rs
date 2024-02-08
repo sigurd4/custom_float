@@ -2,7 +2,7 @@ use std::ops::{Neg, Sub, SubAssign};
 
 use num_traits::NumCast;
 
-use super::super::{UInt, Fp, bitsize_of};
+use crate::{UInt, Fp, bitsize_of};
 
 impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> Sub<Self> for Fp<U, EXP_SIZE, FRAC_SIZE>
 where

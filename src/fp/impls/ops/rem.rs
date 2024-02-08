@@ -2,7 +2,7 @@ use std::ops::{Add, Rem, RemAssign};
 
 use num_traits::{Float, Zero, One};
 
-use super::super::{UInt, Fp, bitsize_of};
+use crate::{UInt, Fp, bitsize_of};
 
 impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> Rem<Self> for Fp<U, EXP_SIZE, FRAC_SIZE>
 where

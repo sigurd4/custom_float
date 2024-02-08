@@ -2,7 +2,7 @@
 
 use ethnum::U256;
 
-use super::{bitsize_of, Fp, UInt};
+use crate::{bitsize_of, Fp, UInt};
 
 pub type FpHalf = Fp<u16, 5, 10>;
 pub type FpSingle = Fp<u32, 8, 23>;

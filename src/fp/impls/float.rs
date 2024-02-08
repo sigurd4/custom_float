@@ -3,7 +3,7 @@ use std::{cmp::Ordering, num::FpCategory};
 use array_math::{ArrayMath, ArrayOps};
 use num_traits::{Float, Inv, FloatConst, NumCast, One, Zero};
 
-use super::{bitsize_of, Fp, UInt};
+use crate::{bitsize_of, Fp, UInt};
 
 
 impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> Float for Fp<U, EXP_SIZE, FRAC_SIZE>

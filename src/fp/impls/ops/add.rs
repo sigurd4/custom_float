@@ -4,7 +4,7 @@ use num_traits::{Float, NumCast, Zero};
 
 use crate::fp::ieee754::FpSingle;
 
-use super::super::{UInt, Fp, bitsize_of};
+use crate::{UInt, Fp, bitsize_of};
 
 impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> Add<Self> for Fp<U, EXP_SIZE, FRAC_SIZE>
 where
