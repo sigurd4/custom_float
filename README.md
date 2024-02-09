@@ -12,7 +12,7 @@ The number then automatically implements `num::Float`, and supports all ordinary
 
 This allows simple implementation of special floating point types, such as TensorFloat, IEEE754 Quadruple/binary128, Fp80, and BFloat16.
 
-The accuracy of all of the floating point operations are not perfect, but works well enough to be usable.
+The accuracy of all of the floating point operations are not perfect, but work well enough to be usable.
 
 All arithmetic operations are performed using bitwise operators and integer arithmetic.
 
