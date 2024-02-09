@@ -1,8 +1,6 @@
 use std::ops::{Add, AddAssign};
 
-use num_traits::{Float, NumCast, Zero};
-
-use crate::fp::ieee754::FpSingle;
+use num_traits::NumCast;
 
 use crate::{UInt, Fp, bitsize_of};
 
@@ -157,10 +155,10 @@ where
                     f = f >> 1usize;
                     e = e + U::one();
                 }
-                
+
                 if e >= (U::one() << EXP_SIZE) - U::one()
                 {
-                    return if s {Self::negative_infinity()} else {Self::infinity()}
+                    return if s {Self::neg_infinity()} else {Self::infinity()}
                 }
 
                 Fp::from_bits(f + (e << Self::EXP_POS))

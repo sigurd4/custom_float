@@ -2,7 +2,7 @@ use std::ops::{Mul, MulAssign};
 
 use crate::fp::{UInt, Fp, bitsize_of};
 
-use num_traits::{Float, NumCast, One, Zero};
+use num_traits::NumCast;
 
 impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Mul<Self> for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
@@ -43,7 +43,7 @@ where
         }
         if self.is_infinite() || rhs.is_infinite()
         {
-            return if s {Self::negative_infinity()} else {Self::infinity()}
+            return if s {Self::neg_infinity()} else {Self::infinity()}
         }
     
         let mut e0: U = self.exp_bits();
@@ -104,7 +104,7 @@ where
                 match e0.checked_add(&e1)
                 {
                     Some(e) => e,
-                    None => return if s {Self::negative_infinity()} else {Self::infinity()}
+                    None => return if s {Self::neg_infinity()} else {Self::infinity()}
                 }
             }
         };
@@ -137,7 +137,7 @@ where
             Some(o) => match e.checked_add(&o)
             {
                 Some(e) => e,
-                None => return if s {Self::negative_infinity()} else {Self::infinity()}
+                None => return if s {Self::neg_infinity()} else {Self::infinity()}
             },
             None => match e.checked_add(&o)
             {
@@ -149,7 +149,7 @@ where
                         U::zero()
                     }
                 },
-                None => return if s {Self::negative_infinity()} else {Self::infinity()}
+                None => return if s {Self::neg_infinity()} else {Self::infinity()}
             }
         };
 
@@ -184,7 +184,7 @@ where
 
             if e >= (U::one() << EXP_SIZE) - U::one()
             {
-                return if s {Self::negative_infinity()} else {Self::infinity()}
+                return if s {Self::neg_infinity()} else {Self::infinity()}
             }
 
             return Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
@@ -206,8 +206,6 @@ where
 mod test
 {
     use std::ops::Mul;
-
-    use crate::fp::ieee754::FpSingle;
 
     #[test]
     fn test_mul()

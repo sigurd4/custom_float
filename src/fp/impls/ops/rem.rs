@@ -1,6 +1,4 @@
-use std::ops::{Add, Rem, RemAssign};
-
-use num_traits::{Float, Zero, One};
+use std::ops::{Rem, RemAssign};
 
 use crate::{UInt, Fp, bitsize_of};
 

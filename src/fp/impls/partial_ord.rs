@@ -1,7 +1,4 @@
-use num_traits::Float;
-
 use crate::{bitsize_of, Fp, UInt};
-
 
 impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> PartialOrd for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where

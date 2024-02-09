@@ -1,8 +1,9 @@
-use std::fmt::{Binary, Display};
+use std::fmt::Binary;
 use std::mem::size_of;
+use std::num::FpCategory;
 
-use num_traits::{CheckedShl, CheckedShr, NumAssign, ToPrimitive};
-use num_traits::{ops::overflowing::OverflowingMul, Float, Num, NumCast, PrimInt, Signed, Unsigned, Zero};
+use num_traits::{CheckedShl, CheckedShr, One};
+use num_traits::{ops::overflowing::OverflowingMul, Float, NumCast, PrimInt, Unsigned, Zero};
 
 moddef::moddef!(
     pub mod {
@@ -36,7 +37,8 @@ where
 
 impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
     const BIT_SIZE: usize = EXP_SIZE + Self::INT_SIZE + FRAC_SIZE + 1;
     const SIGN_SIZE: usize = 1;
@@ -49,8 +51,7 @@ where
     pub fn from_fp<V: UInt, const E: usize, const I: bool, const F: usize>(fp: Fp<V, E, I, F>) -> Self
     where
         [(); bitsize_of::<V>() - E - I as usize - F - 1]:,
-        [(); bitsize_of::<V>() - E - false as usize - F - 1]:,
-        [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
+        [(); bitsize_of::<V>() - E - false as usize - F - 1]:
     {
         let s = fp.sign_bit();
 
@@ -168,7 +169,7 @@ where
             
             if e > U::one() << EXP_SIZE
             {
-                return if s.is_one() {Self::negative_infinity()} else {Self::infinity()}
+                return if s.is_one() {Self::neg_infinity()} else {Self::infinity()}
             }
 
             return Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
@@ -176,8 +177,6 @@ where
     }
 
     pub fn from_uint<I: UInt>(from: I) -> Self
-    where
-        [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
     {
         let mut e = Self::exp_bias() + NumCast::from(FRAC_SIZE).unwrap();
         let mut f = if bitsize_of::<I>() > bitsize_of::<U>()
@@ -249,8 +248,6 @@ where
     }
 
     pub fn to_uint<I: UInt>(self) -> Option<I>
-    where
-        [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
     {
         if self.is_zero()
         {
@@ -337,19 +334,6 @@ where
         U::max_value() >> bitsize_of::<U>() + 1 - EXP_SIZE
     }
 
-    pub fn infinity() -> Self
-    {
-        Self::from_bits((U::max_value() >> bitsize_of::<U>() - EXP_SIZE) << Self::EXP_POS)
-    }
-    pub fn negative_infinity() -> Self
-    {
-        -Self::infinity()
-    }
-    pub fn nan() -> Self
-    {
-        Self::from_bits(U::max_value() >> bitsize_of::<U>() - Self::SIGN_POS)
-    }
-
     /*#[deprecated]
     pub fn to_float<F: Float>(self) -> F
     {
@@ -390,6 +374,315 @@ where
             F::nan()
         }
     }*/
+    
+    pub fn nan() -> Self
+    {
+        <Self as Float>::nan()
+    }
+
+    pub fn infinity() -> Self
+    {
+        <Self as Float>::infinity()
+    }
+
+    pub fn neg_infinity() -> Self
+    {
+        <Self as Float>::neg_infinity()
+    }
+
+    pub fn neg_zero() -> Self
+    {
+        <Self as Float>::neg_zero()
+    }
+
+    pub fn min_value() -> Self
+    {
+        <Self as Float>::min_value()
+    }
+
+    pub fn min_positive_value() -> Self
+    {
+        <Self as Float>::min_positive_value()
+    }
+
+    pub fn max_value() -> Self
+    {
+        <Self as Float>::max_value()
+    }
+
+    pub fn is_nan(self) -> bool
+    {
+        <Self as Float>::is_nan(self)
+    }
+
+    pub fn is_infinite(self) -> bool
+    {
+        <Self as Float>::is_infinite(self)
+    }
+
+    pub fn is_finite(self) -> bool
+    {
+        <Self as Float>::is_finite(self)
+    }
+
+    pub fn is_normal(self) -> bool
+    {
+        <Self as Float>::is_normal(self)
+    }
+
+    pub fn classify(self) -> FpCategory
+    {
+        <Self as Float>::classify(self)
+    }
+
+    pub fn floor(self) -> Self
+    {
+        <Self as Float>::floor(self)
+    }
+
+    pub fn ceil(self) -> Self
+    {
+        <Self as Float>::ceil(self)
+    }
+
+    pub fn round(self) -> Self
+    {
+        <Self as Float>::round(self)
+    }
+
+    pub fn trunc(self) -> Self
+    {
+        <Self as Float>::trunc(self)
+    }
+
+    pub fn fract(self) -> Self
+    {
+        <Self as Float>::fract(self)
+    }
+
+    pub fn abs(self) -> Self
+    {
+        <Self as Float>::abs(self)
+    }
+
+    pub fn signum(self) -> Self
+    {
+        <Self as Float>::signum(self)
+    }
+
+    pub fn is_sign_positive(self) -> bool
+    {
+        <Self as Float>::is_sign_positive(self)
+    }
+
+    pub fn is_sign_negative(self) -> bool
+    {
+        <Self as Float>::is_sign_negative(self)
+    }
+
+    pub fn mul_add(self, a: Self, b: Self) -> Self
+    {
+        <Self as Float>::mul_add(self, a, b)
+    }
+
+    pub fn recip(self) -> Self
+    {
+        <Self as Float>::recip(self)
+    }
+
+    pub fn powi(self, n: i32) -> Self
+    {
+        <Self as Float>::powi(self, n)
+    }
+
+    pub fn powf(self, n: Self) -> Self
+    {
+        <Self as Float>::powf(self, n)
+    }
+
+    pub fn sqrt(self) -> Self
+    {
+        <Self as Float>::sqrt(self)
+    }
+
+    pub fn exp(self) -> Self
+    {
+        <Self as Float>::exp(self)
+    }
+
+    pub fn exp2(self) -> Self
+    {
+        <Self as Float>::exp2(self)
+    }
+
+    pub fn ln(self) -> Self
+    {
+        <Self as Float>::ln(self)
+    }
+
+    pub fn log(self, base: Self) -> Self
+    {
+        <Self as Float>::log(self, base)
+    }
+
+    pub fn log2(self) -> Self
+    {
+        <Self as Float>::log2(self)
+    }
+
+    pub fn log10(self) -> Self
+    {
+        <Self as Float>::log10(self)
+    }
+
+    pub fn max(self, other: Self) -> Self
+    {
+        <Self as Float>::max(self, other)
+    }
+
+    pub fn min(self, other: Self) -> Self
+    {
+        <Self as Float>::min(self, other)
+    }
+
+    pub fn abs_sub(self, other: Self) -> Self
+    {
+        <Self as Float>::abs_sub(self, other)
+    }
+
+    pub fn cbrt(self) -> Self
+    {
+        <Self as Float>::cbrt(self)
+    }
+
+    pub fn hypot(self, other: Self) -> Self
+    {
+        <Self as Float>::hypot(self, other)
+    }
+
+    pub fn sin(self) -> Self
+    {
+        <Self as Float>::sin(self)
+    }
+
+    pub fn cos(self) -> Self
+    {
+        <Self as Float>::cos(self)
+    }
+
+    pub fn tan(self) -> Self
+    {
+        <Self as Float>::tan(self)
+    }
+
+    pub fn asin(self) -> Self
+    {
+        <Self as Float>::asin(self)
+    }
+
+    pub fn acos(self) -> Self
+    {
+        <Self as Float>::acos(self)
+    }
+
+    pub fn atan(self) -> Self
+    {
+        <Self as Float>::atan(self)
+    }
+
+    pub fn atan2(self, other: Self) -> Self
+    {
+        <Self as Float>::atan2(self, other)
+    }
+
+    pub fn sin_cos(self) -> (Self, Self)
+    {
+        <Self as Float>::sin_cos(self)
+    }
+
+    pub fn exp_m1(self) -> Self
+    {
+        <Self as Float>::exp_m1(self)
+    }
+
+    pub fn ln_1p(self) -> Self
+    {
+        <Self as Float>::ln_1p(self)
+    }
+
+    pub fn sinh(self) -> Self
+    {
+        <Self as Float>::sinh(self)
+    }
+
+    pub fn cosh(self) -> Self
+    {
+        <Self as Float>::cosh(self)
+    }
+
+    pub fn tanh(self) -> Self
+    {
+        <Self as Float>::tanh(self)
+    }
+
+    pub fn asinh(self) -> Self
+    {
+        <Self as Float>::asinh(self)
+    }
+
+    pub fn acosh(self) -> Self
+    {
+        <Self as Float>::acosh(self)
+    }
+
+    pub fn atanh(self) -> Self
+    {
+        <Self as Float>::atanh(self)
+    }
+
+    pub fn epsilon() -> Self
+    {
+        <Self as Float>::epsilon()
+    }
+
+    pub fn copysign(self, sign: Self) -> Self
+    {
+        <Self as Float>::copysign(self, sign)
+    }
+
+    pub fn is_subnormal(self) -> bool
+    {
+        <Self as Float>::is_subnormal(self)
+    }
+
+    pub fn to_degrees(self) -> Self
+    {
+        <Self as Float>::to_degrees(self)
+    }
+    pub fn to_radians(self) -> Self
+    {
+        <Self as Float>::to_radians(self)
+    }
+    
+    pub fn zero() -> Self
+    {
+        <Self as Zero>::zero()
+    }
+
+    pub fn is_zero(&self) -> bool
+    {
+        <Self as Zero>::is_zero(self)
+    }
+    
+    pub fn one() -> Self
+    {
+        <Self as One>::one()
+    }
+
+    pub fn is_one(&self) -> bool
+    {
+        <Self as One>::is_one(self)
+    }
 }
 
 pub const fn bitsize_of<T>() -> usize

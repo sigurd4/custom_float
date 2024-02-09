@@ -1,10 +1,9 @@
 use std::{cmp::Ordering, num::FpCategory};
 
 use array_math::{ArrayMath, ArrayOps};
-use num_traits::{Float, FloatConst, Inv, NumCast, One, ToPrimitive, Zero};
+use num_traits::{Float, FloatConst, Inv, NumCast};
 
 use crate::{bitsize_of, Fp, UInt};
-
 
 impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Float for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
@@ -13,12 +12,12 @@ where
 {
     fn nan() -> Self
     {
-        Self::nan()
+        Self::from_bits(U::max_value() >> bitsize_of::<U>() - Self::SIGN_POS)
     }
 
     fn infinity() -> Self
     {
-        Self::infinity()
+        Self::from_bits((U::max_value() >> bitsize_of::<U>() - EXP_SIZE) << Self::EXP_POS)
     }
 
     fn neg_infinity() -> Self
@@ -369,7 +368,7 @@ where
                 }
             
                 // clamp  -0x1.0p31 < y < 0x1.0p31
-                let nabs = nabs.min(NumCast::from(U::max_value()).unwrap());
+                let nabs = nabs.min(Self::from_uint(U::max_value()));
                 let s = !n.sign_bit().is_zero();
                 let mut i = <u128 as NumCast>::from(nabs).unwrap();
                 let mut r = Self::one();
@@ -441,12 +440,12 @@ where
         let xabs_log2 = xabs.log2();
 
         let n_x_abs_log2 = n*xabs_log2;
-        if n_x_abs_log2 >= NumCast::from(U::one() << (EXP_SIZE - 1)).unwrap()
+        if n_x_abs_log2 >= Self::from_uint(U::one() << (EXP_SIZE - 1))
         {
             // ???
             return Self::from_bits(((U::one() << EXP_SIZE) - U::one()) << Self::EXP_POS)*n_x_abs_log2;
         }
-        if n_x_abs_log2 <= -<Self as NumCast>::from((U::one() << (EXP_SIZE - 1)) + U::from(FRAC_SIZE - 1).unwrap()).unwrap()
+        if n_x_abs_log2 <= -Self::from_uint((U::one() << (EXP_SIZE - 1)) + U::from(FRAC_SIZE - 1).unwrap())
         {
             // ???
             return -Self::from_bits(U::one() << (Self::EXP_POS - EXP_SIZE/2))*n_x_abs_log2;
@@ -488,8 +487,8 @@ where
             z = s3 + s7;
         }
 
-        let e = e + <Self as NumCast>::from(Self::exp_bias()).unwrap();
-        if e > <Self as NumCast>::from((U::one() << EXP_SIZE) - U::one()).unwrap()
+        let e = e + Self::from_uint(Self::exp_bias());
+        if e > Self::from_uint((U::one() << EXP_SIZE) - U::one())
         {
             return Self::infinity()*z
         }
@@ -502,7 +501,7 @@ where
             return Self::nan()
         }
         let e = U::from(e).unwrap();
-        let y = Self::from_bits((e << Self::EXP_POS));
+        let y = Self::from_bits(e << Self::EXP_POS);
 
         y*z
     }
@@ -559,7 +558,7 @@ where
             return self
         }
         let neg = self.is_sign_negative();
-        let x = self.abs().max(-<Self as NumCast>::from(Self::exp_bias() - U::one()).unwrap());
+        let x = self.abs().max(-Self::from_uint(Self::exp_bias() - U::one()));
         let w = x.floor();
         let z = x - w;
         let approx = <Self as From<_>>::from(-5.7259425)
@@ -639,9 +638,9 @@ where
         {
             U::from(self.frac_bits().leading_zeros() as usize - (bitsize_of::<U>() - FRAC_SIZE)).unwrap()
         };
-        let mut y = <Self as NumCast>::from(self.exp_bits()).unwrap()
-            - <Self as NumCast>::from(Self::exp_bias() + U::one()).unwrap()
-            - <Self as NumCast>::from(b).unwrap();
+        let mut y = Self::from_uint(self.exp_bits())
+            - Self::from_uint(Self::exp_bias() + U::one())
+            - Self::from_uint(b);
         let mut u = self.to_bits();
         u = u & !(((U::one() << EXP_SIZE) - U::one()) << Self::EXP_POS);
         u = u + (Self::exp_bias() << Self::EXP_POS);
@@ -845,7 +844,7 @@ where
             for k in 1..TAYLOR
             {
                 z *= -self*self;
-                y += z/NumCast::from(1 + 2*k).unwrap()
+                y += z/Self::from_uint(1 + 2*k)
             }
 
             y
@@ -858,7 +857,7 @@ where
             for k in 1..TAYLOR
             {
                 z /= -self*self;
-                y -= z/NumCast::from(1 + 2*k).unwrap()
+                y -= z/Self::from_uint(1 + 2*k)
             }
 
             y
@@ -1127,9 +1126,9 @@ where
 #[cfg(test)]
 mod test
 {
-    use num_traits::{Float, Inv, One};
+    use num_traits::Float;
 
-    use crate::{fp::ieee754::{FpDouble, FpHalf, FpQuadruple, FpSingle}, g_711::FpG711, intel::Fp80};
+    use crate::{g_711::FpG711, intel::Fp80};
 
     #[test]
     fn test_epsilon()

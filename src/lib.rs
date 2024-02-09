@@ -16,7 +16,7 @@ mod tests
 {
     use array_math::ArrayMath;
     use num::Complex;
-    use num_traits::{Float, One, Zero};
+    use num_traits::Zero;
 
     use crate::{g_711::FpG711, google::Bf16, ibm::{HFpLong, HFpShort}, ieee754::{FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, intel::Fp80, nvidia::{TensorFloat19, TensorFloat32}, Fp};
 

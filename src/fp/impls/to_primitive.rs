@@ -1,4 +1,4 @@
-use num_traits::{Float, NumCast, ToPrimitive};
+use num_traits::{NumCast, ToPrimitive};
 
 use crate::{bitsize_of, Fp, UInt};
 

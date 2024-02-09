@@ -1,9 +1,8 @@
-use std::ops::{Div, DivAssign, Mul};
+use std::ops::{Div, DivAssign};
 
 use crate::fp::{UInt, Fp, bitsize_of};
 
-use num_traits::{Float, Inv, NumCast, Zero};
-use num_traits::One;
+use num_traits::{Inv, NumCast};
 
 impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Div<Self> for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
@@ -23,7 +22,7 @@ where
 
         if self.is_infinite() || rhs.is_zero()
         {
-            return if s {Self::negative_infinity()} else {Self::infinity()};
+            return if s {Self::neg_infinity()} else {Self::infinity()};
         }
         if rhs.is_infinite() || self.is_zero()
         {
@@ -73,7 +72,7 @@ where
             Some(e) => match e.checked_add(&bias)
             {
                 Some(e) => e,
-                None => return if s {Self::negative_infinity()} else {Self::infinity()}
+                None => return if s {Self::neg_infinity()} else {Self::infinity()}
             },
             None => {
                 if e1 >= bias
@@ -114,7 +113,7 @@ where
         {
             if f1 == U::zero()
             {
-                return if s {Self::negative_infinity()} else {Self::infinity()}
+                return if s {Self::neg_infinity()} else {Self::infinity()}
             }
             let f = f0 / f1;
             if !f0.is_zero() && f.leading_zeros() > 0
@@ -163,7 +162,7 @@ where
             Some(o) => match e.checked_add(&o)
             {
                 Some(e) => e,
-                None => return if s {Self::negative_infinity()} else {Self::infinity()}
+                None => return if s {Self::neg_infinity()} else {Self::infinity()}
             },
             None => match e.checked_add(&f_o)
             {
@@ -175,7 +174,7 @@ where
                         U::zero()
                     }
                 },
-                None => return if s {Self::negative_infinity()} else {Self::infinity()}
+                None => return if s {Self::neg_infinity()} else {Self::infinity()}
             }
         };
 
@@ -210,7 +209,7 @@ where
             
             if e >= (U::one() << EXP_SIZE) - U::one()
             {
-                return if s {Self::negative_infinity()} else {Self::infinity()}
+                return if s {Self::neg_infinity()} else {Self::infinity()}
             }
 
             return Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
@@ -245,10 +244,6 @@ where
 mod test
 {
     use std::ops::Div;
-
-    use num_traits::{Float, One};
-
-    use crate::{fp::{ieee754::{FpDouble, FpSingle}, Fp}, intel::Fp80};
 
     #[test]
     fn test_div()
