@@ -53,6 +53,11 @@ where
         [(); bitsize_of::<V>() - E - I as usize - F - 1]:,
         [(); bitsize_of::<V>() - E - false as usize - F - 1]:
     {
+        if EXP_SIZE == E && INT_BIT == I && FRAC_SIZE == F
+        {
+            return Self::from_bits(<U as NumCast>::from(fp.to_bits()).unwrap())
+        }
+
         let s = fp.sign_bit();
 
         if fp.is_nan()
