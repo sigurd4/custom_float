@@ -11,6 +11,7 @@ moddef::moddef!(
         google,
         ibm,
         ieee754,
+        intel,
         nvidia,
         pixar
     },
@@ -29,23 +30,27 @@ pub trait UInt = Unsigned + PrimInt + OverflowingMul + Binary + CheckedShl + Che
 /// <  ..  > | < 1 > | <EXP_SIZE> | <FRAC_SIZE> |
 /// ```
 #[derive(Clone, Copy)]
-pub struct Fp<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize>(U)
+pub struct Fp<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize>(U)
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:;
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:;
 
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:
 {
-    const BIT_SIZE: usize = EXP_SIZE + FRAC_SIZE + 1;
+    const BIT_SIZE: usize = EXP_SIZE + Self::INT_SIZE + FRAC_SIZE + 1;
     const SIGN_SIZE: usize = 1;
-    const SIGN_POS: usize = EXP_SIZE + FRAC_SIZE;
-    const EXP_POS: usize = FRAC_SIZE;
+    const SIGN_POS: usize = EXP_SIZE + Self::INT_SIZE + FRAC_SIZE;
+    const EXP_POS: usize = Self::INT_SIZE + FRAC_SIZE;
+    const INT_SIZE: usize = INT_BIT as usize;
+    const INT_POS: usize = FRAC_SIZE;
     const FRAC_POS: usize = 0;
 
-    pub fn from_fp<V: UInt, const E: usize, const F: usize>(fp: Fp<V, E, F>) -> Self
+    pub fn from_fp<V: UInt, const E: usize, const I: bool, const F: usize>(fp: Fp<V, E, I, F>) -> Self
     where
-        [(); bitsize_of::<V>() - E - F - 1]:
+        [(); bitsize_of::<V>() - E - I as usize - F - 1]:,
+        [(); bitsize_of::<V>() - E - false as usize - F - 1]:,
+        [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
     {
         let s = fp.sign_bit();
 
@@ -62,14 +67,22 @@ where
             return if s == V::one() {Self::neg_zero()} else {Self::zero()}
         }
 
-        let e = fp.exp_bits();
-        let f = fp.frac_bits();
+        let mut e = fp.exp_bits();
+        let mut f = fp.frac_bits();
 
         let df = FRAC_SIZE as isize - F as isize;
 
-        let bias1 = Fp::<V, E, F>::exp_bias();
+        let bias1 = Fp::<V, E, I, F>::exp_bias();
         let bias2 = Self::exp_bias();
         let s = U::from(s).unwrap();
+        if !e.is_zero() || INT_BIT //normal
+        {
+            f = f + (fp.int_bit() << Fp::<V, E, I, F>::INT_POS);
+        }
+        else
+        {
+            f = f << 1usize;
+        }
         let mut f = if df >= 0 {
             U::from(f).unwrap() << df as usize
         }
@@ -77,15 +90,7 @@ where
         {
             NumCast::from(f >> (-df) as usize).unwrap()
         };
-        if !e.is_zero() //normal
-        {
-            f = f + (U::one() << FRAC_SIZE);
-        }
-        else
-        {
-            f = f << 1usize;
-        }
-        let mut e = if Self::BIT_SIZE >= Fp::<V, E, F>::BIT_SIZE
+        let mut e = if Self::BIT_SIZE >= Fp::<V, E, I, F>::BIT_SIZE
         {
             let bias1 = U::from(bias1).unwrap();
             if bias2 >= bias1
@@ -94,18 +99,16 @@ where
             }
             else
             {
-                let e = U::from(e).unwrap();
-                match e.checked_sub(&(bias1 - bias2))
+                let mut e = U::from(e).unwrap();
+                loop
                 {
-                    Some(e) => e,
-                    None => {
-                        let shift = NumCast::from(bias1 - bias2 - e - U::one()).unwrap();
-                        f = match f.checked_shr(shift)
-                        {
-                            Some(f) => f,
-                            None => U::zero()
-                        };
-                        U::zero()
+                    match e.checked_sub(&(bias1 - bias2))
+                    {
+                        Some(e) => break e,
+                        None => {
+                            e = e + U::one();
+                            f = f >> 1usize;
+                        }
                     }
                 }
             }
@@ -120,17 +123,15 @@ where
             }
             else
             {
-                match e.checked_sub(&(bias1 - bias2))
+                loop
                 {
-                    Some(e) => U::from(e).unwrap(),
-                    None => {
-                        let shift = NumCast::from(bias1 - bias2 - e - V::one()).unwrap();
-                        f = match f.checked_shr(shift)
-                        {
-                            Some(f) => f,
-                            None => U::zero()
-                        };
-                        U::zero()
+                    match e.checked_sub(&(bias1 - bias2))
+                    {
+                        Some(e) => break U::from(e).unwrap(),
+                        None => {
+                            e = e + V::one();
+                            f = f >> 1usize;
+                        }
                     }
                 }
             }
@@ -155,15 +156,150 @@ where
         }
         else
         {
+            if !INT_BIT
+            {
+                f = f - (U::one() << Self::INT_POS);
+            }
+            else
+            {
+                f = f >> 1usize;
+                e = e + U::one();
+            }
+            
             if e > U::one() << EXP_SIZE
             {
                 return if s.is_one() {Self::negative_infinity()} else {Self::infinity()}
             }
 
-            f = f - (U::one() << FRAC_SIZE);
-
             return Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
         }
+    }
+
+    pub fn from_uint<I: UInt>(from: I) -> Self
+    where
+        [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
+    {
+        let mut e = Self::exp_bias() + NumCast::from(FRAC_SIZE).unwrap();
+        let mut f = if bitsize_of::<I>() > bitsize_of::<U>()
+        {
+            let mut f = from;
+
+            while f >= I::one() << FRAC_SIZE + 1
+            {
+                e = match e.checked_add(&U::one())
+                {
+                    Some(e) => e,
+                    None => return Self::infinity()
+                };
+                f = f >> 1usize;
+            }
+            while e > U::zero() && f <= I::one() << FRAC_SIZE
+            {
+                e = e - U::one();
+                f = f << 1usize;
+            }
+
+            NumCast::from(f).unwrap()
+        }
+        else
+        {
+            let mut f = <U as NumCast>::from(from).unwrap();
+            
+            while f >= U::one() << FRAC_SIZE + 1
+            {
+                e = match e.checked_add(&U::one())
+                {
+                    Some(e) => e,
+                    None => return Self::infinity()
+                };
+                f = f >> 1usize;
+            }
+            while e > U::zero() && f <= U::one() << FRAC_SIZE
+            {
+                e = e - U::one();
+                f = f << 1usize;
+            }
+
+            f
+        };
+
+        if e.is_zero() // subnormal
+        {
+            return Fp::from_bits(f >> 1usize)
+        }
+        else
+        {
+            if e > U::one() << EXP_SIZE
+            {
+                return Self::infinity()
+            }
+
+            if !INT_BIT
+            {
+                f = f - (U::one() << Self::INT_POS);
+            }
+            else
+            {
+                f = f >> 1usize;
+                e = e + U::one();
+            }
+
+            return Fp::from_bits(f + (e << Self::EXP_POS))
+        }
+    }
+
+    pub fn to_uint<I: UInt>(self) -> Option<I>
+    where
+        [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
+    {
+        if self.is_zero()
+        {
+            return Some(I::zero())
+        }
+        let s = !self.sign_bit().is_zero();
+        if s
+        {
+            return None
+        }
+        let e = self.exp_bits();
+        let mut f = self.frac_bits();
+        
+        if !e.is_zero() || INT_BIT //normal
+        {
+            f = f + (self.int_bit() << Self::INT_POS);
+        }
+        else
+        {
+            f = f << 1usize;
+        }
+
+        let mut n = match <I as NumCast>::from(f)
+        {
+            Some(n) => n,
+            None => return None
+        };
+
+        let bias = Self::exp_bias();
+        if e < bias
+        {
+            return Some(I::zero())
+        }
+
+        let shift = <u32 as NumCast>::from(e - bias).unwrap();
+        n = if shift as usize > FRAC_SIZE
+        {
+            match n.checked_shl(shift - FRAC_SIZE as u32)
+            {
+                Some(n) => n,
+                None => return None
+            }
+        }
+        else
+        {
+            n >> FRAC_SIZE - shift as usize
+        };
+
+        Some(n)
     }
 
     pub const fn from_bits(bits: U) -> Self
@@ -175,35 +311,41 @@ where
         self.0
     }
 
-    fn sign_bit(self) -> U
+    pub fn sign_bit(self) -> U
     {
         (self.to_bits() & U::max_value() >> bitsize_of::<U>() - Self::SIGN_POS - Self::SIGN_SIZE) >> Self::SIGN_POS
     }
-    fn exp_bits(self) -> U
+    pub fn exp_bits(self) -> U
     {
-        assert!(EXP_SIZE + 1 < Self::BIT_SIZE);
         (self.to_bits() & U::max_value() >> bitsize_of::<U>() - Self::EXP_POS - EXP_SIZE) >> Self::EXP_POS
     }
-    fn frac_bits(self) -> U
+    pub fn int_bit(self) -> U
     {
-        assert!(EXP_SIZE + 1 < Self::BIT_SIZE);
+        if !INT_BIT
+        {
+            return U::one()
+        }
+        (self.to_bits() & U::max_value() >> bitsize_of::<U>() - Self::INT_POS - Self::INT_SIZE) >> Self::INT_POS
+    }
+    pub fn frac_bits(self) -> U
+    {
         (self.to_bits() & U::max_value() >> bitsize_of::<U>() - Self::FRAC_POS - FRAC_SIZE) >> Self::FRAC_POS
     }
 
-    fn exp_bias() -> U
+    pub fn exp_bias() -> U
     {
         U::max_value() >> bitsize_of::<U>() + 1 - EXP_SIZE
     }
 
-    fn infinity() -> Self
+    pub fn infinity() -> Self
     {
         Self::from_bits((U::max_value() >> bitsize_of::<U>() - EXP_SIZE) << Self::EXP_POS)
     }
-    fn negative_infinity() -> Self
+    pub fn negative_infinity() -> Self
     {
         -Self::infinity()
     }
-    fn nan() -> Self
+    pub fn nan() -> Self
     {
         Self::from_bits(U::max_value() >> bitsize_of::<U>() - Self::SIGN_POS)
     }

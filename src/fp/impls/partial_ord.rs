@@ -3,9 +3,10 @@ use num_traits::Float;
 use crate::{bitsize_of, Fp, UInt};
 
 
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> PartialOrd for Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> PartialOrd for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering>
     {
@@ -25,6 +26,12 @@ where
         if e1 != e2
         {
             return if s {e2.partial_cmp(&e1)} else {e1.partial_cmp(&e2)}
+        }
+        if INT_BIT
+        {
+            let i1 = self.int_bit();
+            let i2 = other.int_bit();
+            return if s {i2.partial_cmp(&i1)} else {i1.partial_cmp(&i2)}
         }
         let f1 = self.frac_bits();
         let f2 = other.frac_bits();

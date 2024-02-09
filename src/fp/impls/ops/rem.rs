@@ -4,9 +4,10 @@ use num_traits::{Float, Zero, One};
 
 use crate::{UInt, Fp, bitsize_of};
 
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> Rem<Self> for Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Rem<Self> for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
     type Output = Self;
 
@@ -57,9 +58,10 @@ where
         }
     }
 }
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> RemAssign for Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> RemAssign for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
     fn rem_assign(&mut self, rhs: Self)
     {

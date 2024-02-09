@@ -4,9 +4,10 @@ use num_traits::NumCast;
 
 use crate::{UInt, Fp, bitsize_of};
 
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> Sub<Self> for Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Sub<Self> for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
     type Output = Self;
 
@@ -15,9 +16,10 @@ where
         self + (-rhs)
     }
 }
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> SubAssign for Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> SubAssign for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
     fn sub_assign(&mut self, rhs: Self)
     {
@@ -25,9 +27,9 @@ where
     }
 }
 
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> Neg for Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Neg for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:
 {
     type Output = Self;
 

@@ -1,14 +1,15 @@
 use std::{cmp::Ordering, num::FpCategory};
 
 use array_math::{ArrayMath, ArrayOps};
-use num_traits::{Float, Inv, FloatConst, NumCast, One, Zero};
+use num_traits::{Float, FloatConst, Inv, NumCast, One, ToPrimitive, Zero};
 
 use crate::{bitsize_of, Fp, UInt};
 
 
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> Float for Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Float for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
     fn nan() -> Self
     {
@@ -47,12 +48,12 @@ where
 
     fn is_nan(self) -> bool
     {
-        !self.is_finite() && !self.frac_bits().is_zero()
+        !self.is_finite() && !self.frac_bits().is_zero() && (!INT_BIT || !self.int_bit().is_zero())
     }
 
     fn is_infinite(self) -> bool
     {
-        !self.is_finite() && self.frac_bits().is_zero()
+        !self.is_finite() && self.frac_bits().is_zero() && (!INT_BIT || self.int_bit().is_zero())
     }
 
     fn is_finite(self) -> bool
@@ -63,18 +64,22 @@ where
     fn is_normal(self) -> bool
     {
         let e = self.exp_bits();
+        if INT_BIT
+        {
+            return true
+        }
         e != U::zero() && e != (U::max_value() >> bitsize_of::<U>() - EXP_SIZE)
     }
 
     fn classify(self) -> FpCategory
     {
         let e = self.exp_bits();
-        if e == U::zero()
+        if self.is_zero()
         {
-            if self.is_zero()
-            {
-                return FpCategory::Zero
-            }
+            return FpCategory::Zero
+        }
+        if e == U::zero() && !INT_BIT
+        {
             return FpCategory::Subnormal
         }
         if e == (U::max_value() >> bitsize_of::<U>() - EXP_SIZE)
@@ -110,7 +115,7 @@ where
         let i = s && !(f & mask).is_zero();
         f = f & (!mask);
         let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
-        let n = Self::from_bits(s_bit + (e << Self::EXP_POS) + f);
+        let n = Self::from_bits(s_bit + (e << Self::EXP_POS) + f + if INT_BIT {self.int_bit() << Self::INT_POS} else {U::zero()});
         
         if i
         {
@@ -141,7 +146,7 @@ where
         let i = !s && !(f & mask).is_zero();
         f = f & (!mask);
         let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
-        let n = Self::from_bits(s_bit + (e << Self::EXP_POS) + f);
+        let n = Self::from_bits(s_bit + (e << Self::EXP_POS) + f + if INT_BIT {self.int_bit() << Self::INT_POS} else {U::zero()});
         
         if i
         {
@@ -185,7 +190,7 @@ where
         };
         f = f & (!mask);
         let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
-        return Self::from_bits(s_bit + (e << Self::EXP_POS) + f);
+        return Self::from_bits(s_bit + (e << Self::EXP_POS) + f + if INT_BIT {self.int_bit() << Self::INT_POS} else {U::zero()})
     }
 
     fn fract(self) -> Self
@@ -266,6 +271,11 @@ where
 
     fn powf(self, n: Self) -> Self
     {
+        if INT_BIT
+        {
+            return Self::from_fp(Fp::<U, EXP_SIZE, false, FRAC_SIZE>::from_fp(self).powf(Fp::<U, EXP_SIZE, false, FRAC_SIZE>::from_fp(n)))
+        }
+
         let xabs = self.abs();
         let nabs = n.abs();
 
@@ -431,10 +441,6 @@ where
         let xabs_log2 = xabs.log2();
 
         let n_x_abs_log2 = n*xabs_log2;
-        if n_x_abs_log2.is_nan()
-        {
-            println!("NaN");
-        }
         if n_x_abs_log2 >= NumCast::from(U::one() << (EXP_SIZE - 1)).unwrap()
         {
             // ???
@@ -496,7 +502,7 @@ where
             return Self::nan()
         }
         let e = U::from(e).unwrap();
-        let y = Self::from_bits(e << Self::EXP_POS);
+        let y = Self::from_bits((e << Self::EXP_POS));
 
         y*z
     }
@@ -506,6 +512,11 @@ where
         if self.is_nan() || self.is_sign_negative()
         {
             return Self::nan()
+        }
+
+        if INT_BIT
+        {
+            return Self::from_fp(Fp::<U, EXP_SIZE, false, FRAC_SIZE>::from_fp(self).sqrt())
         }
 
         let y = Self::from_bits(
@@ -531,6 +542,10 @@ where
 
     fn exp2(self) -> Self
     {
+        if INT_BIT
+        {
+            return Self::from_fp(Fp::<U, EXP_SIZE, false, FRAC_SIZE>::from_fp(self).exp2())
+        }
         if self.is_nan()
         {
             return self
@@ -545,18 +560,17 @@ where
         }
         let neg = self.is_sign_negative();
         let x = self.abs().max(-<Self as NumCast>::from(Self::exp_bias() - U::one()).unwrap());
-        let w = if neg {x.floor()} else {x.floor()};
+        let w = x.floor();
         let z = x - w;
-        let y = <Self as NumCast>::from(U::one() << FRAC_SIZE).unwrap()*(x
-            + <Self as From<_>>::from(121.2740575)
-            + <Self as From<_>>::from(27.7280233)/(<Self as From<_>>::from(4.84252568) - z)
-            - <Self as From<_>>::from(1.49012907)*z
-        );
+        let approx = <Self as From<_>>::from(-5.7259425)
+        + <Self as From<_>>::from(27.7280233)/(<Self as From<_>>::from(4.84252568) - z)
+        - <Self as From<_>>::from(1.49012907)*z;
+        let y = Self::from_uint(U::one() << Self::EXP_POS)*(x + Self::from_uint(Self::exp_bias()) + approx);
         if y.is_nan()
         {
             return y
         }
-        if y >= <Self as NumCast>::from(U::one() << Self::BIT_SIZE - 1).unwrap()
+        if y >= Self::from_uint(U::max_value())
         {
             if neg
             {
@@ -572,7 +586,12 @@ where
             }
             return Self::zero();
         }
-        let y = Self::from_bits(U::from(y).unwrap());
+        let y = y.to_uint().unwrap();
+        if y < U::one() << Self::EXP_POS
+        {
+            return Self::one()
+        }
+        let y = Self::from_bits(y);
         if neg
         {
             return y.inv();
@@ -592,6 +611,10 @@ where
 
     fn log2(self) -> Self
     {
+        if INT_BIT
+        {
+            return Self::from_fp(Fp::<U, EXP_SIZE, false, FRAC_SIZE>::from_fp(self).log2())
+        }
         if self.is_nan()
         {
             return self
@@ -622,7 +645,8 @@ where
         let mut u = self.to_bits();
         u = u & !(((U::one() << EXP_SIZE) - U::one()) << Self::EXP_POS);
         u = u + (Self::exp_bias() << Self::EXP_POS);
-        let u = Self::from_bits(u);
+        let u = Fp::<U, EXP_SIZE, false, FRAC_SIZE>::from_bits(U::from(u).unwrap());
+        let u = Self::from_fp(u);
         y += (<Self as From<_>>::from(-0.34484843) * u + <Self as From<_>>::from(2.02466578)) * u  - <Self as From<_>>::from(0.67487759); 
         return y;
     }
@@ -1077,12 +1101,17 @@ where
         let s = sign.sign_bit();
         let e = self.exp_bits();
         let f = self.frac_bits();
+        if INT_BIT
+        {
+            let i = self.int_bit();
+            return Self::from_bits((s << Self::SIGN_POS) + (e << Self::EXP_POS) + (i << Self::INT_POS) + (f << Self::FRAC_POS))
+        }
         Self::from_bits((s << Self::SIGN_POS) + (e << Self::EXP_POS) + (f << Self::FRAC_POS))
     }
 
     fn is_subnormal(self) -> bool
     {
-        self.exp_bits() == U::zero() && !self.is_zero()
+        !INT_BIT && self.exp_bits() == U::zero() && !self.is_zero()
     }
 
     fn to_degrees(self) -> Self
@@ -1100,7 +1129,7 @@ mod test
 {
     use num_traits::{Float, Inv, One};
 
-    use crate::{fp::ieee754::{FpDouble, FpHalf, FpQuadruple, FpSingle}, g_711::FpG711};
+    use crate::{fp::ieee754::{FpDouble, FpHalf, FpQuadruple, FpSingle}, g_711::FpG711, intel::Fp80};
 
     #[test]
     fn test_epsilon()
@@ -1146,7 +1175,7 @@ mod test
     #[test]
     fn test_sqrt()
     {
-        let sqrt = FpDouble::from(3.0).sqrt();
+        let sqrt = Fp80::from(3.0).sqrt();
         println!("{}^2 == {}", sqrt, sqrt*sqrt);
         let sqrt = (3.0).sqrt();
         println!("{}^2 == {}", sqrt, sqrt*sqrt);

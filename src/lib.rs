@@ -18,9 +18,9 @@ mod tests
     use num::Complex;
     use num_traits::{Float, Zero};
 
-    use crate::{g_711::FpG711, google::BFloat16, ibm::{HFpLong, HFpShort}, ieee754::{FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, nvidia::{TensorFloat19, TensorFloat32}, Fp};
+    use crate::{g_711::FpG711, google::Bf16, ibm::{HFpLong, HFpShort}, ieee754::{FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, intel::Fp80, nvidia::{TensorFloat19, TensorFloat32}, Fp};
 
-    type F = TensorFloat32;
+    type F = Fp80;
 
     #[test]
     fn it_works() {
@@ -104,6 +104,24 @@ mod tests
                 println!("{:e} ? == {:e} != {:e}", f0, s, sp);
             }
         }
+    }
+
+    #[test]
+    fn to_int()
+    {
+        let x = FpSingle::from_uint(3usize);
+        println!("{}", x.to_uint::<u64>().unwrap());
+        let x = f32::from_bits(x.to_bits());
+        println!("{}", x);
+    }
+
+    #[test]
+    fn int_bit()
+    {
+        let x = Fp80::from(2.0);
+        println!("{}", x.int_bit());
+        println!("{}", x);
+        println!("{:b}", x)
     }
 
     #[test]

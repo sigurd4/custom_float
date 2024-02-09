@@ -5,9 +5,10 @@ use crate::fp::{UInt, Fp, bitsize_of};
 use num_traits::{Float, Inv, NumCast, Zero};
 use num_traits::One;
 
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> Div<Self> for Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Div<Self> for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
     type Output = Self;
 
@@ -49,17 +50,17 @@ where
             return if s {-Self::one()} else {Self::one()}
         }
 
-        if !e0.is_zero() //normal
+        if !e0.is_zero() || INT_BIT
         {
-            f0 = f0 + (U::one() << FRAC_SIZE);
+            f0 = f0 + (self.int_bit() << FRAC_SIZE);
         }
         else
         {
             f0 = f0 << 1usize;
         }
-        if !e1.is_zero() //normal
+        if !e1.is_zero() || INT_BIT
         {
-            f1 = f1 + (U::one() << FRAC_SIZE);
+            f1 = f1 + (rhs.int_bit() << FRAC_SIZE);
         }
         else
         {
@@ -197,20 +198,29 @@ where
         }
         else
         {
+            if !INT_BIT
+            {
+                f = f - (U::one() << FRAC_SIZE);
+            }
+            else
+            {
+                f = f >> 1usize;
+                e = e + U::one();
+            }
+            
             if e >= (U::one() << EXP_SIZE) - U::one()
             {
                 return if s {Self::negative_infinity()} else {Self::infinity()}
             }
 
-            f = f - (U::one() << FRAC_SIZE);
-
             return Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
         }
     }
 }
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> DivAssign for Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> DivAssign for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
     fn div_assign(&mut self, rhs: Self)
     {
@@ -218,9 +228,10 @@ where
     }
 }
 
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> Inv for Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Inv for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
     type Output = Self;
 
@@ -237,13 +248,11 @@ mod test
 
     use num_traits::{Float, One};
 
-    use crate::fp::{ieee754::{FpDouble, FpSingle}, Fp};
+    use crate::{fp::{ieee754::{FpDouble, FpSingle}, Fp}, intel::Fp80};
 
     #[test]
     fn test_div()
     {
-        //let n = FpSingle::from(3.333333)/FpSingle::from(1.0);
-        //println!("{}", n);
         crate::tests::test_op2(Div::div, Div::div)
     }
 }

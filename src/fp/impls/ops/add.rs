@@ -6,9 +6,10 @@ use crate::fp::ieee754::FpSingle;
 
 use crate::{UInt, Fp, bitsize_of};
 
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> Add<Self> for Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Add<Self> for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
     type Output = Self;
 
@@ -61,7 +62,7 @@ where
 
             if !e0.is_zero() //normal
             {
-                f0 = f0 + (U::one() << FRAC_SIZE);
+                f0 = f0 + (self.int_bit() << FRAC_SIZE);
             }
             else
             {
@@ -69,7 +70,7 @@ where
             }
             if !e1.is_zero() //normal
             {
-                f1 = f1 + (U::one() << FRAC_SIZE);
+                f1 = f1 + (rhs.int_bit() << FRAC_SIZE);
             }
             else
             {
@@ -147,12 +148,20 @@ where
             }
             else
             {
+                if !INT_BIT
+                {
+                    f = f - (U::one() << FRAC_SIZE);
+                }
+                else
+                {
+                    f = f >> 1usize;
+                    e = e + U::one();
+                }
+                
                 if e >= (U::one() << EXP_SIZE) - U::one()
                 {
                     return if s {Self::negative_infinity()} else {Self::infinity()}
                 }
-
-                f = f - (U::one() << FRAC_SIZE);
 
                 Fp::from_bits(f + (e << Self::EXP_POS))
             };
@@ -160,9 +169,10 @@ where
         }
     }
 }
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> AddAssign for Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> AddAssign for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
     fn add_assign(&mut self, rhs: Self)
     {

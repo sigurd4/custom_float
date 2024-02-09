@@ -4,9 +4,10 @@ use crate::fp::{UInt, Fp, bitsize_of};
 
 use num_traits::{Float, NumCast, One, Zero};
 
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> Mul<Self> for Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Mul<Self> for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
     type Output = Self;
 
@@ -51,17 +52,17 @@ where
         let mut f0: U = self.frac_bits();
         let mut f1: U = rhs.frac_bits();
 
-        if !e0.is_zero()
+        if !e0.is_zero() || INT_BIT
         {
-            f0 = f0 + (U::one() << FRAC_SIZE);
+            f0 = f0 + (self.int_bit() << FRAC_SIZE);
         }
         else
         {
             f0 = f0 << 1usize;
         }
-        if !e1.is_zero()
+        if !e1.is_zero() || INT_BIT
         {
-            f1 = f1 + (U::one() << FRAC_SIZE);
+            f1 = f1 + (rhs.int_bit() << FRAC_SIZE);
         }
         else
         {
@@ -163,17 +164,6 @@ where
             f = f << 1usize;
         }
 
-        while f >= U::one() << FRAC_SIZE + 1
-        {
-            e = e + U::one();
-            f = f >> 1usize;
-        }
-        while e > U::zero() && f <= U::one() << FRAC_SIZE
-        {
-            e = e - U::one();
-            f = f << 1usize;
-        }
-
         let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
 
         if e.is_zero() // subnormal
@@ -182,20 +172,29 @@ where
         }
         else
         {
+            if !INT_BIT
+            {
+                f = f - (U::one() << FRAC_SIZE);
+            }
+            else
+            {
+                f = f >> 1usize;
+                e = e + U::one();
+            }
+
             if e >= (U::one() << EXP_SIZE) - U::one()
             {
                 return if s {Self::negative_infinity()} else {Self::infinity()}
             }
 
-            f = f - (U::one() << FRAC_SIZE);
-
             return Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
         }
     }
 }
-impl<U: UInt, const EXP_SIZE: usize, const FRAC_SIZE: usize> MulAssign for Fp<U, EXP_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> MulAssign for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
-    [(); bitsize_of::<U>() - EXP_SIZE - FRAC_SIZE - 1]:
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
     fn mul_assign(&mut self, rhs: Self)
     {

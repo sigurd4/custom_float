@@ -1,3 +1,3 @@
 use crate::Fp;
 
-pub type Fp24 = Fp<u32, 7, 16>;
+pub type Fp24 = Fp<u32, 7, false, 16>;
