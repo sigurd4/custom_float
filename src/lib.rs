@@ -16,17 +16,22 @@ mod tests
 {
     use array_math::ArrayMath;
     use num::Complex;
-    use num_traits::Zero;
+    use num_traits::{One, Zero};
 
-    use crate::{g_711::FpG711, google::Bf16, ibm::{HFpLong, HFpShort}, ieee754::{FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, intel::Fp80, nvidia::{TensorFloat19, TensorFloat32}, Fp};
+    use crate::{amd::Fp24, g_711::FpG711, google::{Bf16, Bf32, Bf8}, ibm::{HFpLong, HFpShort}, ieee754::{FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, intel::Fp80, nvidia::{TensorFloat19, TensorFloat32}, Fp};
 
-    type F = FpHalf;
+    type F = Bf16;
 
     #[test]
     fn it_works() {
-        let mut x = [0.0; 128].map(|x| F::from(x));
-        x[0] = F::one();
-        let mut y = [Complex::zero(); 65];
+        let mut x = [0.0; 8].map(|x| F::from(x));
+        x[0] = One::one();
+        x[1] = One::one();
+        x[2] = One::one();
+
+        println!("{:?}", x);
+
+        let mut y = [Complex::zero(); 5];
         x.real_fft(&mut y);
         x.real_ifft(&y);
 
