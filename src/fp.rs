@@ -53,9 +53,35 @@ where
         [(); bitsize_of::<V>() - E - I as usize - F - 1]:,
         [(); bitsize_of::<V>() - E - false as usize - F - 1]:
     {
-        if EXP_SIZE == E && INT_BIT == I && FRAC_SIZE == F
+        if EXP_SIZE == E && INT_BIT == I
         {
-            return Self::from_bits(<U as NumCast>::from(fp.to_bits()).unwrap())
+            if let Some(b) = if bitsize_of::<U>() >= bitsize_of::<V>()
+            {
+                <U as NumCast>::from(fp.to_bits())
+                    .map(|b| if FRAC_SIZE >= F
+                    {
+                        b << FRAC_SIZE - F
+                    }
+                    else
+                    {
+                        b >> F - FRAC_SIZE
+                    })
+            }
+            else
+            {
+                let b = if FRAC_SIZE >= F
+                {
+                    fp.to_bits() << FRAC_SIZE - F
+                }
+                else
+                {
+                    fp.to_bits() >> F - FRAC_SIZE
+                };
+                <U as NumCast>::from(b)
+            }
+            {
+                return Self::from_bits(b)
+            }
         }
 
         let s = fp.sign_bit();
@@ -89,7 +115,8 @@ where
         {
             f = f << 1usize;
         }
-        let mut f = if df >= 0 {
+        let mut f = if df >= 0
+        {
             U::from(f).unwrap() << df as usize
         }
         else

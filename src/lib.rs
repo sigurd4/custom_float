@@ -20,10 +20,11 @@ mod tests
 
     use crate::{amd::Fp24, g_711::FpG711, google::{Bf16, Bf32, Bf8}, ibm::{HFpLong, HFpShort}, ieee754::{FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, intel::Fp80, nvidia::{TensorFloat19, TensorFloat32}, Fp};
 
-    type F = Bf16;
+    type F = Bf32;
 
     #[test]
-    fn it_works() {
+    fn it_works()
+    {
         let mut x = [0.0; 8].map(|x| F::from(x));
         x[0] = One::one();
         x[1] = One::one();
