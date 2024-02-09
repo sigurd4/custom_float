@@ -26,9 +26,9 @@ mod tests
     fn it_works()
     {
         let mut x = [0.0; 8].map(|x| F::from(x));
-        x[0] = One::one();
-        x[1] = One::one();
-        x[2] = One::one();
+        x[0] = F::one() + F::one() + F::one();
+        x[1] = F::one() + F::one();
+        x[2] = F::one();
 
         println!("{:?}", x);
 
