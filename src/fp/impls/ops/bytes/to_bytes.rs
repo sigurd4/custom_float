@@ -10,16 +10,19 @@ where
 {
     type Bytes = U::Bytes;
 
+    #[inline]
     fn to_be_bytes(&self) -> Self::Bytes
     {
         self.to_bits().to_be_bytes()
     }
 
+    #[inline]
     fn to_le_bytes(&self) -> Self::Bytes
     {
         self.to_bits().to_le_bytes()
     }
 
+    #[inline]
     fn to_ne_bytes(&self) -> Self::Bytes
     {
         self.to_bits().to_ne_bytes()

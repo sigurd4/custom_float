@@ -8,61 +8,73 @@ where
     [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
     [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
+    #[inline]
     fn infinity() -> Self
     {
         Self::infinity()
     }
 
+    #[inline]
     fn neg_infinity() -> Self
     {
         Self::neg_infinity()
     }
 
+    #[inline]
     fn nan() -> Self
     {
         Self::nan()
     }
 
+    #[inline]
     fn neg_zero() -> Self
     {
         Self::neg_zero()
     }
 
+    #[inline]
     fn min_value() -> Self
     {
         Self::min_value()
     }
 
+    #[inline]
     fn min_positive_value() -> Self
     {
         Self::min_positive_value()
     }
 
+    #[inline]
     fn epsilon() -> Self
     {
         Self::epsilon()
     }
 
+    #[inline]
     fn max_value() -> Self
     {
         Self::max_value()
     }
 
+    #[inline]
     fn classify(self) -> std::num::FpCategory
     {
         self.classify()
     }
 
+    #[inline]
     fn to_degrees(self) -> Self
     {
         self.to_degrees()
     }
 
+    #[inline]
     fn to_radians(self) -> Self
     {
         self.to_radians()
     }
 
+    #[inline]
     fn integer_decode(self) -> (u64, i16, i8)
     {
         let s = self.sign_bit();

@@ -4,7 +4,7 @@ use std::mem::size_of;
 use std::num::FpCategory;
 
 use array_math::{ArrayMath, ArrayOps};
-use num_traits::{CheckedNeg, CheckedShl, CheckedShr, FloatConst, Inv, One, Signed};
+use num_traits::{CheckedNeg, CheckedShl, CheckedShr, ConstOne, ConstZero, FloatConst, Inv, One, Signed};
 use num_traits::{Float, NumCast, PrimInt, Unsigned, Zero};
 
 moddef::moddef!(
@@ -1929,6 +1929,45 @@ where
         let r = self % rhs;
         if r < Self::zero() {r + rhs.abs()} else {r}
     }
+    
+    fn total_cmp(self, other: Self) -> std::cmp::Ordering
+    {
+        let s1 = self.sign_bit();
+        let s2 = self.sign_bit();
+
+        if s1 != s2
+        {
+            return s2.cmp(&s1)
+        }
+
+        let s = !s1.is_zero();
+        
+        let mut left = self.to_bits();
+        let mut right = other.to_bits();
+
+        left = left ^ (((left >> (bitsize_of::<U>() - 1))) >> 1usize);
+        right = right ^ (((right >> (bitsize_of::<U>() - 1))) >> 1usize);
+
+        if s {right.cmp(&left)} else {left.cmp(&right)}
+    }
+}
+
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
+where
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:,
+    U: ConstZero
+{
+    pub const ZERO: Self = Self::from_bits(U::ZERO);
+}
+
+impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
+where
+    [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
+    [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:,
+    U: ConstOne
+{
+    pub const MIN_POSITIVE: Self = Self::from_bits(U::ONE);
 }
 
 pub const fn bitsize_of<T>() -> usize

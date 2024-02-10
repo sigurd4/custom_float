@@ -9,6 +9,7 @@ where
 {
     type Output = Self;
 
+    #[inline]
     fn mul_add(self, a: Self, b: Self) -> Self::Output
     {
         self.mul_add(a, b)
@@ -19,6 +20,7 @@ where
     [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
     [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
+    #[inline]
     fn mul_add_assign(&mut self, a: Self, b: Self)
     {
         *self = (*self).mul_add(a, b)

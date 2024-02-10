@@ -12,6 +12,7 @@ macro_rules! impl_powu {
             {
                 type Output = Self;
             
+                #[inline]
                 fn pow(self, rhs: $i) -> Self::Output
                 {
                     self.powu(rhs)
@@ -33,6 +34,7 @@ macro_rules! impl_powi {
             {
                 type Output = Self;
             
+                #[inline]
                 fn pow(self, rhs: $i) -> Self::Output
                 {
                     self.powi(rhs)
@@ -51,6 +53,7 @@ where
 {
     type Output = Self;
 
+    #[inline]
     fn pow(self, rhs: Self) -> Self::Output
     {
         self.powf(rhs)

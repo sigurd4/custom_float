@@ -9,6 +9,11 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
     {
-        Into::<f64>::into(*self).fmt(f)
+        let x = Into::<f64>::into(*self);
+        if self.is_finite() != x.is_finite()
+        {
+            write!(f, "~")?
+        }
+        x.fmt(f)
     }
 }

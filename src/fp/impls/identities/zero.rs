@@ -7,16 +7,19 @@ where
     [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
     [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
+    #[inline]
     fn zero() -> Self
     {
         Self::zero()
     }
 
+    #[inline]
     fn is_zero(&self) -> bool
     {
         (*self).is_zero()
     }
 
+    #[inline]
     fn set_zero(&mut self)
     {
         self.set_zero()

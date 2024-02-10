@@ -1,5 +1,7 @@
 moddef::moddef!(
-    flat(pub) mod {
+    mod {
+        bytes,
+
         add,
         div,
         euclid,

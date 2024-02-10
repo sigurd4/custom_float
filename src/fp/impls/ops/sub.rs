@@ -9,6 +9,7 @@ where
 {
     type Output = Self;
 
+    #[inline]
     fn sub(self, rhs: Self) -> Self::Output
     {
         self + (-rhs)
@@ -19,6 +20,7 @@ where
     [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
     [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
+    #[inline]
     fn sub_assign(&mut self, rhs: Self)
     {
         *self = *self - rhs
@@ -32,6 +34,7 @@ where
 {
     type Output = Self;
 
+    #[inline]
     fn neg(self) -> Self::Output
     {
         Self::from_bits(self.to_bits().bitxor(U::one() << Self::BIT_SIZE - 1))

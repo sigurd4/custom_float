@@ -216,7 +216,7 @@ where
                 return if s {Self::neg_infinity()} else {Self::infinity()}
             }
 
-            return Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
+            Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
         }
     }
 }
@@ -225,6 +225,7 @@ where
     [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
     [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
+    #[inline]
     fn div_assign(&mut self, rhs: Self)
     {
         *self = *self / rhs
@@ -238,6 +239,7 @@ where
 {
     type Output = Self;
 
+    #[inline]
     fn inv(self) -> Self::Output
     {
         self.recip()

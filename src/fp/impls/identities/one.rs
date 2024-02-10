@@ -7,16 +7,19 @@ where
     [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
     [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
+    #[inline]
     fn one() -> Self
     {
         Self::one()
     }
 
+    #[inline]
     fn is_one(&self) -> bool
     {
         (*self).is_one()
     }
 
+    #[inline]
     fn set_one(&mut self)
     {
         self.set_one()

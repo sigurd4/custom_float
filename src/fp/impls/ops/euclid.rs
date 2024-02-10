@@ -8,11 +8,13 @@ where
     [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
     [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
+    #[inline]
     fn div_euclid(&self, rhs: &Self) -> Self
     {
         (*self).div_euclid(*rhs)
     }
 
+    #[inline]
     fn rem_euclid(&self, rhs: &Self) -> Self
     {
         (*self).rem_euclid(*rhs)

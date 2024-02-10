@@ -10,16 +10,19 @@ where
 {
     type Bytes = U::Bytes;
 
+    #[inline]
     fn from_be_bytes(bytes: &Self::Bytes) -> Self
     {
         Self::from_bits(U::from_be_bytes(bytes))
     }
 
+    #[inline]
     fn from_le_bytes(bytes: &Self::Bytes) -> Self
     {
         Self::from_bits(U::from_le_bytes(bytes))
     }
 
+    #[inline]
     fn from_ne_bytes(bytes: &Self::Bytes) -> Self
     {
         Self::from_bits(U::from_ne_bytes(bytes))

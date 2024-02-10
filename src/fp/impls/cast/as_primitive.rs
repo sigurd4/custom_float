@@ -11,6 +11,7 @@ macro_rules! impl_as_primitive_uint {
                 [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
                 [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
             {
+                #[inline]
                 fn as_(self) -> $i
                 {
                     self.to_uint_wrapping()
@@ -31,6 +32,7 @@ macro_rules! impl_as_primitive_int {
                 [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
                 [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
             {
+                #[inline]
                 fn as_(self) -> $i
                 {
                     self.to_int_wrapping()
@@ -48,6 +50,7 @@ where
     [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
     [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
+    #[inline]
     fn as_(self) -> f32
     {
         Into::<f32>::into(self)
@@ -60,6 +63,7 @@ where
     [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
     [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
+    #[inline]
     fn as_(self) -> f64
     {
         Into::<f64>::into(self)
