@@ -16,4 +16,4 @@ The accuracy of all of the floating point operations are not perfect, but work w
 
 All arithmetic operations are performed using bitwise operators and integer arithmetic.
 
-All floats can be converted into each other efficiently.
+All floats can be converted into each other.
