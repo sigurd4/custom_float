@@ -7,18 +7,56 @@ where
     [(); bitsize_of::<U>() - EXP_SIZE - INT_BIT as usize - FRAC_SIZE - 1]:,
     [(); bitsize_of::<U>() - EXP_SIZE - false as usize - FRAC_SIZE - 1]:
 {
-    fn to_i64(&self) -> Option<i64>
+    fn to_i8(&self) -> Option<i8>
     {
-        if self.is_sign_negative()
-        {
-            return (-*self).to_u64()
-                .and_then(|n| <i64 as NumCast>::from(n).map(|n| -n))
-        }
-        self.to_u64()
-            .and_then(|n| <i64 as NumCast>::from(n))
+        self.to_int()
+    }
+    fn to_u8(&self) -> Option<u8>
+    {
+        self.to_uint()
     }
 
+    fn to_i16(&self) -> Option<i16>
+    {
+        self.to_int()
+    }
+    fn to_u16(&self) -> Option<u16>
+    {
+        self.to_uint()
+    }
+
+    fn to_i32(&self) -> Option<i32>
+    {
+        self.to_int()
+    }
+    fn to_u32(&self) -> Option<u32>
+    {
+        self.to_uint()
+    }
+
+    fn to_isize(&self) -> Option<isize>
+    {
+        self.to_int()
+    }
+    fn to_usize(&self) -> Option<usize>
+    {
+        self.to_uint()
+    }
+
+    fn to_i64(&self) -> Option<i64>
+    {
+        self.to_int()
+    }
     fn to_u64(&self) -> Option<u64>
+    {
+        self.to_uint()
+    }
+
+    fn to_i128(&self) -> Option<i128>
+    {
+        self.to_int()
+    }
+    fn to_u128(&self) -> Option<u128>
     {
         self.to_uint()
     }

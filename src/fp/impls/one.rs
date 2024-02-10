@@ -9,11 +9,16 @@ where
 {
     fn one() -> Self
     {
-        let bias = Self::exp_bias();
-        if INT_BIT
-        {
-            return Self::from_bits((bias << Self::EXP_POS) + (U::one() << Self::INT_POS))
-        }
-        Self::from_bits(bias << Self::EXP_POS)
+        Self::one()
+    }
+
+    fn is_one(&self) -> bool
+    {
+        (*self).is_one()
+    }
+
+    fn set_one(&mut self)
+    {
+        self.set_one()
     }
 }

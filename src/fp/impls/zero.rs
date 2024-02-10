@@ -9,11 +9,16 @@ where
 {
     fn zero() -> Self
     {
-        Self::from_bits(U::zero())
+        Self::zero()
     }
 
     fn is_zero(&self) -> bool
     {
-        (self.to_bits() << Self::BIT_SIZE - Self::SIGN_POS).is_zero()
+        (*self).is_zero()
+    }
+
+    fn set_zero(&mut self)
+    {
+        self.set_zero()
     }
 }

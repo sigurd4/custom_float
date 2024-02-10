@@ -1,10 +1,13 @@
 moddef::moddef!(
     flat(pub) mod {
+        as_primitive,
         binary,
         debug,
         default,
         display,
         float,
+        from_bytes,
+        from_primitive,
         float_const,
         float_core,
         lower_exp,
@@ -14,6 +17,8 @@ moddef::moddef!(
         ops,
         partial_eq,
         partial_ord,
+        signed,
+        to_bytes,
         to_primitive,
         zero,
     }

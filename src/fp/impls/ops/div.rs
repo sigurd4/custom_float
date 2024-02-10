@@ -2,7 +2,7 @@ use std::ops::{Div, DivAssign};
 
 use crate::fp::{UInt, Fp, bitsize_of};
 
-use num_traits::{Inv, NumCast};
+use num_traits::{Euclid, Inv, NumCast};
 
 impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> Div<Self> for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>
 where
@@ -236,7 +236,7 @@ where
 
     fn inv(self) -> Self::Output
     {
-        Self::one()/self
+        self.recip()
     }
 }
 

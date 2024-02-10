@@ -1,9 +1,11 @@
+use std::cmp::Ordering;
 use std::fmt::Binary;
 use std::mem::size_of;
 use std::num::FpCategory;
 
-use num_traits::{CheckedShl, CheckedShr, One};
-use num_traits::{ops::overflowing::OverflowingMul, Float, NumCast, PrimInt, Unsigned, Zero};
+use array_math::{ArrayMath, ArrayOps};
+use num_traits::{CheckedNeg, CheckedShl, CheckedShr, FloatConst, Inv, One, Signed};
+use num_traits::{Float, NumCast, PrimInt, Unsigned, Zero};
 
 moddef::moddef!(
     pub mod {
@@ -21,14 +23,15 @@ moddef::moddef!(
     }
 );
 
-pub trait UInt = Unsigned + PrimInt + OverflowingMul + Binary + CheckedShl + CheckedShr;
+pub trait UInt = Unsigned + PrimInt + CheckedShl + CheckedShr;
+pub trait Int = Signed + PrimInt + CheckedShl + CheckedShr + CheckedNeg;
 
 /// A custom floating point type.
 /// 
 /// Bit layout is as follows:
 /// ```
-/// No data: | Sign: | Exponent:  | Fractional: |
-/// <  ..  > | < 1 > | <EXP_SIZE> | <FRAC_SIZE> |
+/// No data: | Sign: | Exponent:  | Integer:  | Fractional: |
+/// <  ..  > | < 1 > | <EXP_SIZE> | <INT_BIT> | <FRAC_SIZE> |
 /// ```
 #[derive(Clone, Copy)]
 pub struct Fp<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize>(U)
@@ -185,7 +188,7 @@ where
 
         if e.is_zero() // subnormal
         {
-            return Fp::from_bits(s_bit + (f >> 1usize))
+            Fp::from_bits(s_bit + (f >> 1usize))
         }
         else
         {
@@ -204,7 +207,7 @@ where
                 return if s.is_one() {Self::neg_infinity()} else {Self::infinity()}
             }
 
-            return Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
+            Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
         }
     }
 
@@ -256,7 +259,7 @@ where
 
         if e.is_zero() // subnormal
         {
-            return Fp::from_bits(f >> 1usize)
+            Fp::from_bits(f >> 1usize)
         }
         else
         {
@@ -275,7 +278,85 @@ where
                 e = e + U::one();
             }
 
-            return Fp::from_bits(f + (e << Self::EXP_POS))
+            Fp::from_bits(f + (e << Self::EXP_POS))
+        }
+    }
+    
+    pub fn from_int<I: Int>(from: I) -> Self
+    {
+        if from == I::min_value()
+        {
+            return Self::from_int(from + I::one()) - Self::one()
+        }
+
+        let s = from < I::zero();
+        let mut e = Self::exp_bias() + NumCast::from(FRAC_SIZE).unwrap();
+        let mut f = if bitsize_of::<I>() - 1 > bitsize_of::<U>()
+        {
+            let mut f = from.abs();
+
+            while f >= I::one() << FRAC_SIZE + 1
+            {
+                e = match e.checked_add(&U::one())
+                {
+                    Some(e) => e,
+                    None => return if s {Self::neg_infinity()} else {Self::infinity()}
+                };
+                f = f >> 1usize;
+            }
+            while e > U::zero() && f <= I::one() << FRAC_SIZE
+            {
+                e = e - U::one();
+                f = f << 1usize;
+            }
+
+            NumCast::from(f).unwrap()
+        }
+        else
+        {
+            let mut f = <U as NumCast>::from(from.abs()).unwrap();
+            
+            while f >= U::one() << FRAC_SIZE + 1
+            {
+                e = match e.checked_add(&U::one())
+                {
+                    Some(e) => e,
+                    None => return if s {Self::neg_infinity()} else {Self::infinity()}
+                };
+                f = f >> 1usize;
+            }
+            while e > U::zero() && f <= U::one() << FRAC_SIZE
+            {
+                e = e - U::one();
+                f = f << 1usize;
+            }
+
+            f
+        };
+
+        let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
+        if e.is_zero() // subnormal
+        {
+            Fp::from_bits(s_bit + (f >> 1usize))
+        }
+        else
+        {
+            if e > U::one() << EXP_SIZE
+            {
+                return if s {Self::neg_infinity()} else {Self::infinity()}
+            }
+
+            if !INT_BIT
+            {
+                f = f - (U::one() << Self::INT_POS);
+            }
+            else
+            {
+                f = f >> 1usize;
+                e = e + U::one();
+            }
+
+            Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
         }
     }
 
@@ -286,6 +367,10 @@ where
             return Some(I::zero())
         }
         let s = !self.sign_bit().is_zero();
+        if !self.is_finite()
+        {
+            return None
+        }
         if s
         {
             return None
@@ -302,12 +387,6 @@ where
             f = f << 1usize;
         }
 
-        let mut n = match <I as NumCast>::from(f)
-        {
-            Some(n) => n,
-            None => return None
-        };
-
         let bias = Self::exp_bias();
         if e < bias
         {
@@ -315,20 +394,254 @@ where
         }
 
         let shift = <u32 as NumCast>::from(e - bias).unwrap();
-        n = if shift as usize > FRAC_SIZE
+        
+        let n = match <I as NumCast>::from(f)
         {
-            match n.checked_shl(shift - FRAC_SIZE as u32)
+            Some(n) => if shift as usize > FRAC_SIZE
+            {
+                match n.checked_shl(shift - FRAC_SIZE as u32)
+                {
+                    Some(n) => n,
+                    None => return None
+                }
+            }
+            else
+            {
+                n >> FRAC_SIZE - shift as usize
+            },
+            None => match <I as NumCast>::from(if shift as usize > FRAC_SIZE
+            {
+                match f.checked_shl(shift - FRAC_SIZE as u32)
+                {
+                    Some(n) => n,
+                    None => return None
+                }
+            }
+            else
+            {
+                f >> FRAC_SIZE - shift as usize
+            })
             {
                 Some(n) => n,
                 None => return None
             }
+        };;
+
+        Some(n)
+    }
+    
+    pub fn to_uint_wrapping<I: UInt>(mut self) -> I
+    {
+        if self.is_zero()
+        {
+            return I::zero()
+        }
+        if self.is_nan()
+        {
+            return I::zero()
+        }
+        if self.is_infinite()
+        {
+            return if self.is_sign_negative() {I::zero()} else {I::max_value()}
+        }
+
+        let max = Self::from_uint(I::max_value()) + Self::one();
+        let min = Self::from_uint(I::min_value());
+        self = max - ((max - min - ((self - min) % (max - min))) % (max - min));
+
+        let s = !self.sign_bit().is_zero();
+        if s
+        {
+            return I::zero()
+        }
+        let e = self.exp_bits();
+        let mut f = self.frac_bits();
+        
+        if !e.is_zero() || INT_BIT //normal
+        {
+            f = f + (self.int_bit() << Self::INT_POS);
         }
         else
         {
-            n >> FRAC_SIZE - shift as usize
+            f = f << 1usize;
+        }
+
+        let bias = Self::exp_bias();
+        if e < bias
+        {
+            return I::zero()
+        }
+
+        let shift = <u32 as NumCast>::from(e - bias).unwrap();
+        
+        let n = match <I as NumCast>::from(f)
+        {
+            Some(n) => if shift as usize > FRAC_SIZE
+            {
+                (n % (I::one() << bitsize_of::<I>() - (shift as usize - FRAC_SIZE))) << shift as usize - FRAC_SIZE
+            }
+            else
+            {
+                n >> FRAC_SIZE - shift as usize
+            },
+            None => <I as NumCast>::from(if shift as usize > FRAC_SIZE
+            {
+                (f % (U::one() << bitsize_of::<I>() - (shift as usize - FRAC_SIZE))) << shift as usize - FRAC_SIZE
+            }
+            else
+            {
+                f >> FRAC_SIZE - shift as usize
+            }).unwrap()
         };
 
-        Some(n)
+        n
+    }
+    
+    pub fn to_int<I: Int>(self) -> Option<I>
+    {
+        if self.is_zero()
+        {
+            return Some(I::zero())
+        }
+        let s = !self.sign_bit().is_zero();
+        if !self.is_finite()
+        {
+            return None
+        }
+        let e = self.exp_bits();
+        let mut f = self.frac_bits();
+        
+        if !e.is_zero() || INT_BIT //normal
+        {
+            f = f + (self.int_bit() << Self::INT_POS);
+        }
+        else
+        {
+            f = f << 1usize;
+        }
+        
+        let bias = Self::exp_bias();
+        if e < bias
+        {
+            return Some(I::zero())
+        }
+
+        let shift = <u32 as NumCast>::from(e - bias).unwrap();
+
+        let n = match <I as NumCast>::from(f)
+        {
+            Some(n) => if shift as usize > FRAC_SIZE
+            {
+                match n.checked_shl(shift - FRAC_SIZE as u32)
+                {
+                    Some(n) => n,
+                    None => return None
+                }
+            }
+            else
+            {
+                n >> FRAC_SIZE - shift as usize
+            },
+            None => match <I as NumCast>::from(if shift as usize > FRAC_SIZE
+            {
+                match f.checked_shl(shift - FRAC_SIZE as u32)
+                {
+                    Some(n) => n,
+                    None => return None
+                }
+            }
+            else
+            {
+                f >> FRAC_SIZE - shift as usize
+            })
+            {
+                Some(n) => n,
+                None => return None
+            }
+        };
+
+        if s
+        {
+            n.checked_neg()
+        }
+        else
+        {
+            Some(n)   
+        }
+    }
+    
+    pub fn to_int_wrapping<I: Int>(mut self) -> I
+    {
+        if self.is_zero()
+        {
+            return I::zero()
+        }
+        if self.is_nan()
+        {
+            return I::zero()
+        }
+        if self.is_infinite()
+        {
+            return if self.is_sign_negative() {I::min_value()} else {I::max_value()}
+        }
+
+        let max = Self::from_int(I::max_value()) + Self::one();
+        let min = Self::from_int(I::min_value());
+        self = max - ((max - min - ((self - min) % (max - min))) % (max - min));
+
+        let s = !self.sign_bit().is_zero();
+        let e = self.exp_bits();
+        let mut f = self.frac_bits();
+        
+        if !e.is_zero() || INT_BIT //normal
+        {
+            f = f + (self.int_bit() << Self::INT_POS);
+        }
+        else
+        {
+            f = f << 1usize;
+        }
+        
+        let bias = Self::exp_bias();
+        if e < bias
+        {
+            return I::zero()
+        }
+
+        let shift = <u32 as NumCast>::from(e - bias).unwrap();
+
+        let n = match <I as NumCast>::from(f)
+        {
+            Some(n) => if shift as usize > FRAC_SIZE
+            {
+                (n % (I::one() << bitsize_of::<I>() - 1 - (shift as usize - FRAC_SIZE))) << shift as usize - FRAC_SIZE
+            }
+            else
+            {
+                n >> FRAC_SIZE - shift as usize
+            },
+            None => <I as NumCast>::from(if shift as usize > FRAC_SIZE
+            {
+                (f % (U::one() << bitsize_of::<I>() - 1 - (shift as usize - FRAC_SIZE))) << shift as usize - FRAC_SIZE
+            }
+            else
+            {
+                f >> FRAC_SIZE - shift as usize
+            }).unwrap()
+        };
+
+        if s
+        {
+            match n.checked_neg()
+            {
+                Some(n) => n,
+                None => n
+            }
+        }
+        else
+        {
+            n
+        }
     }
 
     pub const fn from_bits(bits: U) -> Self
@@ -409,317 +722,1185 @@ where
     
     pub fn nan() -> Self
     {
-        <Self as Float>::nan()
+        Self::from_bits(U::max_value() >> bitsize_of::<U>() - Self::SIGN_POS)
     }
 
     pub fn infinity() -> Self
     {
-        <Self as Float>::infinity()
+        Self::from_bits((U::max_value() >> bitsize_of::<U>() - EXP_SIZE) << Self::EXP_POS)
     }
 
     pub fn neg_infinity() -> Self
     {
-        <Self as Float>::neg_infinity()
+        -Self::infinity()
     }
 
     pub fn neg_zero() -> Self
     {
-        <Self as Float>::neg_zero()
+        -Self::zero()
     }
 
     pub fn min_value() -> Self
     {
-        <Self as Float>::min_value()
+        -Self::max_value()
     }
 
     pub fn min_positive_value() -> Self
     {
-        <Self as Float>::min_positive_value()
+        Self::from_bits(U::one())
     }
 
     pub fn max_value() -> Self
     {
-        <Self as Float>::max_value()
+        Self::from_bits(((U::max_value() >> bitsize_of::<U>() - EXP_SIZE) << Self::EXP_POS) - U::one())
     }
 
     pub fn is_nan(self) -> bool
     {
-        <Self as Float>::is_nan(self)
+        !self.is_finite() && !self.frac_bits().is_zero() && (!INT_BIT || !self.int_bit().is_zero())
     }
 
     pub fn is_infinite(self) -> bool
     {
-        <Self as Float>::is_infinite(self)
+        !self.is_finite() && self.frac_bits().is_zero() && (!INT_BIT || self.int_bit().is_zero())
     }
 
     pub fn is_finite(self) -> bool
     {
-        <Self as Float>::is_finite(self)
+        self.exp_bits() != (U::max_value() >> bitsize_of::<U>() - EXP_SIZE)
     }
 
     pub fn is_normal(self) -> bool
     {
-        <Self as Float>::is_normal(self)
+        if !self.is_finite()
+        {
+            return false
+        }
+        let e = self.exp_bits();
+        if INT_BIT
+        {
+            return true
+        }
+        e != U::zero() && e != (U::max_value() >> bitsize_of::<U>() - EXP_SIZE)
     }
 
     pub fn classify(self) -> FpCategory
     {
-        <Self as Float>::classify(self)
+        let e = self.exp_bits();
+        if self.is_zero()
+        {
+            return FpCategory::Zero
+        }
+        if e == U::zero() && !INT_BIT
+        {
+            return FpCategory::Subnormal
+        }
+        if e == (U::max_value() >> bitsize_of::<U>() - EXP_SIZE)
+        {
+            if self.frac_bits().is_zero()
+            {
+                return FpCategory::Infinite
+            }
+            return FpCategory::Nan
+        }
+        FpCategory::Normal
     }
 
     pub fn floor(self) -> Self
     {
-        <Self as Float>::floor(self)
+        if self.is_zero()
+        {
+            return Self::zero()
+        }
+        let s = !self.sign_bit().is_zero();
+        let e = self.exp_bits();
+        let mut f = self.frac_bits();
+        let bias = Self::exp_bias();
+        if e < bias
+        {
+            return if s {-Self::one()} else {Self::zero()}
+        }
+        let mask = match ((U::one() << FRAC_SIZE) - U::one()).checked_shr(<u32 as NumCast>::from(e - bias).unwrap())
+        {
+            Some(mask) => mask,
+            None => U::zero()
+        };
+        let i = s && !(f & mask).is_zero();
+        f = f & (!mask);
+        let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
+        let n = Self::from_bits(s_bit + (e << Self::EXP_POS) + f + if INT_BIT {self.int_bit() << Self::INT_POS} else {U::zero()});
+        
+        if i
+        {
+            return n - Self::one()
+        }
+        n
     }
 
     pub fn ceil(self) -> Self
     {
-        <Self as Float>::ceil(self)
+        if self.is_zero()
+        {
+            return Self::zero()
+        }
+        let s = !self.sign_bit().is_zero();
+        let e = self.exp_bits();
+        let mut f = self.frac_bits();
+        let bias = Self::exp_bias();
+        if e < bias
+        {
+            return if s {Self::zero()} else {Self::one()}
+        }
+        let mask = match ((U::one() << FRAC_SIZE) - U::one()).checked_shr(<u32 as NumCast>::from(e - bias).unwrap())
+        {
+            Some(mask) => mask,
+            None => U::zero()
+        };
+        let i = !s && !(f & mask).is_zero();
+        f = f & (!mask);
+        let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
+        let n = Self::from_bits(s_bit + (e << Self::EXP_POS) + f + if INT_BIT {self.int_bit() << Self::INT_POS} else {U::zero()});
+        
+        if i
+        {
+            return n + Self::one()
+        }
+        n
     }
 
     pub fn round(self) -> Self
     {
-        <Self as Float>::round(self)
+        let c = self.ceil();
+        let f = self.floor();
+        if if self >= Self::zero() {c - self <= self - f} else {c - self < self - f}
+        {
+            c
+        }
+        else
+        {
+            f
+        }
     }
 
     pub fn trunc(self) -> Self
     {
-        <Self as Float>::trunc(self)
+        let s = !self.sign_bit().is_zero();
+        if self.is_zero()
+        {
+            return if s {-Self::zero()} else {Self::zero()}
+        }
+        let e = self.exp_bits();
+        let mut f = self.frac_bits();
+        let bias = Self::exp_bias();
+        if e < bias
+        {
+            return if s {-Self::zero()} else {Self::zero()}
+        }
+        let mask = match ((U::one() << FRAC_SIZE) - U::one()).checked_shr(<u32 as NumCast>::from(e - bias).unwrap())
+        {
+            Some(mask) => mask,
+            None => U::zero()
+        };
+        f = f & (!mask);
+        let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
+        return Self::from_bits(s_bit + (e << Self::EXP_POS) + f + if INT_BIT {self.int_bit() << Self::INT_POS} else {U::zero()})
     }
 
     pub fn fract(self) -> Self
     {
-        <Self as Float>::fract(self)
+        self - self.trunc()
     }
 
     pub fn abs(self) -> Self
     {
-        <Self as Float>::abs(self)
+        Self::from_bits(self.to_bits() & (U::max_value() >> bitsize_of::<U>() - Self::SIGN_POS))
     }
 
     pub fn signum(self) -> Self
     {
-        <Self as Float>::signum(self)
+        if self.is_nan()
+        {
+            return self
+        }
+        let s = !self.sign_bit().is_zero();
+        if s {-Self::one()} else {Self::one()}
     }
 
     pub fn is_sign_positive(self) -> bool
     {
-        <Self as Float>::is_sign_positive(self)
+        self.sign_bit().is_zero()
     }
 
     pub fn is_sign_negative(self) -> bool
     {
-        <Self as Float>::is_sign_negative(self)
+        !self.sign_bit().is_zero()
     }
 
     pub fn mul_add(self, a: Self, b: Self) -> Self
     {
-        <Self as Float>::mul_add(self, a, b)
+        (self*a) + b
     }
 
     pub fn recip(self) -> Self
     {
-        <Self as Float>::recip(self)
+        Self::one()/self
     }
 
-    pub fn powi(self, n: i32) -> Self
+    pub fn powi<I: Int>(self, mut n: I) -> Self
     {
-        <Self as Float>::powi(self, n)
+        let mut r = Self::one();
+        
+        let mut x = if n < I::zero()
+        {
+            n = -n;
+            Self::one() / self
+        }
+        else
+        {
+            self
+        };
+        
+        if (n & I::one()) == I::one()
+        {
+            r = x;
+        }
+
+        loop
+        {
+            n = n >> 1usize;
+            if n == I::zero()
+            {
+                break;
+            }
+            x = x*x;
+            if (n & I::one()) == I::one()
+            {
+                r = r*x;
+            }
+        }
+
+        r
+    }
+    
+    pub fn powu<I: UInt>(self, mut n: I) -> Self
+    {
+        let mut r = Self::one();
+        
+        let mut x = self;
+        
+        if (n & I::one()) == I::one()
+        {
+            r = x;
+        }
+
+        loop
+        {
+            n = n >> 1usize;
+            if n == I::zero()
+            {
+                break;
+            }
+            x = x*x;
+            if (n & I::one()) == I::one()
+            {
+                r = r*x;
+            }
+        }
+
+        r
     }
 
     pub fn powf(self, n: Self) -> Self
     {
-        <Self as Float>::powf(self, n)
+        if INT_BIT
+        {
+            return Self::from_fp(Fp::<U, EXP_SIZE, false, FRAC_SIZE>::from_fp(self).powf(Fp::<U, EXP_SIZE, false, FRAC_SIZE>::from_fp(n)))
+        }
+
+        let xabs = self.abs();
+        let nabs = n.abs();
+
+        let edge_x = {
+            let e = (U::one() << EXP_SIZE) - U::one();
+            Self::from_bits(e << Self::EXP_POS)
+        };
+        let edge_n = {
+            let e = Self::exp_bias() + U::from(FRAC_SIZE).unwrap();
+            Self::from_bits(e << Self::EXP_POS)
+        };
+        
+        if n.is_zero()
+        {
+            return Self::one()
+        }
+        if self.is_one() && !n.is_finite()
+        {
+            return Self::one()
+        }
+        if self.is_nan() || n.is_nan()
+        {
+            return self + n
+        }
+        if n == Self::one()
+        {
+            return self
+        }
+        
+        // if n is an odd integer
+        let n_d = (nabs + Self::one())/<Self as From<_>>::from(2.0);
+        let noi = n_d.trunc() == n_d;
+
+        if xabs.is_zero()
+        {
+            if noi || n.is_infinite()
+            {
+                if n < Self::zero()
+                {
+                    return Self::one()/self
+                }
+                return self
+            }
+            if n > Self::zero()
+            {
+                return Self::zero()
+            }
+            return Self::one()/xabs
+        }
+
+        if (xabs.to_bits() >= edge_x.to_bits()) || (nabs.to_bits() >= edge_n.to_bits())
+        {
+            if nabs.is_infinite()
+            {
+                if self == -Self::one()
+                {
+                    return Self::one()
+                }
+                if xabs > Self::one()
+                {
+                    if n > Self::zero()
+                    {
+                        return n
+                    }
+                    return Self::zero()
+                }
+                if n > Self::zero()
+                {
+                    return Self::zero()
+                }
+                return nabs
+            }
+
+            if self == Self::infinity()
+            {
+                if n < Self::zero()
+                {
+                    return Self::zero()
+                }
+                return self
+            }
+            if self > Self::neg_infinity()
+            {
+                if !noi
+                {
+                    if self < Self::zero() || n > Self::zero()
+                    {
+                        return self.sqrt()
+                    }
+                    return (Self::one()/self).sqrt()
+                }
+            
+                // clamp  -0x1.0p31 < y < 0x1.0p31
+                let nabs = nabs.min(Self::from_uint(U::max_value()));
+                let s = !n.sign_bit().is_zero();
+                let mut i = <u128 as NumCast>::from(nabs).unwrap();
+                let mut r = Self::one();
+                
+                let mut x = if s
+                {
+                    Self::one() / self
+                }
+                else
+                {
+                    self
+                };
+                
+                if (i & 1) == 1
+                {
+                    r = x;
+                }
+
+                loop
+                {
+                    i >>= 1;
+                    if 0 == i
+                    {
+                        break;
+                    }
+                    x = x*x;
+                    if (i & 1) == 1
+                    {
+                        r = r*x;
+                    }
+                }
+
+                return r;
+            }
+
+            if noi
+            {
+                if n > Self::zero()
+                {
+                    return self
+                }
+                return -Self::zero()
+            }
+            
+            if n > Self::zero()
+            {
+                return -self
+            }
+            return Self::zero()
+        }
+        
+        let ni = n.trunc() == n;
+
+        if !ni && self < Self::zero()
+        {
+            return Self::nan()
+        }
+        
+        //special case for sqrts
+        if <Self as From<_>>::from(0.5) == nabs
+        {
+            if self < Self::zero() || n > Self::zero()
+            {
+                return self.sqrt()
+            }
+            return (Self::one()/self).sqrt()
+        }
+
+        let xabs_log2 = xabs.log2();
+
+        let n_x_abs_log2 = n*xabs_log2;
+        if n_x_abs_log2 >= Self::from_uint(U::one() << (EXP_SIZE - 1))
+        {
+            // ???
+            return Self::from_bits(((U::one() << EXP_SIZE) - U::one()) << Self::EXP_POS)*n_x_abs_log2;
+        }
+        if n_x_abs_log2 <= -Self::from_uint((U::one() << (EXP_SIZE - 1)) + U::from(FRAC_SIZE - 1).unwrap())
+        {
+            // ???
+            return -Self::from_bits(U::one() << (Self::EXP_POS - EXP_SIZE/2))*n_x_abs_log2;
+        }
+        
+        let e = n_x_abs_log2.floor();
+        let f = n_x_abs_log2 - e;
+        
+        const C0: f64 =  1.0 + 0.278626872016317130037181614004e-10;
+        const C1: f64 = 0.693147176943623740308984004029708;
+        const C2: f64 = 0.240226505817268621584559118975830;
+        const C3: f64 = 0.555041568519883074165425891257052e-1;
+        const C4_OVER_C8: f64 = 0.961813690023115610862381719985771e-2 / C8;
+        const C5_OVER_C8: f64 = 0.133318252930790403741964203236548e-2 / C8;
+        const C6_OVER_C8: f64 = 0.154016177542147239746127455226575e-3 / C8;
+        const C7_OVER_C8: f64 = 0.154832722143258821052933667742417e-4 / C8;
+        const C8: f64 = 0.134107709538786543922336536865157e-5;
+
+        let mut z = Self::one();
+        if !f.is_zero()
+        {
+            let ff = f * f;
+            let mut s7 = <Self as From<_>>::from(C7_OVER_C8) * f;
+            let mut s3 = <Self as From<_>>::from(C3) * f;
+            let mut s5 = <Self as From<_>>::from(C5_OVER_C8) * f;
+            let mut s1 = <Self as From<_>>::from(C1) * f;
+            let ffff = ff * ff;
+            s7 += <Self as From<_>>::from(C6_OVER_C8);
+            s3 += <Self as From<_>>::from(C2);
+            s5 += <Self as From<_>>::from(C4_OVER_C8);
+            s1 += <Self as From<_>>::from(C0);
+            s7 *= ff;
+            s3 *= ff;
+            s5 += ffff;
+            let c8ffff = ffff * <Self as From<_>>::from(C8);
+            s7 += s5;
+            s3 += s1;
+            s7 *= c8ffff;
+            z = s3 + s7;
+        }
+
+        let e = e + Self::from_uint(Self::exp_bias());
+        if e > Self::from_uint((U::one() << EXP_SIZE) - U::one())
+        {
+            return Self::infinity()*z
+        }
+        if e < Self::zero()
+        {
+            return Self::zero()*z
+        }
+        if e.is_nan()
+        {
+            return Self::nan()
+        }
+        let e = U::from(e).unwrap();
+        let y = Self::from_bits(e << Self::EXP_POS);
+
+        y*z
     }
 
     pub fn sqrt(self) -> Self
     {
-        <Self as Float>::sqrt(self)
+        if self.is_nan() || self.is_sign_negative()
+        {
+            return Self::nan()
+        }
+
+        if INT_BIT
+        {
+            return Self::from_fp(Fp::<U, EXP_SIZE, false, FRAC_SIZE>::from_fp(self).sqrt())
+        }
+
+        let y = Self::from_bits(
+            ((Self::exp_bias() + U::one()) * (U::one() << (FRAC_SIZE - 1)))
+            + (self.to_bits() >> 1usize)
+            - (U::one() << (FRAC_SIZE - 1))
+        );
+
+        const NEWTON: usize = 4;
+        let half = <Self as From<_>>::from(0.5);
+        let mut y = y;
+        for _ in 0..NEWTON
+        {
+            y = half*(y + self/y);
+        }
+        y
     }
 
     pub fn exp(self) -> Self
     {
-        <Self as Float>::exp(self)
+        (self/Self::LN_2()).exp2()
     }
 
     pub fn exp2(self) -> Self
     {
-        <Self as Float>::exp2(self)
+        if INT_BIT
+        {
+            return Self::from_fp(Fp::<U, EXP_SIZE, false, FRAC_SIZE>::from_fp(self).exp2())
+        }
+        if self.is_nan()
+        {
+            return self
+        }
+        if self.is_infinite()
+        {
+            if self.is_sign_negative()
+            {
+                return Self::zero()
+            }
+            return self
+        }
+        let neg = self.is_sign_negative();
+        let x = self.abs().max(-Self::from_uint(Self::exp_bias() - U::one()));
+        let w = x.floor();
+        let z = x - w;
+        let approx = <Self as From<_>>::from(-5.7259425)
+        + <Self as From<_>>::from(27.7280233)/(<Self as From<_>>::from(4.84252568) - z)
+        - <Self as From<_>>::from(1.49012907)*z;
+        let y = Self::from_uint(U::one() << Self::EXP_POS)*(x + Self::from_uint(Self::exp_bias()) + approx);
+        if y.is_nan()
+        {
+            return y
+        }
+        if y >= Self::from_uint(U::max_value())
+        {
+            if neg
+            {
+                return Self::zero()
+            }
+            return Self::infinity()
+        }
+        if y <= Self::one()
+        {
+            if neg
+            {
+                return Self::infinity()
+            }
+            return Self::zero();
+        }
+        let y = y.to_uint().unwrap();
+        if y < U::one() << Self::EXP_POS
+        {
+            return Self::one()
+        }
+        let y = Self::from_bits(y);
+        if neg
+        {
+            return y.recip();
+        }
+        y
     }
 
     pub fn ln(self) -> Self
     {
-        <Self as Float>::ln(self)
+        self.log2()*Self::LN_2()
     }
 
     pub fn log(self, base: Self) -> Self
     {
-        <Self as Float>::log(self, base)
+        self.ln()/base.ln()
     }
 
     pub fn log2(self) -> Self
     {
-        <Self as Float>::log2(self)
+        if INT_BIT
+        {
+            return Self::from_fp(Fp::<U, EXP_SIZE, false, FRAC_SIZE>::from_fp(self).log2())
+        }
+        if self.is_nan()
+        {
+            return self
+        }
+        if self < Self::zero()
+        {
+            return Self::nan()
+        }
+        if self.is_zero()
+        {
+            return Self::neg_infinity()
+        }
+        if self.is_infinite()
+        {
+            return Self::infinity()
+        }
+        let b = if !self.exp_bits().is_zero()
+        {
+            U::zero()
+        }
+        else
+        {
+            U::from(self.frac_bits().leading_zeros() as usize - (bitsize_of::<U>() - FRAC_SIZE)).unwrap()
+        };
+        let mut y = Self::from_uint(self.exp_bits())
+            - Self::from_uint(Self::exp_bias() + U::one())
+            - Self::from_uint(b);
+        let mut u = self.to_bits();
+        u = u & !(((U::one() << EXP_SIZE) - U::one()) << Self::EXP_POS);
+        u = u + (Self::exp_bias() << Self::EXP_POS);
+        let u = Fp::<U, EXP_SIZE, false, FRAC_SIZE>::from_bits(U::from(u).unwrap());
+        let u = Self::from_fp(u);
+        y += (<Self as From<_>>::from(-0.34484843) * u + <Self as From<_>>::from(2.02466578)) * u  - <Self as From<_>>::from(0.67487759); 
+        return y;
     }
 
     pub fn log10(self) -> Self
     {
-        <Self as Float>::log10(self)
+        self.ln()/Self::LN_10()
     }
 
     pub fn max(self, other: Self) -> Self
     {
-        <Self as Float>::max(self, other)
+        match self.partial_cmp(&other)
+        {
+            Some(cmp) => match cmp
+            {
+                Ordering::Less => other,
+                _ => self,
+            }
+            None => self + other
+        }
     }
 
     pub fn min(self, other: Self) -> Self
     {
-        <Self as Float>::min(self, other)
+        match self.partial_cmp(&other)
+        {
+            Some(cmp) => match cmp
+            {
+                Ordering::Greater => other,
+                _ => self,
+            }
+            None => self + other
+        }
     }
 
     pub fn abs_sub(self, other: Self) -> Self
     {
-        <Self as Float>::abs_sub(self, other)
+        (self - other).abs()
     }
 
     pub fn cbrt(self) -> Self
     {
-        <Self as Float>::cbrt(self)
+        self.powf(Self::one()/<Self as From<_>>::from(3.0))
     }
 
     pub fn hypot(self, other: Self) -> Self
     {
-        <Self as Float>::hypot(self, other)
+        (self*self + other*other).sqrt()
     }
 
     pub fn sin(self) -> Self
     {
-        <Self as Float>::sin(self)
+        const N: usize = 6;
+        const C: [f64; N] = [
+            1.276278962,
+            -0.285261569,
+            0.009118016,
+            -0.000136587,
+            0.000001185,
+            -0.000000007
+        ];
+        let t: [[Self; N]; N] = ArrayOps::fill(
+            |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
+        );
+        let p: [Self; N] = t.zip(C)
+            .map2(|(t, c)| t.map2(|tn| <Self as From<_>>::from(c)*tn))
+            .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
+            .unwrap_or_default();
+
+        let mut w = self*Self::FRAC_2_PI();
+        let mut i = 0;
+        while i < 4
+        {
+            w -= Self::one();
+            if i % 2 == 0 && w < Self::zero()
+            {
+                w = -w;
+            }
+            w %= <Self as From<_>>::from(4.0);
+            i += 1;
+        }
+        let two = <Self as From<_>>::from(2.0);
+        let w = if w > Self::one() {two - w} else if w < -Self::one() {-two - w} else {w};
+
+        let z = two*w*w - Self::one();
+
+        p.polynomial(z)*w
     }
 
     pub fn cos(self) -> Self
     {
-        <Self as Float>::cos(self)
+        const N: usize = 6;
+        const C: [f64; N] = [
+            1.276278962,
+            -0.285261569,
+            0.009118016,
+            -0.000136587,
+            0.000001185,
+            -0.000000007
+        ];
+        let t: [[Self; N]; N] = ArrayOps::fill(
+            |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
+        );
+        let p: [Self; N] = t.zip(C)
+            .map2(|(t, c)| t.map2(|tn| <Self as From<_>>::from(c)*tn))
+            .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
+            .unwrap_or_default();
+
+        let mut w = self*Self::FRAC_2_PI() + Self::one();
+        let mut i = 0;
+        while i < 4
+        {
+            w -= Self::one();
+            if i % 2 == 0 && w < Self::zero()
+            {
+                w = -w;
+            }
+            w %= <Self as From<_>>::from(4.0);
+            i += 1;
+        }
+        let two = <Self as From<_>>::from(2.0);
+        let w = if w > Self::one() {two - w} else if w < -Self::one() {-two - w} else {w};
+
+        let z = two*w*w - Self::one();
+
+        p.polynomial(z)*w
     }
 
     pub fn tan(self) -> Self
     {
-        <Self as Float>::tan(self)
+        let (sin, cos) = self.sin_cos();
+
+        sin/cos
     }
 
     pub fn asin(self) -> Self
     {
-        <Self as Float>::asin(self)
+        if self.is_nan()
+        {
+            return self
+        }
+        if self == Self::one()
+        {
+            return Self::FRAC_PI_2()
+        }
+        if self == -Self::one()
+        {
+            return -Self::FRAC_PI_2()
+        }
+        if self > Self::one() || self < -Self::one()
+        {
+            return Self::nan()
+        }
+        (self/(Self::one() - self*self).sqrt()).atan()
     }
 
     pub fn acos(self) -> Self
     {
-        <Self as Float>::acos(self)
+        if self.is_nan()
+        {
+            return self
+        }
+        if self == Self::one()
+        {
+            return Self::zero()
+        }
+        if self == -Self::one()
+        {
+            return Self::PI()
+        }
+        if self > Self::one() || self < -Self::one()
+        {
+            return Self::nan()
+        }
+        ((Self::one() - self*self).sqrt()/self).atan()
     }
 
     pub fn atan(self) -> Self
     {
-        <Self as Float>::atan(self)
+        if self.is_nan()
+        {
+            return self
+        }
+        if self.is_infinite()
+        {
+            return Self::FRAC_PI_2().copysign(self)
+        }
+        const TAYLOR: usize = 8;
+        if self.abs() < Self::one()
+        {
+            let mut z = self;
+            let mut y = z;
+
+            for k in 1..TAYLOR
+            {
+                z *= -self*self;
+                y += z/Self::from_uint(1 + 2*k)
+            }
+
+            y
+        }
+        else
+        {
+            let mut z = Self::one()/self;
+            let mut y = Self::FRAC_PI_2() - z;
+
+            for k in 1..TAYLOR
+            {
+                z /= -self*self;
+                y -= z/Self::from_uint(1 + 2*k)
+            }
+
+            y
+        }
     }
 
     pub fn atan2(self, other: Self) -> Self
     {
-        <Self as Float>::atan2(self, other)
+        if other.is_zero()
+        {
+            return if self.is_zero()
+            {
+                Self::zero()
+            }
+            else if self.is_sign_negative()
+            {
+                -Self::FRAC_PI_2()
+            }
+            else
+            {
+                Self::FRAC_PI_2()
+            }
+        }
+        let atan = (other/self).atan();
+        if other.is_sign_positive()
+        {
+            return atan
+        }
+        atan + if self.is_sign_positive()
+        {
+            Self::PI()
+        }
+        else
+        {
+            -Self::PI()
+        }
     }
 
     pub fn sin_cos(self) -> (Self, Self)
     {
-        <Self as Float>::sin_cos(self)
+        const N: usize = 6;
+        const C: [f64; N] = [
+            1.276278962,
+            -0.285261569,
+            0.009118016,
+            -0.000136587,
+            0.000001185,
+            -0.000000007
+        ];
+        let t: [[Self; N]; N] = ArrayOps::fill(
+            |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
+        );
+        let p: [Self; N] = t.zip(C)
+            .map2(|(t, c)| t.map2(|tn| <Self as From<_>>::from(c)*tn))
+            .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
+            .unwrap_or_default();
+
+        let sin = {
+            let mut w = self*Self::FRAC_2_PI();
+            let mut i = 0;
+            while i < 4
+            {
+                w -= Self::one();
+                if i % 2 == 0 && w < Self::zero()
+                {
+                    w = -w;
+                }
+                w %= <Self as From<_>>::from(4.0);
+                i += 1;
+            }
+            let two = <Self as From<_>>::from(2.0);
+            let w = if w > Self::one() {two - w} else if w < -Self::one() {-two - w} else {w};
+    
+            let z = two*w*w - Self::one();
+    
+            p.polynomial(z)*w
+        };
+
+        let cos = {
+            let mut w = self*Self::FRAC_2_PI() + Self::one();
+            let mut i = 0;
+            while i < 4
+            {
+                w -= Self::one();
+                if i % 2 == 0 && w < Self::zero()
+                {
+                    w = -w;
+                }
+                w %= <Self as From<_>>::from(4.0);
+                i += 1;
+            }
+            let two = <Self as From<_>>::from(2.0);
+            let w = if w > Self::one() {two - w} else if w < -Self::one() {-two - w} else {w};
+
+            let z = two*w*w - Self::one();
+
+            p.polynomial(z)*w
+        };
+
+        (sin, cos)
     }
 
     pub fn exp_m1(self) -> Self
     {
-        <Self as Float>::exp_m1(self)
+        self.exp() - Self::one()
     }
 
     pub fn ln_1p(self) -> Self
     {
-        <Self as Float>::ln_1p(self)
+        (self + Self::one()).ln()
     }
 
     pub fn sinh(self) -> Self
     {
-        <Self as Float>::sinh(self)
+        if !self.is_finite()
+        {
+            return self
+        }
+
+        let ex = self.exp();
+        let emx = (-self).exp();
+
+        (ex - emx)*<Self as From<_>>::from(0.5)
     }
 
     pub fn cosh(self) -> Self
     {
-        <Self as Float>::cosh(self)
+        if !self.is_finite()
+        {
+            return self.abs()
+        }
+
+        let ex = self.exp();
+        let emx = (-self).exp();
+
+        (ex + emx)*<Self as From<_>>::from(0.5)
     }
 
     pub fn tanh(self) -> Self
     {
-        <Self as Float>::tanh(self)
+        if self.is_nan()
+        {
+            return self
+        }
+
+        let x2 = <Self as From<_>>::from(2.0)*self;
+        let ex2 = x2.exp();
+        let ex2p1 = ex2 + Self::one();
+        let ex2m1 = ex2 - Self::one();
+
+        if ex2m1.is_infinite()
+        {
+            return Self::one().copysign(self)
+        }
+        
+        ex2m1/ex2p1
     }
 
     pub fn asinh(self) -> Self
     {
-        <Self as Float>::asinh(self)
+        if !self.is_finite()
+        {
+            return self
+        }
+        (self + (self*self + Self::one()).sqrt()).ln()
     }
 
     pub fn acosh(self) -> Self
     {
-        <Self as Float>::acosh(self)
+        if self.is_nan()
+        {
+            return self
+        }
+        if self < Self::one()
+        {
+            return Self::nan()
+        }
+        if self.is_infinite()
+        {
+            return self
+        }
+        (self + (self*self - Self::one()).sqrt()).ln()
     }
 
     pub fn atanh(self) -> Self
     {
-        <Self as Float>::atanh(self)
+        if self.is_nan()
+        {
+            return self
+        }
+        if self == Self::one()
+        {
+            return Self::infinity()
+        }
+        if self == -Self::one()
+        {
+            return Self::neg_infinity()
+        }
+        if self > Self::one() || self < -Self::one()
+        {
+            return Self::nan()
+        }
+        if self > Self::zero()
+        {
+            <Self as From<_>>::from(0.5)*((Self::one() + self)/(Self::one() - self)).ln()
+        }
+        else
+        {
+            -<Self as From<_>>::from(0.5)*((Self::one() - self)/(Self::one() + self)).ln()
+        }
     }
 
     pub fn epsilon() -> Self
     {
-        <Self as Float>::epsilon()
+        let frac_size = U::from(FRAC_SIZE).unwrap();
+        let bias = Self::exp_bias();
+        if bias <= frac_size
+        {
+            return Self::from_bits(U::one() << <usize as NumCast>::from(bias).unwrap() - 1)
+        }
+        Self::from_bits((bias - frac_size) << Self::EXP_POS)
     }
 
     pub fn copysign(self, sign: Self) -> Self
     {
-        <Self as Float>::copysign(self, sign)
+        let s = sign.sign_bit();
+        let e = self.exp_bits();
+        let f = self.frac_bits();
+        if INT_BIT
+        {
+            let i = self.int_bit();
+            return Self::from_bits((s << Self::SIGN_POS) + (e << Self::EXP_POS) + (i << Self::INT_POS) + (f << Self::FRAC_POS))
+        }
+        Self::from_bits((s << Self::SIGN_POS) + (e << Self::EXP_POS) + (f << Self::FRAC_POS))
     }
 
     pub fn is_subnormal(self) -> bool
     {
-        <Self as Float>::is_subnormal(self)
+        !INT_BIT && self.exp_bits() == U::zero() && !self.is_zero()
     }
 
     pub fn to_degrees(self) -> Self
     {
-        <Self as Float>::to_degrees(self)
+        self*(<Self as From<_>>::from(180.0)/Self::PI())
     }
     pub fn to_radians(self) -> Self
     {
-        <Self as Float>::to_radians(self)
+        self*(Self::PI()/<Self as From<_>>::from(180.0))
     }
     
     pub fn zero() -> Self
     {
-        <Self as Zero>::zero()
+        Self::from_bits(U::zero())
     }
 
-    pub fn is_zero(&self) -> bool
+    pub fn is_zero(self) -> bool
     {
-        <Self as Zero>::is_zero(self)
+        (self.to_bits() << Self::BIT_SIZE - Self::SIGN_POS).is_zero()
+    }
+
+    fn set_zero(&mut self)
+    {
+        *self = Self::zero()
     }
     
     pub fn one() -> Self
     {
-        <Self as One>::one()
+        let bias = Self::exp_bias();
+        if INT_BIT
+        {
+            return Self::from_bits((bias << Self::EXP_POS) + (U::one() << Self::INT_POS))
+        }
+        Self::from_bits(bias << Self::EXP_POS)
     }
 
-    pub fn is_one(&self) -> bool
+    pub fn is_one(self) -> bool
     {
-        <Self as One>::is_one(self)
+        self == Self::one()
+    }
+
+    fn set_one(&mut self)
+    {
+        *self = Self::one()
+    }
+    
+    fn div_euclid(self, rhs: Self) -> Self
+    {
+        let q = (self / rhs).trunc();
+        if self % rhs < Self::zero()
+        {
+            return if rhs > Self::zero() {q - Self::one()} else {q + Self::one()};
+        }
+        q
+    }
+
+    fn rem_euclid(self, rhs: Self) -> Self
+    {
+        let r = self % rhs;
+        if r < Self::zero() {r + rhs.abs()} else {r}
     }
 }
 
 pub const fn bitsize_of<T>() -> usize
-where
-    T: UInt
 {
     size_of::<T>()*8
 }

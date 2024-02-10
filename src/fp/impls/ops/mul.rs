@@ -112,22 +112,20 @@ where
         let mut o = U::zero();
         let mut f = loop
         {
-            let (f, c) = f0.overflowing_mul(&f1);
-            if c
+            match f0.checked_mul(&f1)
             {
-                o = o + U::one();
-                if f0 > f1
-                {
-                    f0 = f0 >> 1usize;
+                Some(f) => break f,
+                None => {
+                    o = o + U::one();
+                    if f0 > f1
+                    {
+                        f0 = f0 >> 1usize;
+                    }
+                    else
+                    {
+                        f1 = f1 >> 1usize;
+                    }
                 }
-                else
-                {
-                    f1 = f1 >> 1usize;
-                }
-            }
-            else
-            {
-                break f
             }
         };
 
