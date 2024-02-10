@@ -13,9 +13,13 @@ where
 
     fn div(self, rhs: Self) -> Self::Output
     {
-        if self.is_nan() || rhs.is_nan() || (self.is_zero() && rhs.is_zero()) || (self.is_infinite() && rhs.is_infinite())
+        if self.is_nan() || rhs.is_nan()
         {
-            return Self::nan()
+            return self + rhs
+        }
+        if (self.is_zero() && rhs.is_zero()) || (self.is_infinite() && rhs.is_infinite())
+        {
+            return Self::qnan()
         }
     
         let s = !(self.sign_bit()^rhs.sign_bit()).is_zero();

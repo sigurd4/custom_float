@@ -15,45 +15,43 @@ where
         {
             return self + rhs;
         }
-        else if self.is_infinite() || rhs.is_zero()
+        if self.is_infinite() || rhs.is_zero()
         {
-            return Self::nan()
+            return Self::snan()
         }
-        else
-        {
-            let fa = self.abs();
-            let fb = rhs.abs();
 
-            if fa < fb
-            {
-                return self
-            }
-        
-            let mut dividend = fa;
-            /* normalize divisor */
-            let expo_a = fa.exp_bits();
-            let frac_b = fb.frac_bits();
-            let mut divisor = Self::from_bits((expo_a << Self::EXP_POS) + frac_b);
-            if divisor <= dividend*Self::from(0.5)
-            {
-                divisor += divisor;
-            }
-            /* compute quotient one bit at a time */
-            while divisor >= fb
-            {
-                if dividend >= divisor
-                {
-                    dividend -= divisor;
-                }
-                divisor *= Self::from(0.5);
-            }
-            while dividend >= fb
-            {
-                dividend -= fb;
-            }
-            /* dividend now represents remainder */
-            return dividend.copysign(self);
+        let fa = self.abs();
+        let fb = rhs.abs();
+
+        if fa < fb
+        {
+            return self
         }
+    
+        let mut dividend = fa;
+        /* normalize divisor */
+        let expo_a = fa.exp_bits();
+        let frac_b = fb.frac_bits();
+        let mut divisor = Self::from_bits((expo_a << Self::EXP_POS) + frac_b);
+        if divisor <= dividend*Self::from(0.5)
+        {
+            divisor += divisor;
+        }
+        /* compute quotient one bit at a time */
+        while divisor >= fb
+        {
+            if dividend >= divisor
+            {
+                dividend -= divisor;
+            }
+            divisor *= Self::from(0.5);
+        }
+        while dividend >= fb
+        {
+            dividend -= fb;
+        }
+        /* dividend now represents remainder */
+        dividend.copysign(self)
     }
 }
 impl<U: UInt, const EXP_SIZE: usize, const INT_BIT: bool, const FRAC_SIZE: usize> RemAssign for Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>

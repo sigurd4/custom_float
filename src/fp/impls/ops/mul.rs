@@ -13,9 +13,13 @@ where
 
     fn mul(self, rhs: Self) -> Self::Output
     {
-        if self.is_nan() || rhs.is_nan() || (self.is_infinite() && rhs.is_zero()) || (self.is_zero() && rhs.is_infinite())
+        if self.is_nan() || rhs.is_nan()
         {
-            return Self::nan()
+            return self + rhs
+        }
+        if (self.is_infinite() && rhs.is_zero()) || (self.is_zero() && rhs.is_infinite())
+        {
+            return Self::qnan()
         }
         
         if self.is_one()

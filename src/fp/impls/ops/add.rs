@@ -15,7 +15,11 @@ where
     {
         if self.is_nan() || rhs.is_nan()
         {
-            Self::nan()
+            if rhs.is_snan() || !self.is_nan()
+            {
+                return rhs
+            }
+            self
         }
         else if self.is_infinite()
         {
@@ -27,7 +31,7 @@ where
                 }
                 else
                 {
-                    Self::nan()
+                    Self::qnan()
                 }
             }
             else

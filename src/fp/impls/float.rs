@@ -1,7 +1,6 @@
-use std::{cmp::Ordering, num::FpCategory};
+use std::num::FpCategory;
 
-use array_math::{ArrayMath, ArrayOps};
-use num_traits::{float::FloatCore, Float, FloatConst, Inv, NumCast};
+use num_traits::{float::FloatCore, Float};
 
 use crate::{bitsize_of, Fp, UInt};
 

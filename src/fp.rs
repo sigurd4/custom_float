@@ -91,7 +91,11 @@ where
 
         if fp.is_nan()
         {
-            return Self::nan()
+            if fp.is_snan()
+            {
+                return Self::snan()
+            }
+            return Self::qnan()
         }
         if fp.is_infinite()
         {
@@ -722,7 +726,30 @@ where
     
     pub fn nan() -> Self
     {
+        Self::snan()
+    }
+    
+    pub fn qnan() -> Self
+    {
         Self::from_bits(U::max_value() >> bitsize_of::<U>() - Self::SIGN_POS)
+    }
+    
+    pub fn snan() -> Self
+    {
+        if Self::INT_POS + Self::INT_SIZE < 1
+        {
+            return Self::qnan()
+        }
+        Self::from_bits((U::max_value() >> bitsize_of::<U>() - Self::SIGN_POS) - (U::one() << Self::INT_POS + Self::INT_SIZE - 1))
+    }
+
+    pub fn is_snan(self) -> bool
+    {
+        if Self::INT_POS + Self::INT_SIZE < 1 || !self.is_nan()
+        {
+            return false
+        }
+        (self.to_bits() >> Self::INT_POS + Self::INT_SIZE - 1) & U::one() == U::zero()
     }
 
     pub fn infinity() -> Self
@@ -1166,7 +1193,7 @@ where
 
         if !ni && self < Self::zero()
         {
-            return Self::nan()
+            return Self::snan()
         }
         
         //special case for sqrts
@@ -1240,7 +1267,7 @@ where
         }
         if e.is_nan()
         {
-            return Self::nan()
+            return e
         }
         let e = U::from(e).unwrap();
         let y = Self::from_bits(e << Self::EXP_POS);
@@ -1250,9 +1277,13 @@ where
 
     pub fn sqrt(self) -> Self
     {
-        if self.is_nan() || self.is_sign_negative()
+        if self.is_nan()
         {
-            return Self::nan()
+            return self
+        }
+        if self.is_sign_negative()
+        {
+            return Self::snan()
         }
 
         if INT_BIT
@@ -1362,7 +1393,7 @@ where
         }
         if self < Self::zero()
         {
-            return Self::nan()
+            return Self::snan()
         }
         if self.is_zero()
         {
@@ -1539,7 +1570,7 @@ where
         }
         if self > Self::one() || self < -Self::one()
         {
-            return Self::nan()
+            return Self::snan()
         }
         (self/(Self::one() - self*self).sqrt()).atan()
     }
@@ -1560,7 +1591,7 @@ where
         }
         if self > Self::one() || self < -Self::one()
         {
-            return Self::nan()
+            return Self::snan()
         }
         ((Self::one() - self*self).sqrt()/self).atan()
     }
@@ -1773,7 +1804,7 @@ where
         }
         if self < Self::one()
         {
-            return Self::nan()
+            return Self::snan()
         }
         if self.is_infinite()
         {
@@ -1798,7 +1829,7 @@ where
         }
         if self > Self::one() || self < -Self::one()
         {
-            return Self::nan()
+            return Self::snan()
         }
         if self > Self::zero()
         {

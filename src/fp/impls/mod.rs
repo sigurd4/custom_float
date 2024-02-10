@@ -20,6 +20,7 @@ moddef::moddef!(
         signed,
         to_bytes,
         to_primitive,
+        total_order,
         zero,
     }
 );
