@@ -87,7 +87,7 @@ where
             f = f + (self.int_bit() << FRAC_SIZE)
         }
 
-        let s = NumCast::from(s).unwrap();
+        let s = 1 - <i8 as NumCast>::from(s).unwrap()*2;
         let e = NumCast::from(<i32 as NumCast>::from(e).unwrap() - <i32 as NumCast>::from(bias).unwrap()).unwrap();
         let f = NumCast::from(f).unwrap();
 
