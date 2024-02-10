@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, num::FpCategory};
 
 use array_math::{ArrayMath, ArrayOps};
-use num_traits::{Float, FloatConst, Inv, NumCast};
+use num_traits::{float::FloatCore, Float, FloatConst, Inv, NumCast};
 
 use crate::{bitsize_of, Fp, UInt};
 
@@ -125,7 +125,7 @@ where
         self.recip()
     }
 
-    fn powi(self, mut n: i32) -> Self
+    fn powi(self, n: i32) -> Self
     {
         self.powi(n)
     }
@@ -277,21 +277,7 @@ where
 
     fn integer_decode(self) -> (u64, i16, i8)
     {
-        let s = self.sign_bit();
-        let e = self.exp_bits();
-        let mut f = self.frac_bits();
-        let bias = Self::exp_bias();
-
-        if INT_BIT
-        {
-            f = f + (self.int_bit() << FRAC_SIZE)
-        }
-
-        let s = NumCast::from(s).unwrap();
-        let e = NumCast::from(<i32 as NumCast>::from(e).unwrap() - <i32 as NumCast>::from(bias).unwrap()).unwrap();
-        let f = NumCast::from(f).unwrap();
-
-        (f, e, s)
+        <Self as FloatCore>::integer_decode(self)
     }
 
     fn epsilon() -> Self

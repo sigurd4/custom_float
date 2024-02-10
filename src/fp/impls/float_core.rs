@@ -1,4 +1,4 @@
-use num_traits::{float::FloatCore, Float};
+use num_traits::{float::FloatCore, Float, NumCast};
 
 use crate::{bitsize_of, Fp, UInt};
 
@@ -10,61 +10,75 @@ where
 {
     fn infinity() -> Self
     {
-        <Self as Float>::infinity()
+        Self::infinity()
     }
 
     fn neg_infinity() -> Self
     {
-        <Self as Float>::neg_infinity()
+        Self::neg_infinity()
     }
 
     fn nan() -> Self
     {
-        <Self as Float>::nan()
+        Self::nan()
     }
 
     fn neg_zero() -> Self
     {
-        <Self as Float>::neg_zero()
+        Self::neg_zero()
     }
 
     fn min_value() -> Self
     {
-        <Self as Float>::min_value()
+        Self::min_value()
     }
 
     fn min_positive_value() -> Self
     {
-        <Self as Float>::min_positive_value()
+        Self::min_positive_value()
     }
 
     fn epsilon() -> Self
     {
-        <Self as Float>::epsilon()
+        Self::epsilon()
     }
 
     fn max_value() -> Self
     {
-        <Self as Float>::max_value()
+        Self::max_value()
     }
 
     fn classify(self) -> std::num::FpCategory
     {
-        <Self as Float>::classify(self)
+        self.classify()
     }
 
     fn to_degrees(self) -> Self
     {
-        <Self as Float>::to_degrees(self)
+        self.to_degrees()
     }
 
     fn to_radians(self) -> Self
     {
-        <Self as Float>::to_radians(self)
+        self.to_radians()
     }
 
     fn integer_decode(self) -> (u64, i16, i8)
     {
-        <Self as Float>::integer_decode(self)
+        let s = self.sign_bit();
+        let e = self.exp_bits();
+        let mut f = self.frac_bits();
+        let bias = Self::exp_bias();
+
+        if INT_BIT
+        {
+            f = f + (self.int_bit() << FRAC_SIZE)
+        }
+
+        let s = NumCast::from(s).unwrap();
+        let e = NumCast::from(<i32 as NumCast>::from(e).unwrap() - <i32 as NumCast>::from(bias).unwrap()).unwrap();
+        let f = NumCast::from(f).unwrap();
+
+        (f, e, s)
     }
 }
