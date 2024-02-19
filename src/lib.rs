@@ -5,22 +5,44 @@
 #![feature(const_fn_floating_point_arithmetic)]
 #![feature(portable_simd)]
 
+use std::fmt::Debug;
+
+use num_traits::{CheckedNeg, CheckedShl, CheckedShr, PrimInt, Signed, Unsigned};
+
 moddef::moddef!(
+    pub mod {
+        amd,
+        g_711,
+        google,
+        ibm,
+        ieee754,
+        intel,
+        nvidia,
+        pixar
+    },
     flat(pub) mod {
         fp
+    },
+    mod {
+        util
     }
 );
+
+pub trait UInt = Unsigned + PrimInt + CheckedShl + CheckedShr + Debug;
+pub trait Int = Signed + PrimInt + CheckedShl + CheckedShr + CheckedNeg;
 
 #[cfg(test)]
 mod tests
 {
+    #![allow(unused)]
+
     use array_math::ArrayMath;
     use num::Complex;
-    use num_traits::{One, Zero};
+    use num_traits::{One, ToPrimitive, Zero};
 
     use crate::{amd::Fp24, g_711::FpG711, google::{Bf16, Bf32, Bf8}, ibm::{HFpLong, HFpShort}, ieee754::{FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, intel::Fp80, nvidia::{TensorFloat19, TensorFloat32}, Fp};
 
-    type F = Bf32;
+    pub type F = Fp<u64, 11, 5, 40>;
 
     #[test]
     fn it_works()
@@ -114,19 +136,10 @@ mod tests
     }
 
     #[test]
-    fn to_int()
-    {
-        let x = FpSingle::from_uint(3usize);
-        println!("{}", x.to_uint::<u64>().unwrap());
-        let x = f32::from_bits(x.to_bits());
-        println!("{}", x);
-    }
-
-    #[test]
     fn int_bit()
     {
         let x = Fp80::from(2.0);
-        println!("{}", x.int_bit());
+        println!("{}", x.int_bits());
         println!("{}", x);
         println!("{:b}", x)
     }

@@ -1,12 +1,12 @@
 # Custom Float
 
-This crate adds a custom floating point number type, `Fp<U, EXP_SIZE, INT_BIT, FRAC_SIZE>`, where the bit size of the exponent and mantissa can be set separately.
+This crate adds a custom floating point number type, `Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE>`, where the bit size of the exponent and mantissa can be set separately.
 
 `EXP_SIZE` is the size of the exponent in bits.
 
-`INT_BIT` is wether or not the int bit is explicit (`true`), or implicit (`false`).
+`INT_SIZE` is the size of the integer part of the mantissa in bits. If zero, then the integer bit is implicit.
 
-`FRAC_SIZE` is the size of the fractional part/mantissa in bits.
+`FRAC_SIZE` is the size of the fractional part of the mantissa in bits.
 
 The number then automatically implements `num::Float`, and supports all ordinary floating point operations.
 
