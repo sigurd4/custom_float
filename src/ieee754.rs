@@ -1,5 +1,6 @@
 //IEEE754
 
+#[cfg(feature = "ethnum")]
 use ethnum::U256;
 
 use crate::{util, Fp, UInt};

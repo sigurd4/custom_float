@@ -38,11 +38,11 @@ mod tests
 
     use array_math::ArrayMath;
     use num::Complex;
-    use num_traits::{One, ToPrimitive, Zero};
+    use num_traits::{Float, One, ToPrimitive, Zero};
 
-    use crate::{amd::Fp24, g_711::FpG711, google::{Bf16, Bf32, Bf8}, ibm::{HFpLong, HFpShort}, ieee754::{FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, intel::Fp80, nvidia::{TensorFloat19, TensorFloat32}, Fp};
+    use crate::{amd::Fp24, g_711::FpG711, google::{Bf16, Bf32, Bf8}, ibm::{HFpLong, HFpShort}, ieee754::{FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, intel::Fp80, nvidia::{Tf19}, Fp};
 
-    pub type F = Fp<u64, 11, 5, 40>;
+    pub type F = Fp<u64, 11, 5, 47>;
 
     #[test]
     fn it_works()
@@ -61,25 +61,23 @@ mod tests
         println!("{:?}", x);
     }
 
-    pub fn ttable() -> Vec<f32>
+    pub fn ttable<F: Float>() -> Vec<F>
     {
         vec![
-            3.333333,
-            10.0,
-            16.0,
-            -2.2,
-            2.2,
-            1.0,
-            1.0 + f32::EPSILON,
-            0.0,
-            0.5,
-            -0.5,
-            f32::NAN,
-            f32::INFINITY,
-            f32::NEG_INFINITY,
-            f32::MIN_POSITIVE,
-            f32::MIN_POSITIVE/2.0,
-            f32::from_bits(1),
+            F::from(3.333333).unwrap(),
+            F::from(10.0).unwrap(),
+            F::from(16.0).unwrap(),
+            F::from(-2.2).unwrap(),
+            F::from(2.2).unwrap(),
+            F::one(),
+            F::one() + F::epsilon(),
+            F::zero(),
+            F::from(0.5).unwrap(),
+            F::from(-0.5).unwrap(),
+            F::nan(),
+            F::infinity(),
+            F::neg_infinity(),
+            F::min_positive_value(),
         ]
     }
     
@@ -113,7 +111,7 @@ mod tests
     
     pub fn test_op1(op1: impl Fn(f32) -> f32, op2: impl Fn(F) -> F)
     {
-        for f0 in crate::tests::ttable()
+        for f0 in ttable::<f32>()
         {
             let fp0 = F::from(f0);
 
@@ -147,7 +145,7 @@ mod tests
     #[test]
     fn test_convert()
     {
-        for f0 in ttable()
+        for f0 in ttable::<f32>()
         {
             let fp = F::from(f0);
 

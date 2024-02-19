@@ -111,8 +111,8 @@ where
             }
         };
 
-        f0 = f0 << util::bitsize_of::<U>() - FRAC_SIZE - INT_SIZE - 1;
-        let mut o = U::from(util::bitsize_of::<U>() - FRAC_SIZE - INT_SIZE - 1).unwrap();
+        let mut o = U::from(f0.leading_zeros()).unwrap();
+        f0 = f0 << f0.leading_zeros();
         let mut f = loop
         {
             if f1 == U::zero()

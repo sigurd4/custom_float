@@ -26,7 +26,7 @@ moddef::moddef!(
 /// A custom floating point type.
 /// 
 /// Bit layout is as follows:
-/// ```
+/// ```txt
 /// No data: | Sign: | Exponent:  | Integer:   | Fractional: |
 /// <  ..  > | < 1 > | <EXP_SIZE> | <INT_SIZE> | <FRAC_SIZE> |
 /// ```
@@ -42,6 +42,7 @@ where
 {
     pub const BIT_SIZE: usize = EXP_SIZE + INT_SIZE + FRAC_SIZE + 1;
     pub const SIGN_SIZE: usize = 1;
+
     pub const SIGN_POS: usize = EXP_SIZE + INT_SIZE + FRAC_SIZE;
     pub const EXP_POS: usize = INT_SIZE + FRAC_SIZE;
     pub const INT_POS: usize = FRAC_SIZE;
@@ -2039,23 +2040,23 @@ where
             f0 = f0 + (self.int_bits() << FRAC_SIZE);
             f1 = f1 + (other.int_bits() << FRAC_SIZE);
             
-            while e0 > e1 && f0 <= U::one() << FRAC_SIZE + INT_SIZE - 2
+            while e0 > e1 && f0 < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
             {
                 e0 = e0 - U::one();
                 f0 = f0 << 1usize;
             }
-            while e0 < e1 && f0 >= U::one() << FRAC_SIZE + INT_SIZE - 1
+            while e0 < e1 && f0 >= U::one() << Self::MANTISSA_OP_SIZE
             {
                 e0 = e0 + U::one();
                 f0 = f0 >> 1usize;
             }
             
-            while e1 > e0 && f1 <= U::one() << FRAC_SIZE + INT_SIZE - 2
+            while e1 > e0 && f1 < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
             {
                 e1 = e1 - U::one();
                 f1 = f1 << 1usize;
             }
-            while e1 < e0 && f1 >= U::one() << FRAC_SIZE + INT_SIZE - 1
+            while e1 < e0 && f1 >= U::one() << Self::MANTISSA_OP_SIZE
             {
                 e1 = e1 + U::one();
                 f1 = f1 >> 1usize;
