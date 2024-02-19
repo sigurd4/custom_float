@@ -2,7 +2,7 @@ use std::ops::{Add, AddAssign};
 
 use crate::{UInt, Fp, util};
 
-impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize> Add<Self> for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Add<Self> for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
     [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,
     [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:
@@ -77,16 +77,17 @@ where
                 f1 = f1 << 1usize
             }
 
+            let base = U::from(EXP_BASE).unwrap();
             let mut e = if e0 >= e1
             {
                 let shr = e0 - e1;
-                f1 = util::rounding_div_pow(f1, U::from(2).unwrap(), shr);
+                f1 = util::rounding_div_pow(f1, base, shr);
                 e0
             }
             else
             {
                 let shr = e1 - e0;
-                f0 = util::rounding_div_pow(f0, U::from(2).unwrap(), shr);
+                f0 = util::rounding_div_pow(f0, base, shr);
                 e1
             };
 
@@ -107,8 +108,8 @@ where
                         Some(f) => break f,
                         None => {
                             e = e + U::one();
-                            f0 = util::rounding_div_2(f0);
-                            f1 = util::rounding_div_2(f1);
+                            f0 = util::rounding_div(f0, base);
+                            f1 = util::rounding_div(f1, base);
                         }
                     }
                 }
@@ -126,12 +127,12 @@ where
             while e > U::zero() && f <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
             {
                 e = e - U::one();
-                f = f << 1usize;
+                f = f*base;
             }
             while f >= U::one() << Self::MANTISSA_OP_SIZE
             {
                 e = e + U::one();
-                f = util::rounding_div_2(f);
+                f = util::rounding_div(f, base);
             }
 
             let n = if e.is_zero() && Self::IS_INT_IMPLICIT // subnormal
@@ -156,7 +157,7 @@ where
         }
     }
 }
-impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize> AddAssign for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> AddAssign for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
     [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,
     [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:

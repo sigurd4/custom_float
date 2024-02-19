@@ -4,7 +4,7 @@ use crate::fp::{UInt, Fp, util};
 
 use num_traits::NumCast;
 
-impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize> Mul<Self> for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Mul<Self> for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
     [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,
     [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:
@@ -73,8 +73,9 @@ where
             f1 = f1 << 1usize;
         }
 
+        let base = U::from(EXP_BASE).unwrap();
         let bias = Self::exp_bias() + U::one();
-        let e = match e0.checked_add(&e1)
+        let mut e = match e0.checked_add(&e1)
         {
             Some(e) => match e.checked_sub(&bias)
             {
@@ -86,11 +87,11 @@ where
                         o = o - U::one();
                         if f0 > f1
                         {
-                            f0 = util::rounding_div_2(f0);
+                            f0 = util::rounding_div(f0, base);
                         }
                         else
                         {
-                            f1 = util::rounding_div_2(f1);
+                            f1 = util::rounding_div(f1, base);
                         }
                     }
                     U::zero()
@@ -113,7 +114,7 @@ where
             }
         };
 
-        let mut o = U::zero();
+        let mut o = U::one();
         let mut f = loop
         {
             match f0.checked_mul(&f1)
@@ -123,47 +124,48 @@ where
                     o = o + U::one();
                     if f0 > f1
                     {
-                        f0 = util::rounding_div_2(f0);
+                        f0 = util::rounding_div(f0, base);
                     }
                     else
                     {
-                        f1 = util::rounding_div_2(f1);
+                        f1 = util::rounding_div(f1, base);
                     }
                 }
             }
         };
 
-        let f_o = U::from(FRAC_SIZE - 1).unwrap();
-        let mut e = match o.checked_sub(&f_o)
+        for _ in 0..FRAC_SIZE
         {
-            Some(o) => match e.checked_add(&o)
+            while (o > U::zero() || e > U::zero()) && f.leading_zeros() > 4
             {
-                Some(e) => e,
-                None => return if s {Self::neg_infinity()} else {Self::infinity()}
-            },
-            None => match e.checked_add(&o)
-            {
-                Some(e) => match e.checked_sub(&f_o)
+                if o > U::zero()
                 {
-                    Some(e) => e,
-                    None => {
-                        f = f >> <usize as NumCast>::from(f_o - e).unwrap();
-                        U::zero()
-                    }
-                },
-                None => return if s {Self::neg_infinity()} else {Self::infinity()}
+                    o = o - U::one();
+                }
+                else
+                {
+                    e = e - U::one();
+                }
+                f = f*base;
             }
+            f = f >> 1usize;
+        }
+        
+        let mut e = match e.checked_add(&o)
+        {
+            Some(e) => e,
+            None => return if s {Self::neg_infinity()} else {Self::infinity()}
         };
 
         while e > U::zero() && f <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
         {
             e = e - U::one();
-            f = f << 1usize;
+            f = f*base;
         }
         while f >= U::one() << Self::MANTISSA_OP_SIZE
         {
             e = e + U::one();
-            f = util::rounding_div_2(f);
+            f = util::rounding_div(f, base);
         }
 
         let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
@@ -188,7 +190,7 @@ where
         }
     }
 }
-impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize> MulAssign for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> MulAssign for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
     [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,
     [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:

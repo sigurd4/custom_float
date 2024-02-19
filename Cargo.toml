@@ -10,7 +10,7 @@ keywords = ["float", "number", "custom", "ieee754"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["ethnum"]
+default = []
 ethnum = ["dep:ethnum"]
 
 [dependencies]

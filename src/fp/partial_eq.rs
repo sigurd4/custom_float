@@ -1,8 +1,8 @@
 use crate::{util, Fp, UInt};
 
-impl<U: UInt, const EXP_SIZE: usize, const INT_BITS: usize, const FRAC_SIZE: usize> PartialEq for Fp<U, EXP_SIZE, INT_BITS, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> PartialEq for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
-    [(); util::bitsize_of::<U>() - EXP_SIZE - INT_BITS - FRAC_SIZE - 1]:,
+    [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,
     [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:
 {
     fn eq(&self, other: &Self) -> bool
@@ -11,7 +11,7 @@ where
         {
             return false
         }
-        if INT_BITS == 0
+        if Self::IS_INT_IMPLICIT
         {
             return self.0.eq(&other.0)
         }

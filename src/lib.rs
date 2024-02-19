@@ -40,9 +40,9 @@ mod tests
     use num::Complex;
     use num_traits::{Float, One, ToPrimitive, Zero};
 
-    use crate::{amd::Fp24, g_711::FpG711, google::{Bf16, Bf32, Bf8}, ibm::{HFpLong, HFpShort}, ieee754::{FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, intel::Fp80, nvidia::{Tf19}, Fp};
+    use crate::{amd::Fp24, g_711::FpG711, google::{Bf16, Bf32, Bf8}, ibm::{HFpLong, HFpShort}, ieee754::{DecDouble, FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, intel::Fp80, nvidia::Tf19, Fp};
 
-    pub type F = Fp<u64, 11, 5, 47>;
+    pub type F = DecDouble;
 
     #[test]
     fn it_works()
@@ -155,6 +155,17 @@ mod tests
             {
                 println!("{} != {}", f0, f1)
             }
+        }
+    }
+
+    #[test]
+    fn test_to_int()
+    {
+        for n in u8::MIN..=u8::MAX
+        {
+            let f = F::from_uint(n);
+            assert_eq!(f.to_uint_wrapping::<u8>(), n);
+            assert_eq!(f.to_uint(), Some(n));
         }
     }
 }

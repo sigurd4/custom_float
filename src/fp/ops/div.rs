@@ -4,7 +4,7 @@ use crate::fp::{UInt, Fp, util};
 
 use num_traits::{Inv, NumCast};
 
-impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize> Div<Self> for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Div<Self> for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
     [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,
     [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:
@@ -70,8 +70,9 @@ where
             f1 = f1 << 1usize;
         }
 
+        let base = U::from(EXP_BASE).unwrap();
         let bias = Self::exp_bias();
-        let e = match e0.checked_sub(&e1)
+        let mut e = match e0.checked_sub(&e1)
         {
             Some(e) => match e.checked_add(&bias)
             {
@@ -96,13 +97,13 @@ where
                         while o > U::zero()
                         {
                             o = o - U::one();
-                            if f1.leading_zeros() > 0
+                            if f0 > f1
                             {
-                                f1 = f1 << 1usize;
+                                f0 = util::rounding_div(f0, base);
                             }
                             else
                             {
-                                f0 = util::rounding_div_2(f0);
+                                f1 = util::rounding_div(f1, base);
                             }
                         }
                         U::zero()
@@ -111,8 +112,7 @@ where
             }
         };
 
-        let mut o = U::from(f0.leading_zeros()).unwrap();
-        f0 = f0 << f0.leading_zeros();
+        let mut o = U::zero();
         let mut f = loop
         {
             if f1 == U::zero()
@@ -120,29 +120,19 @@ where
                 return if s {Self::neg_infinity()} else {Self::infinity()}
             }
             let f = f0 / f1;
-            if !f0.is_zero() && f.leading_zeros() > 0
+            if !f0.is_zero() && f.leading_zeros() as usize >= Self::BASE_SIZE
             {
-                match f0.checked_shl(1)
+                if f0.leading_zeros() as usize > Self::BASE_SIZE
                 {
-                    Some(f0_) => if (f0_ >> 1usize) + U::one() < f0
+                    f0 = f0*base
+                }
+                else
+                {
+                    if f1 % base != U::zero()
                     {
-                        if f1.trailing_zeros() <= 0
-                        {
-                            break f
-                        }
-                        f1 = util::rounding_div_2(f1);
+                        break f
                     }
-                    else
-                    {
-                        f0 = f0_
-                    },
-                    None => {
-                        if f1.trailing_zeros() <= 0
-                        {
-                            break f
-                        }
-                        f1 = util::rounding_div_2(f1);
-                    }
+                    f1 = f1/base;
                 }
                 o = o + U::one();
             }
@@ -152,37 +142,74 @@ where
             }
         };
 
-        let f_o = U::from(FRAC_SIZE).unwrap();
-        let mut e = match f_o.checked_sub(&o)
+        if EXP_BASE == 2
         {
-            Some(o) => match e.checked_add(&o)
+            let frac_size = U::from(FRAC_SIZE).unwrap();
+            if o >= frac_size
             {
-                Some(e) => e,
-                None => return if s {Self::neg_infinity()} else {Self::infinity()}
-            },
-            None => match e.checked_add(&f_o)
-            {
-                Some(e) => match e.checked_sub(&o)
-                {
-                    Some(e) => e,
-                    None => {
-                        f = f >> <usize as NumCast>::from(o - e).unwrap();
-                        U::zero()
-                    }
-                },
-                None => return if s {Self::neg_infinity()} else {Self::infinity()}
+                o = o - frac_size
             }
+            else{
+                match e.checked_add(&frac_size)
+                {
+                    Some(e_) => e = e_,
+                    None => return if s {Self::neg_infinity()} else {Self::infinity()}
+                }
+            }
+        }
+        else
+        {
+            for _ in 0..FRAC_SIZE
+            {
+                f = loop
+                {
+                    if f.leading_zeros() > 0
+                    {
+                        break f << 1usize
+                    }
+                
+                    if f.is_zero()
+                    {
+                        return Self::zero()
+                    }
+                    if o > U::zero()
+                    {
+                        o = o - U::one();
+                    }
+                    else if e < U::max_value()
+                    {
+                        e = e + U::one();
+                    }
+                    else
+                    {
+                        return if s {Self::neg_infinity()} else {Self::infinity()}
+                    }
+                    f = util::rounding_div(f, base);
+                }
+            }
+        }
+
+        while e < U::one() << EXP_SIZE && f >= U::one() << Self::MANTISSA_OP_SIZE
+        {
+            e = e + U::one();
+            f = util::rounding_div(f, base);
+        }
+
+        let mut e = match e.checked_sub(&o)
+        {
+            Some(e) => e,
+            None => return if s {Self::neg_zero()} else {Self::zero()}
         };
 
         while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
         {
             e = e - U::one();
-            f = f << 1usize;
+            f = f*base;
         }
         while e < U::one() << EXP_SIZE && f >= U::one() << Self::MANTISSA_OP_SIZE
         {
             e = e + U::one();
-            f = util::rounding_div_2(f);
+            f = util::rounding_div(f, base);
         }
 
         let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
@@ -207,7 +234,7 @@ where
         }
     }
 }
-impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize> DivAssign for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> DivAssign for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
     [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,
     [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:
@@ -219,7 +246,7 @@ where
     }
 }
 
-impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize> Inv for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE>
+impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Inv for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
     [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,
     [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:
