@@ -2065,17 +2065,17 @@ where
             {
                 e0 = e0 - U::one();
                 f0 = f0*base;
-            }
-            while e0 < e1 && f0 >= U::one() << Self::MANTISSA_OP_SIZE
-            {
-                e0 = e0 + U::one();
-                f0 = util::rounding_div(f0, base);
-            }
-            
+            }            
             while e1 > e0 && f1 < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
             {
                 e1 = e1 - U::one();
                 f1 = f1*base;
+            }
+            
+            while e0 < e1 && f0 >= U::one() << Self::MANTISSA_OP_SIZE
+            {
+                e0 = e0 + U::one();
+                f0 = util::rounding_div(f0, base);
             }
             while e1 < e0 && f1 >= U::one() << Self::MANTISSA_OP_SIZE
             {

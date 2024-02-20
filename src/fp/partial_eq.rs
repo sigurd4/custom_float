@@ -33,27 +33,29 @@ where
 
         f0 = f0 + (self.int_bits() << FRAC_SIZE);
         f1 = f1 + (other.int_bits() << FRAC_SIZE);
+
+        let base = U::from(EXP_BASE).unwrap();
         
         while e0 > e1 && f0 <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
         {
             e0 = e0 - U::one();
-            f0 = f0 << 1usize;
+            f0 = f0*base;
         }
-        while e0 < e1 && f0 >= U::one() << Self::MANTISSA_OP_SIZE
-        {
-            e0 = e0 + U::one();
-            f0 = f0 >> 1usize;
-        }
-        
         while e1 > e0 && f1 <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
         {
             e1 = e1 - U::one();
-            f1 = f1 << 1usize;
+            f1 = f1*base;
+        }
+
+        while e0 < e1 && f0 >= U::one() << Self::MANTISSA_OP_SIZE
+        {
+            e0 = e0 + U::one();
+            f0 = util::rounding_div(f0, base);
         }
         while e1 < e0 && f1 >= U::one() << Self::MANTISSA_OP_SIZE
         {
             e1 = e1 + U::one();
-            f1 = f1 >> 1usize;
+            f1 = util::rounding_div(f1, base);
         }
 
         e0 == e1 && f0 == f1

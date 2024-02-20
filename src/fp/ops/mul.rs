@@ -2,8 +2,6 @@ use std::ops::{Mul, MulAssign};
 
 use crate::fp::{UInt, Fp, util};
 
-use num_traits::NumCast;
-
 impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Mul<Self> for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
     [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,

@@ -42,7 +42,7 @@ mod tests
 
     use crate::{amd::Fp24, g_711::FpG711, google::{Bf16, Bf32, Bf8}, ibm::{HFpLong, HFpShort}, ieee754::{DecDouble, FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, intel::Fp80, nvidia::Tf19, Fp};
 
-    pub type F = DecDouble;
+    pub type F = Fp24;
 
     #[test]
     fn it_works()

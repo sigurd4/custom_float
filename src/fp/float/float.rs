@@ -368,6 +368,8 @@ where
 #[cfg(test)]
 mod test
 {
+    #![allow(unused)]
+    
     use num_traits::Float;
 
     use crate::{g_711::FpG711, ieee754::DecDouble, intel::Fp80};
@@ -401,9 +403,6 @@ mod test
     #[test]
     fn test_powf()
     {
-        let x = crate::tests::F::one();
-        let y = crate::tests::F::infinity();
-        //println!("{}", x.powf(y));
         crate::tests::test_op2(Float::powf, Float::powf);
     }
 
