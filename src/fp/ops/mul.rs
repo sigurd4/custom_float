@@ -84,7 +84,15 @@ where
                     while o > U::zero()
                     {
                         o = o - U::one();
-                        if f0 > f1
+                        if (f0 % base).is_zero()
+                        {
+                            f0 = f0/base
+                        }
+                        else if (f1 % base).is_zero()
+                        {
+                            f1 = f1/base
+                        }
+                        else if f0 > f1
                         {
                             f0 = util::rounding_div(f0, base);
                         }
@@ -121,7 +129,15 @@ where
                 Some(f) => break f,
                 None => {
                     o = o + U::one();
-                    if f0 > f1
+                    if (f0 % base).is_zero()
+                    {
+                        f0 = f0/base
+                    }
+                    else if (f1 % base).is_zero()
+                    {
+                        f1 = f1/base
+                    }
+                    else if f0 > f1
                     {
                         f0 = util::rounding_div(f0, base);
                     }
@@ -135,7 +151,7 @@ where
 
         for _ in 0..FRAC_SIZE
         {
-            while (o > U::zero() || e > U::zero()) && f.leading_zeros() > 4
+            while (o > U::zero() || e > U::zero()) && f.leading_zeros() as usize > Self::BASE_PADDING
             {
                 if o > U::zero()
                 {
@@ -156,7 +172,7 @@ where
             None => return if s {Self::neg_infinity()} else {Self::infinity()}
         };
 
-        while e > U::zero() && f <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
+        while e > U::zero() && f <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
         {
             e = e - U::one();
             f = f*base;
@@ -210,6 +226,6 @@ mod test
     #[test]
     fn test_mul()
     {
-        crate::tests::test_op2(Mul::mul, Mul::mul)
+        crate::tests::test_op2(Mul::mul, Mul::mul, None)
     }
 }

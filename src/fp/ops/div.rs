@@ -98,13 +98,17 @@ where
                         while o > U::zero()
                         {
                             o = o - U::one();
-                            if f0 > f1
+                            if (f0 % base).is_zero()
                             {
-                                f0 = util::rounding_div(f0, base);
+                                f0 = f0/base;
+                            }
+                            else if f1.leading_zeros() as usize > Self::BASE_PADDING
+                            {
+                                f1 = f1*base;
                             }
                             else
                             {
-                                f1 = util::rounding_div(f1, base);
+                                f0 = util::rounding_div(f0, base);
                             }
                         }
                         U::zero()
@@ -116,14 +120,14 @@ where
         let mut o = U::zero();
         let mut f = loop
         {
-            if f1 == U::zero()
+            if f1.is_zero()
             {
                 return if s {Self::neg_infinity()} else {Self::infinity()}
             }
             let f = f0 / f1;
-            if !f0.is_zero() && f.leading_zeros() as usize >= Self::BASE_SIZE
+            if !f0.is_zero() && f.leading_zeros() as usize >= Self::BASE_PADDING
             {
-                if f0.leading_zeros() as usize > Self::BASE_SIZE
+                if f0.leading_zeros() as usize > Self::BASE_PADDING
                 {
                     f0 = f0*base
                 }
@@ -202,7 +206,7 @@ where
             None => return if s {Self::neg_zero()} else {Self::zero()}
         };
 
-        while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
+        while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
         {
             e = e - U::one();
             f = f*base;
@@ -271,6 +275,6 @@ mod test
     #[test]
     fn test_div()
     {
-        crate::tests::test_op2(Div::div, Div::div)
+        crate::tests::test_op2(Div::div, Div::div, None)
     }
 }

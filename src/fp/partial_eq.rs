@@ -12,6 +12,10 @@ where
         {
             return false
         }
+        if self.is_zero() && other.is_zero()
+        {
+            return true
+        }
         if Self::IS_INT_IMPLICIT
         {
             return self.0.eq(&other.0)
@@ -36,12 +40,12 @@ where
 
         let base = U::from(EXP_BASE).unwrap();
         
-        while e0 > e1 && f0 <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
+        while e0 > e1 && f0 <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
         {
             e0 = e0 - U::one();
             f0 = f0*base;
         }
-        while e1 > e0 && f1 <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
+        while e1 > e0 && f1 <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
         {
             e1 = e1 - U::one();
             f1 = f1*base;

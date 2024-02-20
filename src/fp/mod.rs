@@ -23,13 +23,30 @@ moddef::moddef!(
     }
 );
 
+const NEWTON_EXP: usize = 5;
+const NEWTON_LN: usize = 4;
+const NEWTON_RT: usize = 4;
+const NEWTON_TRIG: usize = 4;
+
 /// A custom floating point type.
 /// 
-/// Bit layout is as follows:
+/// The bit layout is as follows:
 /// ```txt
 /// No data: | Sign: | Exponent:  | Integer:   | Fractional: |
 /// <  ..  > | < 1 > | <EXP_SIZE> | <INT_SIZE> | <FRAC_SIZE> |
 /// ```
+/// 
+/// The value of a real floating-point number is the following:
+/// ```txt
+/// x = (-1)**sign*EXP_BASE**(exponent - bias)*mantissa
+/// ```
+/// 
+/// where the bias equals
+/// ```txt
+/// bias = 2**(EXP_SIZE - 1) - 1
+/// ```
+///
+/// If the exponent has the maximum value, the number is either infinity or NaN.
 #[derive(Clone, Copy)]
 pub struct Fp<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize>(U)
 where
@@ -42,18 +59,28 @@ where
     [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:,
     [(); EXP_BASE - 2]:
 {
+    /// Size of floating-point number in bits
     pub const BIT_SIZE: usize = EXP_SIZE + INT_SIZE + FRAC_SIZE + 1;
+    /// Size of the sign bit
     pub const SIGN_SIZE: usize = 1;
 
+    /// Position of the sign bit
     pub const SIGN_POS: usize = EXP_SIZE + INT_SIZE + FRAC_SIZE;
+    /// Position of the first exponent bit
     pub const EXP_POS: usize = INT_SIZE + FRAC_SIZE;
+    /// Position of the first integer bit
     pub const INT_POS: usize = FRAC_SIZE;
+    /// Position of the first fractional bit
     pub const FRAC_POS: usize = 0;
 
+    /// Number of significant digits in base 2.
+    pub const MANTISSA_DIGITS: usize = INT_SIZE + FRAC_SIZE;
+
+    /// `true` if the number contains an implicit integer bit
     pub const IS_INT_IMPLICIT: bool = INT_SIZE == 0;
 
     const MANTISSA_OP_SIZE: usize = FRAC_SIZE + INT_SIZE + Self::IS_INT_IMPLICIT as usize;
-    const BASE_SIZE: usize = util::bitsize_of::<usize>() - EXP_BASE.leading_zeros() as usize - 1;
+    const BASE_PADDING: usize = util::bitsize_of::<usize>() - EXP_BASE.leading_zeros() as usize - 1;
 
     pub fn from_fp<V: UInt, const E: usize, const I: usize, const F: usize, const B: usize>(fp: Fp<V, E, I, F, B>) -> Self
     where
@@ -61,7 +88,7 @@ where
         [(); util::bitsize_of::<V>() - E - 0 - F - 1]:,
         [(); B - 2]:
     {
-        /*if EXP_SIZE == E && INT_SIZE == I && EXP_BASE == B
+        if EXP_SIZE == E && INT_SIZE == I && EXP_BASE == B
         {
             if let Some(b) = if util::bitsize_of::<U>() >= util::bitsize_of::<V>()
             {
@@ -72,7 +99,7 @@ where
                     }
                     else
                     {
-                        b >> F - FRAC_SIZE
+                        util::rounding_div_pow(b, U::from(2).unwrap(), F - FRAC_SIZE)
                     })
             }
             else
@@ -83,14 +110,14 @@ where
                 }
                 else
                 {
-                    fp.to_bits() >> F - FRAC_SIZE
+                    util::rounding_div_pow(fp.to_bits(), V::from(2).unwrap(), F - FRAC_SIZE)
                 };
                 <U as NumCast>::from(b)
             }
             {
                 return Self::from_bits(b)
             }
-        }*/
+        }
 
         let s = fp.sign_bit();
 
@@ -164,7 +191,7 @@ where
         while e1 > bias1
         {
             e1 = e1 - V::one();
-            while f.leading_zeros() as usize <= Fp::<V, E, I, F, B>::BASE_SIZE
+            while f.leading_zeros() as usize <= Fp::<V, E, I, F, B>::BASE_PADDING
             {
                 e = e + U::one();
                 f = util::rounding_div(f, base2);
@@ -174,7 +201,7 @@ where
         while e1 < bias1
         {
             e1 = e1 + V::one();
-            while e > U::zero() && f.leading_zeros() as usize > Self::BASE_SIZE
+            while e > U::zero() && f.leading_zeros() as usize > Self::BASE_PADDING
             {
                 e = e - U::one();
                 f = f*base2;
@@ -184,7 +211,7 @@ where
         
         let s_bit = s << Self::SIGN_POS;
 
-        while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
+        while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
         {
             e = e - U::one();
             f = f*base2;
@@ -242,7 +269,7 @@ where
                 };
             }
 
-            while e > U::zero() && f < I::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
+            while e > U::zero() && f < I::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
             {
                 e = e - U::one();
                 f = f*base;
@@ -281,7 +308,7 @@ where
                 };
             }
             
-            while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
+            while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
             {
                 e = e - U::one();
                 f = f*base;
@@ -350,7 +377,7 @@ where
                 };
             }
 
-            while e > U::zero() && f < I::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
+            while e > U::zero() && f < I::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
             {
                 e = e - U::one();
                 f = f*base;
@@ -389,7 +416,7 @@ where
                 };
             }
 
-            while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
+            while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
             {
                 e = e - U::one();
                 f = f*base;
@@ -871,16 +898,45 @@ where
         U::max_value() >> util::bitsize_of::<U>() + 1 - EXP_SIZE
     }
     
+    /// Returns the `NaN` value.
+    ///
+    /// ```
+    /// use custom_float::ieee754::FpSingle;
+    ///
+    /// let nan = FpSingle::nan();
+    ///
+    /// assert!(nan.is_nan());
+    /// ```
     pub fn nan() -> Self
     {
         Self::snan()
     }
     
+    /// Returns the `qNaN` value.
+    ///
+    /// ```
+    /// use custom_float::ieee754::FpSingle;
+    ///
+    /// let qnan = FpSingle::qnan();
+    ///
+    /// assert!(qnan.is_nan());
+    /// assert!(!qnan.is_snan());
+    /// ```
     pub fn qnan() -> Self
     {
         Self::from_bits(U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_POS)
     }
     
+    /// Returns the `sNaN` value.
+    ///
+    /// ```
+    /// use custom_float::ieee754::FpSingle;
+    ///
+    /// let snan = FpSingle::snan();
+    ///
+    /// assert!(snan.is_nan());
+    /// assert!(snan.is_snan());
+    /// ```
     pub fn snan() -> Self
     {
         if Self::INT_POS + INT_SIZE < 1
@@ -890,6 +946,17 @@ where
         Self::from_bits((U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_POS) - (U::one() << Self::INT_POS + INT_SIZE - 1))
     }
 
+    /// Returns `true` if the number is a signaling NaN.
+    ///
+    /// ```
+    /// use custom_float::ieee754::FpSingle;
+    ///
+    /// let snan = FpSingle::snan();
+    /// let qnan = FpSingle::qnan();
+    ///
+    /// assert!(snan.is_snan());
+    /// assert!(!qnan.is_snan());
+    /// ```
     pub fn is_snan(self) -> bool
     {
         if Self::INT_POS + INT_SIZE < 1 || !self.is_nan()
@@ -899,51 +966,234 @@ where
         (self.to_bits() >> Self::INT_POS + INT_SIZE - 1) & U::one() == U::zero()
     }
 
+    /// Returns the infinite value.
+    ///
+    /// ```
+    /// use custom_float::ieee754::FpSingle;
+    ///
+    /// let infinity = FpSingle::infinity();
+    ///
+    /// assert!(infinity.is_infinite());
+    /// assert!(!infinity.is_finite());
+    /// assert!(infinity > FpSingle::max_value());
+    /// ```
     pub fn infinity() -> Self
     {
         Self::from_bits((U::max_value() >> util::bitsize_of::<U>() - EXP_SIZE) << Self::EXP_POS)
     }
 
+    /// Returns the negative infinite value.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    ///
+    /// use custom_float::ieee754::FpSingle;
+    ///
+    /// let neg_infinity = FpSingle::neg_infinity();
+    ///
+    /// assert!(neg_infinity.is_infinite());
+    /// assert!(!neg_infinity.is_finite());
+    /// assert!(neg_infinity < FpSingle::min_value());
+    /// ```
     pub fn neg_infinity() -> Self
     {
         -Self::infinity()
     }
 
+    /// Returns `-0.0`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpSingle;
+    ///
+    /// let inf = FpSingle::infinity();
+    /// let zero = FpSingle::zero();
+    /// let neg_zero = FpSingle::neg_zero();
+    ///
+    /// assert_eq!(zero, neg_zero);
+    /// assert_eq!(FpSingle::from(7.0)/inf, zero);
+    /// assert_eq!(zero * FpSingle::from(10.0), zero);
+    /// ```
     pub fn neg_zero() -> Self
     {
         -Self::zero()
     }
 
+    /// Returns the smallest finite value that this type can represent.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use std::f64;
+    ///
+    /// let x = FpDouble::min_value();
+    ///
+    /// assert_eq!(x, FpDouble::from(f64::MIN));
+    /// ```
     pub fn min_value() -> Self
     {
         -Self::max_value()
     }
 
+    /// Returns the smallest positive, normalized value that this type can represent.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use std::f64;
+    ///
+    /// let x = FpDouble::min_positive_value();
+    ///
+    /// assert_eq!(x, FpDouble::from(f64::MIN_POSITIVE));
+    /// ```
     pub fn min_positive_value() -> Self
     {
-        Self::from_bits(U::one())
+        if Self::IS_INT_IMPLICIT
+        {
+            Self::from_bits(U::one() << Self::EXP_POS)
+        }
+        else
+        {
+            Self::from_bits((U::one() << Self::EXP_POS) + (U::one() << Self::INT_POS))
+        }
     }
 
+    /// Returns epsilon, a small positive value.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use std::f64;
+    ///
+    /// let x = FpDouble::epsilon();
+    ///
+    /// assert_eq!(x, FpDouble::from(f64::EPSILON));
+    /// ```
+    pub fn epsilon() -> Self
+    {
+        let bias = Self::exp_bias();
+        
+        if !Self::IS_INT_IMPLICIT
+        {
+            return Self::from_bits((bias << Self::EXP_POS) + U::one())
+        }
+
+        let exp_frac = U::from(util::count_digits_in_base(FRAC_SIZE + INT_SIZE, EXP_BASE)).unwrap();
+        if bias <= exp_frac
+        {
+            return Self::from_bits(util::powu(U::from(EXP_BASE).unwrap(), <usize as NumCast>::from(bias).unwrap() - 1))
+        }
+        Self::from_bits((bias - exp_frac) << Self::EXP_POS)
+    }
+
+    /// Returns the largest finite value that this type can represent.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use std::f64;
+    ///
+    /// let x = FpDouble::max_value();
+    /// assert_eq!(x, FpDouble::from(f64::MAX));
+    /// ```
     pub fn max_value() -> Self
     {
         Self::from_bits(((U::max_value() >> util::bitsize_of::<U>() - EXP_SIZE) << Self::EXP_POS) - U::one())
     }
 
+    /// Returns `true` if this value is `NaN` and false otherwise.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let nan = FpDouble::nan();
+    /// let f = FpDouble::from(7.0);
+    ///
+    /// assert!(nan.is_nan());
+    /// assert!(!f.is_nan());
+    /// ```
     pub fn is_nan(self) -> bool
     {
         !self.is_finite() && !(self.frac_bits().is_zero() && (INT_SIZE == 0 || self.int_bits().is_zero()))
     }
 
+    /// Returns `true` if this value is positive infinity or negative infinity and
+    /// false otherwise.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpSingle;
+    ///
+    /// let f = FpSingle::from(7.0);
+    /// let inf = FpSingle::infinity();
+    /// let neg_inf = FpSingle::neg_infinity();
+    /// let nan = FpSingle::nan();
+    ///
+    /// assert!(!f.is_infinite());
+    /// assert!(!nan.is_infinite());
+    ///
+    /// assert!(inf.is_infinite());
+    /// assert!(neg_inf.is_infinite());
+    /// ```
     pub fn is_infinite(self) -> bool
     {
         !self.is_finite() && self.frac_bits().is_zero() && (INT_SIZE == 0 || self.int_bits().is_zero())
     }
 
+    /// Returns `true` if this number is neither infinite nor `NaN`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpSingle;
+    ///
+    /// let f = FpSingle::from(7.0);
+    /// let inf = FpSingle::infinity();
+    /// let neg_inf = FpSingle::neg_infinity();
+    /// let nan = FpSingle::nan();
+    ///
+    /// assert!(f.is_finite());
+    ///
+    /// assert!(!nan.is_finite());
+    /// assert!(!inf.is_finite());
+    /// assert!(!neg_inf.is_finite());
+    /// ```
     pub fn is_finite(self) -> bool
     {
         self.exp_bits() != (U::max_value() >> util::bitsize_of::<U>() - EXP_SIZE)
     }
 
+    /// Returns `true` if the number is neither zero, infinite,
+    /// [subnormal][subnormal], or `NaN`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpSingle;
+    ///
+    /// let min = FpSingle::min_positive_value(); // 1.17549435e-38f32
+    /// let max = FpSingle::max_value();
+    /// let lower_than_min = FpSingle::from(1.0e-40_f32);
+    /// let zero = FpSingle::zero();
+    ///
+    /// assert!(min.is_normal());
+    /// assert!(max.is_normal());
+    ///
+    /// assert!(!zero.is_normal());
+    /// assert!(!FpSingle::nan().is_normal());
+    /// assert!(!FpSingle::infinity().is_normal());
+    /// // Values between `0` and `min` are Subnormal.
+    /// assert!(!lower_than_min.is_normal());
+    /// ```
+    /// [subnormal]: http://en.wikipedia.org/wiki/Subnormal_number
     pub fn is_normal(self) -> bool
     {
         if !self.is_finite()
@@ -952,11 +1202,54 @@ where
         }
         if !Self::IS_INT_IMPLICIT
         {
-            return true
+            return !self.is_zero()
         }
         self.exp_bits() != U::zero()
     }
 
+    /// Returns `true` if the number is [subnormal].
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let min = FpDouble::min_positive_value(); // 2.2250738585072014e-308_f64
+    /// let max = FpDouble::max_value();
+    /// let lower_than_min = FpDouble::from(1.0e-308_f64);
+    /// let zero = FpDouble::zero();
+    ///
+    /// assert!(!min.is_subnormal());
+    /// assert!(!max.is_subnormal());
+    ///
+    /// assert!(!zero.is_subnormal());
+    /// assert!(!FpDouble::nan().is_subnormal());
+    /// assert!(!FpDouble::infinity().is_subnormal());
+    /// // Values between `0` and `min` are Subnormal.
+    /// assert!(lower_than_min.is_subnormal());
+    /// ```
+    /// [subnormal]: https://en.wikipedia.org/wiki/Subnormal_number
+    pub fn is_subnormal(self) -> bool
+    {
+        Self::IS_INT_IMPLICIT && self.exp_bits() == U::zero() && !self.is_zero()
+    }
+
+    /// Returns the floating point category of the number. If only one property
+    /// is going to be tested, it is generally faster to use the specific
+    /// predicate instead.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use std::num::FpCategory;
+    ///
+    /// let num = FpDouble::from(12.4f32);
+    /// let inf = FpDouble::infinity();
+    ///
+    /// assert_eq!(num.classify(), FpCategory::Normal);
+    /// assert_eq!(inf.classify(), FpCategory::Infinite);
+    /// ```
     pub fn classify(self) -> FpCategory
     {
         let e = self.exp_bits();
@@ -979,6 +1272,19 @@ where
         FpCategory::Normal
     }
 
+    /// Returns the largest integer less than or equal to a number.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let f = FpDouble::from(3.99);
+    /// let g = FpDouble::from(3.0);
+    ///
+    /// assert_eq!(f.floor(), FpDouble::from(3.0));
+    /// assert_eq!(g.floor(), FpDouble::from(3.0));
+    /// ```
     pub fn floor(self) -> Self
     {
         if !self.is_finite()
@@ -993,6 +1299,19 @@ where
         self - m
     }
 
+    /// Returns the smallest integer greater than or equal to a number.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let f = FpDouble::from(3.01);
+    /// let g = FpDouble::from(4.0);
+    ///
+    /// assert_eq!(f.ceil(), FpDouble::from(4.0));
+    /// assert_eq!(g.ceil(), FpDouble::from(4.0));
+    /// ```
     pub fn ceil(self) -> Self
     {
         if !self.is_finite()
@@ -1007,6 +1326,20 @@ where
         self - m
     }
 
+    /// Returns the nearest integer to a number. Round half-way cases away from
+    /// `0.0`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let f = FpDouble::from(3.3);
+    /// let g = FpDouble::from(-3.3);
+    ///
+    /// assert_eq!(f.round(), FpDouble::from(3.0));
+    /// assert_eq!(g.round(), FpDouble::from(-3.0));
+    /// ```
     pub fn round(self) -> Self
     {
         let c = self.ceil();
@@ -1021,6 +1354,19 @@ where
         }
     }
 
+    /// Return the integer part of a number.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let f = FpDouble::from(3.3);
+    /// let g = FpDouble::from(-3.7);
+    ///
+    /// assert_eq!(f.trunc(), FpDouble::from(3.0));
+    /// assert_eq!(g.trunc(), FpDouble::from(-3.0));
+    /// ```
     pub fn trunc(self) -> Self
     {
         if !self.is_finite()
@@ -1031,16 +1377,67 @@ where
         self - m
     }
 
+    /// Returns the fractional part of a number.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let x = FpDouble::from(3.5);
+    /// let y = FpDouble::from(-3.5);
+    /// let abs_difference_x = (x.fract() - FpDouble::from(0.5)).abs();
+    /// let abs_difference_y = (y.fract() - FpDouble::from(-0.5)).abs();
+    ///
+    /// assert!(abs_difference_x < FpDouble::from(1e-10));
+    /// assert!(abs_difference_y < FpDouble::from(1e-10));
+    /// ```
     pub fn fract(self) -> Self
     {
         self - self.trunc()
     }
 
+    /// Computes the absolute value of `self`. Returns `NaN` if the number is `NaN`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let x = FpDouble::from(3.5);
+    /// let y = FpDouble::from(-3.5);
+    ///
+    /// let abs_difference_x = (x.abs() - x).abs();
+    /// let abs_difference_y = (y.abs() - (-y)).abs();
+    ///
+    /// assert!(abs_difference_x < FpDouble::from(1e-10));
+    /// assert!(abs_difference_y < FpDouble::from(1e-10));
+    ///
+    /// assert!(FpDouble::nan().abs().is_nan());
+    /// ```
     pub fn abs(self) -> Self
     {
         Self::from_bits(self.to_bits() & (U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_POS))
     }
 
+    /// Returns a number that represents the sign of `self`.
+    ///
+    /// - `1.0` if the number is positive, `+0.0` or `inf`
+    /// - `-1.0` if the number is negative, `-0.0` or `-inf`
+    /// - `NaN` if the number is `NaN`
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let f = FpDouble::from(3.5);
+    ///
+    /// assert_eq!(f.signum(), FpDouble::one());
+    /// assert_eq!(FpDouble::neg_infinity().signum(), -FpDouble::one());
+    ///
+    /// assert!(FpDouble::nan().signum().is_nan());
+    /// ```
     pub fn signum(self) -> Self
     {
         if self.is_nan()
@@ -1051,42 +1448,146 @@ where
         if s {-Self::one()} else {Self::one()}
     }
 
+    /// Returns `true` if `self` is positive, including `+0.0`, `inf`, and `NaN`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let nan = FpDouble::nan();
+    /// let neg_nan = -FpDouble::nan();
+    ///
+    /// let f = FpDouble::from(7.0);
+    /// let g = FpDouble::from(-7.0);
+    ///
+    /// assert!(f.is_sign_positive());
+    /// assert!(!g.is_sign_positive());
+    /// assert!(nan.is_sign_positive());
+    /// assert!(!neg_nan.is_sign_positive());
+    /// ```
     pub fn is_sign_positive(self) -> bool
     {
         self.sign_bit().is_zero()
     }
 
+    /// Returns `true` if `self` is negative, including `-0.0`, `-inf`, and `-NaN`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let nan = FpDouble::nan();
+    /// let neg_nan = -FpDouble::nan();
+    ///
+    /// let f = FpDouble::from(7.0);
+    /// let g = FpDouble::from(-7.0);
+    ///
+    /// assert!(!f.is_sign_negative());
+    /// assert!(g.is_sign_negative());
+    /// assert!(!nan.is_sign_negative());
+    /// assert!(neg_nan.is_sign_negative());
+    /// ```
     pub fn is_sign_negative(self) -> bool
     {
         !self.sign_bit().is_zero()
     }
 
+    /// Fused multiply-add. Computes `(self * a) + b`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let m = FpDouble::from(10.0);
+    /// let x = FpDouble::from(4.0);
+    /// let b = FpDouble::from(60.0);
+    ///
+    /// // 100.0
+    /// let abs_difference = (m.mul_add(x, b) - (m*x + b)).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
     pub fn mul_add(self, a: Self, b: Self) -> Self
     {
         (self*a) + b
     }
 
+    /// Take the reciprocal (inverse) of a number, `1/x`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let x = FpDouble::from(2.0);
+    /// let abs_difference = (x.recip() - (FpDouble::one()/x)).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
     pub fn recip(self) -> Self
     {
         Self::one()/self
     }
 
+    /// Raise a number to an integer power.
+    ///
+    /// Using this function is generally faster than using `powf`
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let x = FpDouble::from(2.0);
+    /// let abs_difference = (x.powi(2) - x*x).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
     pub fn powi<I: Int>(self, n: I) -> Self
     {
         util::powi(self, n)
     }
     
+    /// Raise a number to an unsigned integer power.
+    ///
+    /// Using this function is generally faster than using `powf`
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let x = FpDouble::from(2.0);
+    /// let abs_difference = (x.powu(2u32) - x*x).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
     pub fn powu<I: UInt>(self, n: I) -> Self
     {
         util::powu(self, n)
     }
 
+    /// Raise a number to a floating point power.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let x = FpDouble::from(2.0);
+    /// let abs_difference = (x.powf(FpDouble::from(2.0)) - x*x).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
     pub fn powf(self, n: Self) -> Self
     {
         let xabs = self.abs();
         let nabs = n.abs();
 
-        let exp_frac = U::from((1usize << FRAC_SIZE + INT_SIZE).ilog(EXP_BASE)).unwrap();
+        let exp_frac = U::from(util::count_digits_in_base(FRAC_SIZE + INT_SIZE, EXP_BASE)).unwrap();
 
         let edge_x = {
             let e = (U::one() << EXP_SIZE) - U::one() - U::one();
@@ -1250,15 +1751,40 @@ where
         n_xabs_log.exp_base()
     }
 
+    /// Take the square root of a number.
+    ///
+    /// Returns `NaN` if `self` is a negative number.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let positive = FpDouble::from(4.0);
+    /// let negative = FpDouble::from(-4.0);
+    ///
+    /// let abs_difference = (positive.sqrt() - FpDouble::from(2.0)).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// assert!(negative.sqrt().is_nan());
+    /// ```
     pub fn sqrt(self) -> Self
     {   
         if self.is_nan()
         {
             return self
         }
+        if self.is_zero()
+        {
+            return self.abs()
+        }
         if self.is_sign_negative()
         {
             return Self::snan()
+        }
+        if self.is_infinite()
+        {
+            return self
         }
 
         let y = if EXP_BASE != 2
@@ -1287,7 +1813,7 @@ where
             )
         };
 
-        const NEWTON: usize = 4;
+        const NEWTON: usize = NEWTON_RT;
         let half = <Self as From<_>>::from(0.5);
         let mut y = y;
         for _ in 0..NEWTON
@@ -1297,6 +1823,25 @@ where
         y
     }
 
+    /// Returns `EXP_BASE^(self)`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::{FpDouble, DecDouble};
+    ///
+    /// let f = FpDouble::from(2.0);
+    /// let d = DecDouble::from(2.0);
+    ///
+    /// // 2^2 - 4 == 0
+    /// let abs_difference_f = (f.exp_base() - FpDouble::from(4.0)).abs();
+    ///
+    /// // 10^2 - 100 == 0
+    /// let abs_difference_d = (d.exp_base() - DecDouble::from(100.0)).abs();
+    ///
+    /// assert!(abs_difference_f < FpDouble::from(1e-10));
+    /// assert!(abs_difference_d < DecDouble::from(1e-10));
+    /// ```
     pub fn exp_base(self) -> Self
     {
         if self.is_nan()
@@ -1312,7 +1857,7 @@ where
             return self
         }
         
-        let exp_frac = U::from((1usize << FRAC_SIZE + INT_SIZE).ilog(EXP_BASE) as usize).unwrap();
+        let exp_frac = U::from(util::count_digits_in_base(FRAC_SIZE + INT_SIZE, EXP_BASE)).unwrap();
 
         if self >= Self::from_uint(U::one() << (EXP_SIZE - 1))
         {
@@ -1362,7 +1907,7 @@ where
         y
     }
 
-    pub fn exp(self) -> Self
+    fn exp_nonewton(self) -> Self
     {
         if EXP_BASE == 2
         {
@@ -1372,9 +1917,66 @@ where
         {
             return (self/Self::LN_10()).exp_base()
         }
+        
         (self/<Self as From<_>>::from((EXP_BASE as f64).ln())).exp_base()
     }
 
+    /// Returns `e^(self)`, (the exponential function).
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let one = FpDouble::one();
+    /// // e^1
+    /// let e = one.exp();
+    /// 
+    /// // ln(e) - 1 == 0
+    /// let abs_difference = (e.ln() - FpDouble::one()).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
+    pub fn exp(self) -> Self
+    {
+        let mut y = self.exp_nonewton();
+
+        if y.is_finite()
+        {
+            const NEWTON: usize = NEWTON_EXP;
+
+            for _ in 0..NEWTON
+            {
+                y -= y*(y.ln_nonewton() - self)
+            }
+        }
+
+        y
+    }
+    
+    pub fn exp10_nonewton(self) -> Self
+    {
+        if EXP_BASE == 10
+        {
+            return self.exp_base()
+        }
+        (self*Self::LN_10()).exp_nonewton()
+    }
+
+    /// Returns `10^(self)`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let f = FpDouble::from(2.0);
+    ///
+    /// // 10^2 - 100 == 0
+    /// let abs_difference = (f.exp10() - FpDouble::from(100.0)).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-6));
+    /// ```
     pub fn exp10(self) -> Self
     {
         if EXP_BASE == 10
@@ -1384,6 +1986,29 @@ where
         (self*Self::LN_10()).exp()
     }
 
+    pub fn exp2_nonewton(self) -> Self
+    {
+        if EXP_BASE == 2
+        {
+            return self.exp_base()
+        }
+        (self*Self::LN_2()).exp_nonewton()
+    }
+
+    /// Returns `2^(self)`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let f = FpDouble::from(2.0);
+    ///
+    /// // 2^2 - 4 == 0
+    /// let abs_difference = (f.exp2() - FpDouble::from(4.0)).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
     pub fn exp2(self) -> Self
     {
         if EXP_BASE == 2
@@ -1393,7 +2018,7 @@ where
         (self*Self::LN_2()).exp()
     }
 
-    pub fn ln(self) -> Self
+    fn ln_nonewton(self) -> Self
     {
         if EXP_BASE == 2
         {
@@ -1406,11 +2031,82 @@ where
         self.log_base()*<Self as From<_>>::from((EXP_BASE as f64).ln())
     }
 
+    /// Returns the natural logarithm of the number.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let one = FpDouble::one();
+    /// // e^1
+    /// let e = one.exp();
+    /// 
+    /// // ln(e) - 1 == 0
+    /// let abs_difference = (e.ln() - FpDouble::one()).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
+    pub fn ln(self) -> Self
+    {
+        let mut y = self.ln_nonewton();
+
+        if y.is_finite()
+        {
+            const NEWTON: usize = NEWTON_LN;
+
+            for _ in 0..NEWTON
+            {
+                y -= Self::one() - self/y.exp_nonewton()
+            }
+        }
+
+        y
+    }
+
+    /// Returns the logarithm of the number with respect to an arbitrary base.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let ten = FpDouble::from(10.0);
+    /// let two = FpDouble::from(2.0);
+    ///
+    /// // log10(10) - 1 == 0
+    /// let abs_difference_10 = (ten.log(FpDouble::from(10.0)) - FpDouble::one()).abs();
+    ///
+    /// // log2(2) - 1 == 0
+    /// let abs_difference_2 = (two.log(FpDouble::from(2.0)) - FpDouble::one()).abs();
+    ///
+    /// assert!(abs_difference_10 < FpDouble::from(1e-10));
+    /// assert!(abs_difference_2 < FpDouble::from(1e-10));
+    /// ```
     pub fn log(self, base: Self) -> Self
     {
         self.ln()/base.ln()
     }
 
+    /// Returns the logarithm base `EXP_BASE` of the number.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::{FpDouble, DecDouble};
+    ///
+    /// let two = FpDouble::from(2.0);
+    /// let ten = DecDouble::from(10.0);
+    ///
+    /// // log2(2) - 1 == 0
+    /// let abs_difference_2 = (two.log_base() - FpDouble::one()).abs();
+    /// 
+    /// // log10(10) - 1 == 0
+    /// let abs_difference_10 = (ten.log_base() - DecDouble::one()).abs();
+    ///
+    /// assert!(abs_difference_2 < FpDouble::from(1e-10));
+    /// assert!(abs_difference_10 < DecDouble::from(1e-10));
+    /// ```
     pub fn log_base(self) -> Self
     {
         if self.is_nan()
@@ -1456,25 +2152,137 @@ where
         y += <Self as From<_>>::from(u.log(EXP_BASE as f64)); 
         y
     }
-
-    pub fn log2(self) -> Self
+    
+    pub fn log2_nonewton(self) -> Self
     {
         if EXP_BASE == 2
         {
             return self.log_base()
         }
-        self.ln()/Self::LN_2()
+        self.ln_nonewton()/Self::LN_2()
     }
 
-    pub fn log10(self) -> Self
+    /// Returns the base 2 logarithm of the number.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let two = FpDouble::from(2.0);
+    ///
+    /// // log2(2) - 1 == 0
+    /// let abs_difference = (two.log2() - FpDouble::one()).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
+    pub fn log2(self) -> Self
+    {
+        let mut y = self.log2_nonewton();
+
+        if y.is_finite()
+        {
+            const NEWTON: usize = NEWTON_LN;
+
+            for _ in 0..NEWTON
+            {
+                y -= (Self::one() - self/y.exp2_nonewton())/Self::LN_2()
+            }
+        }
+
+        y
+    }
+    
+    fn log10_nonewton(self) -> Self
     {
         if EXP_BASE == 10
         {
             return self.log_base()
         }
-        self.ln()/Self::LN_10()
+        self.ln_nonewton()/Self::LN_10()
     }
 
+    /// Returns the base 10 logarithm of the number.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let ten = FpDouble::from(10.0);
+    ///
+    /// // log10(10) - 1 == 0
+    /// let abs_difference = (ten.log10() - FpDouble::one()).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-3));
+    /// ```
+    pub fn log10(self) -> Self
+    {
+        let mut y = self.log10_nonewton();
+
+        if y.is_finite()
+        {
+            const NEWTON: usize = NEWTON_LN;
+
+            for _ in 0..NEWTON
+            {
+                y -= (Self::one() - self/y.exp10_nonewton())/Self::LN_10()
+            }
+        }
+
+        y
+    }
+
+    /// Converts radians to degrees.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// let angle = FpDouble::PI();
+    ///
+    /// let abs_difference = (angle.to_degrees() - FpDouble::from(180.0)).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
+    pub fn to_degrees(self) -> Self
+    {
+        self/(Self::FRAC_PI_2()/<Self as From<_>>::from(90.0))
+    }
+    
+    /// Converts degrees to radians.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// let angle = FpDouble::from(180.0);
+    ///
+    /// let abs_difference = (angle.to_radians() - FpDouble::PI()).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
+    pub fn to_radians(self) -> Self
+    {
+        self*(Self::FRAC_PI_2()/<Self as From<_>>::from(90.0))
+    }
+
+    /// Returns the maximum of the two numbers.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let x = FpDouble::from(1.0);
+    /// let y = FpDouble::from(2.0);
+    ///
+    /// assert_eq!(x.max(y), y);
+    /// ```
     pub fn max(self, other: Self) -> Self
     {
         match self.partial_cmp(&other)
@@ -1488,6 +2296,18 @@ where
         }
     }
 
+    /// Returns the minimum of the two numbers.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let x = FpDouble::from(1.0);
+    /// let y = FpDouble::from(2.0);
+    ///
+    /// assert_eq!(x.min(y), x);
+    /// ```
     pub fn min(self, other: Self) -> Self
     {
         match self.partial_cmp(&other)
@@ -1501,21 +2321,112 @@ where
         }
     }
 
+    /// The positive difference of two numbers.
+    ///
+    /// * If `self <= other`: `0:0`
+    /// * Else: `self - other`
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let x = FpDouble::from(3.0);
+    /// let y = FpDouble::from(-3.0);
+    ///
+    /// let abs_difference_x = (x.abs_sub(FpDouble::one()) - FpDouble::from(2.0)).abs();
+    /// let abs_difference_y = (y.abs_sub(FpDouble::one()) - FpDouble::zero()).abs();
+    ///
+    /// assert!(abs_difference_x < FpDouble::from(1e-10));
+    /// assert!(abs_difference_y < FpDouble::from(1e-10));
+    /// ```
     pub fn abs_sub(self, other: Self) -> Self
     {
-        (self - other).abs()
+        (self - other).max(Self::zero())
     }
 
+    /// Take the cubic root of a number.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let x = FpDouble::from(8.0);
+    ///
+    /// // x^(1/3) - 2 == 0
+    /// let abs_difference = (x.cbrt() - FpDouble::from(2.0)).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-9));
+    /// ```
     pub fn cbrt(self) -> Self
     {
-        self.powf(Self::one()/<Self as From<_>>::from(3.0))
+        if self.is_nan()
+        {
+            return self
+        }
+        if self.is_infinite()
+        {
+            return self
+        }
+        if self.is_zero()
+        {
+            return self
+        }
+
+        let y = {
+            let xabs_log = self.abs().log_base();
+
+            let n_xabs_log = xabs_log/<Self as From<_>>::from(3.0);
+            
+            n_xabs_log.exp_base().copysign(self)
+        };
+
+        const NEWTON: usize = NEWTON_RT;
+        let third = <Self as From<_>>::from(3.0).recip();
+        let two = <Self as From<_>>::from(2.0);
+        let mut y = y;
+        for _ in 0..NEWTON
+        {
+            y = third*(self/(y*y) + two*y);
+        }
+        y
     }
 
+    /// Calculate the length of the hypotenuse of a right-angle triangle given legs of length `x` and `y`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let x = FpDouble::from(2.0);
+    /// let y = FpDouble::from(3.0);
+    ///
+    /// // sqrt(x^2 + y^2)
+    /// let abs_difference = (x.hypot(y) - (x.powi(2) + y.powi(2)).sqrt()).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
     pub fn hypot(self, other: Self) -> Self
     {
         (self*self + other*other).sqrt()
     }
 
+    /// Computes the sine of a number (in radians).
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// let x = FpDouble::FRAC_PI_2();
+    ///
+    /// let abs_difference = (x.sin() - FpDouble::one()).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
     pub fn sin(self) -> Self
     {
         const N: usize = 6;
@@ -1555,6 +2466,20 @@ where
         p.polynomial(z)*w
     }
 
+    /// Computes the cosine of a number (in radians).
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// let x = FpDouble::TAU();
+    ///
+    /// let abs_difference = (x.cos() - FpDouble::one()).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-9));
+    /// ```
     pub fn cos(self) -> Self
     {
         const N: usize = 6;
@@ -1594,6 +2519,20 @@ where
         p.polynomial(z)*w
     }
 
+    /// Computes the tangent of a number (in radians).
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// let x = FpDouble::FRAC_PI_4();
+    /// 
+    /// let abs_difference = (x.tan() - FpDouble::one()).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-3));
+    /// ```
     pub fn tan(self) -> Self
     {
         let (sin, cos) = self.sin_cos();
@@ -1601,6 +2540,23 @@ where
         sin/cos
     }
 
+    /// Computes the arcsine of a number. Return value is in radians in
+    /// the range [-pi/2, pi/2] or NaN if the number is outside the range
+    /// [-1, 1].
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// let f = FpDouble::FRAC_PI_2();
+    ///
+    /// // asin(sin(pi/2))
+    /// let abs_difference = (f.sin().asin() - f).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-5));
+    /// ```
     pub fn asin(self) -> Self
     {
         if self.is_nan()
@@ -1619,9 +2575,39 @@ where
         {
             return Self::snan()
         }
-        (self/(Self::one() - self*self).sqrt()).atan()
+        let mut y = (self/(Self::one() - self*self).sqrt()).atan();
+
+        if y.is_finite()
+        {
+            const NEWTON: usize = NEWTON_TRIG;
+
+            for _ in 0..NEWTON
+            {
+                let (sin, cos) = y.sin_cos();
+                y -= (sin - self)/cos
+            }
+        }
+
+        y
     }
 
+    /// Computes the arccosine of a number. Return value is in radians in
+    /// the range [0, pi] or NaN if the number is outside the range
+    /// [-1, 1].
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// let f = FpDouble::FRAC_PI_4();
+    ///
+    /// // acos(cos(pi/4))
+    /// let abs_difference = (f.cos().acos() - f).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-9));
+    /// ```
     pub fn acos(self) -> Self
     {
         if self.is_nan()
@@ -1640,9 +2626,37 @@ where
         {
             return Self::snan()
         }
-        ((Self::one() - self*self).sqrt()/self).atan()
+        let mut y = ((Self::one() - self*self).sqrt()/self).atan();
+
+        if y.is_finite()
+        {
+            const NEWTON: usize = NEWTON_TRIG;
+
+            for _ in 0..NEWTON
+            {
+                let (sin, cos) = y.sin_cos();
+                y += (cos - self)/sin
+            }
+        }
+
+        y
     }
 
+    /// Computes the arctangent of a number. Return value is in radians in the
+    /// range [-pi/2, pi/2];
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let f = FpDouble::one();
+    ///
+    /// // atan(tan(1))
+    /// let abs_difference = (f.tan().atan() - f).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-4));
+    /// ```
     pub fn atan(self) -> Self
     {
         if self.is_nan()
@@ -1654,7 +2668,7 @@ where
             return Self::FRAC_PI_2().copysign(self)
         }
         const TAYLOR: usize = 8;
-        if self.abs() < Self::one()
+        let mut y = if self.abs() < Self::one()
         {
             let mut z = self;
             let mut y = z;
@@ -1679,9 +2693,65 @@ where
             }
 
             y
+        };
+
+        y = y % Self::PI();
+        while y > Self::FRAC_PI_2()
+        {
+            y -= Self::PI()
         }
+        while y < -Self::FRAC_PI_2()
+        {
+            y += Self::PI()
+        }
+        
+        if y.is_finite()
+        {
+            const NEWTON: usize = NEWTON_TRIG;
+
+            for _ in 0..NEWTON
+            {
+                let (sin, cos) = y.sin_cos();
+                y -= (sin - cos*self)*cos
+            }
+        }
+        
+        if y.abs() > Self::FRAC_PI_2()
+        {
+            return Self::FRAC_PI_2().copysign(y)
+        }
+
+        y
     }
 
+    /// Computes the four quadrant arctangent of `self` (`y`) and `other` (`x`).
+    ///
+    /// * `x = 0`, `y = 0`: `0`
+    /// * `x >= 0`: `arctan(y/x)` -> `[-pi/2, pi/2]`
+    /// * `y >= 0`: `arctan(y/x) + pi` -> `(pi/2, pi]`
+    /// * `y < 0`: `arctan(y/x) - pi` -> `(-pi, -pi/2)`
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// // All angles from horizontal right (+x)
+    /// // 45 deg counter-clockwise
+    /// let x1 = FpDouble::from(3.0);
+    /// let y1 = FpDouble::from(-3.0);
+    ///
+    /// // 135 deg clockwise
+    /// let x2 = FpDouble::from(-3.0);
+    /// let y2 = FpDouble::from(3.0);
+    ///
+    /// let abs_difference_1 = (y1.atan2(x1) - (-FpDouble::FRAC_PI_4())).abs();
+    /// let abs_difference_2 = (y2.atan2(x2) - (FpDouble::PI() - FpDouble::FRAC_PI_4())).abs();
+    ///
+    /// assert!(abs_difference_1 < FpDouble::from(1e-10));
+    /// assert!(abs_difference_2 < FpDouble::from(1e-10));
+    /// ```
     pub fn atan2(self, other: Self) -> Self
     {
         if other.is_zero()
@@ -1690,21 +2760,21 @@ where
             {
                 Self::zero()
             }
-            else if self.is_sign_negative()
-            {
-                -Self::FRAC_PI_2()
-            }
-            else
+            else if self >= Self::zero()
             {
                 Self::FRAC_PI_2()
             }
+            else
+            {
+                -Self::FRAC_PI_2()
+            }
         }
-        let atan = (other/self).atan();
-        if other.is_sign_positive()
+        let atan = (self/other).atan();
+        if other >= Self::zero()
         {
             return atan
         }
-        atan + if self.is_sign_positive()
+        atan + if self >= Self::zero()
         {
             Self::PI()
         }
@@ -1714,6 +2784,23 @@ where
         }
     }
 
+    /// Simultaneously computes the sine and cosine of the number, `x`. Returns `(sin(x), cos(x))`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// let x = FpDouble::FRAC_PI_4();
+    /// let f = x.sin_cos();
+    ///
+    /// let abs_difference_0 = (f.0 - x.sin()).abs();
+    /// let abs_difference_1 = (f.1 - x.cos()).abs();
+    ///
+    /// assert!(abs_difference_0 < FpDouble::from(1e-10));
+    /// assert!(abs_difference_1 < FpDouble::from(1e-10));
+    /// ```
     pub fn sin_cos(self) -> (Self, Self)
     {
         const N: usize = 6;
@@ -1733,6 +2820,8 @@ where
             .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
             .unwrap_or_default();
 
+        let two = <Self as From<_>>::from(2.0);
+
         let sin = {
             let mut w = self*Self::FRAC_2_PI();
             let mut i = 0;
@@ -1746,7 +2835,6 @@ where
                 w %= <Self as From<_>>::from(4.0);
                 i += 1;
             }
-            let two = <Self as From<_>>::from(2.0);
             let w = if w > Self::one() {two - w} else if w < -Self::one() {-two - w} else {w};
     
             let z = two*w*w - Self::one();
@@ -1767,7 +2855,6 @@ where
                 w %= <Self as From<_>>::from(4.0);
                 i += 1;
             }
-            let two = <Self as From<_>>::from(2.0);
             let w = if w > Self::one() {two - w} else if w < -Self::one() {-two - w} else {w};
 
             let z = two*w*w - Self::one();
@@ -1778,16 +2865,90 @@ where
         (sin, cos)
     }
 
+    /// Returns `e^(self) - 1`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let x = FpDouble::from(7.0);
+    ///
+    /// // e^(ln(7)) - 1
+    /// let abs_difference = (x.ln().exp_m1() - FpDouble::from(6.0)).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-8));
+    /// ```
     pub fn exp_m1(self) -> Self
     {
-        self.exp() - Self::one()
+        let mut y = self.exp_nonewton() - Self::one();
+
+        if y.is_finite()
+        {
+            const NEWTON: usize = NEWTON_EXP;
+
+            for _ in 0..NEWTON
+            {
+                let yp1 = y + Self::one();
+                y -= yp1*(yp1.ln() - self)
+            }
+        }
+
+        y
     }
 
+    /// Returns `ln(1+n)` (natural logarithm) more accurately than if
+    /// the operations were performed separately.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// let x = FpDouble::E() - FpDouble::one();
+    ///
+    /// // ln(1 + (e - 1)) == ln(e) == 1
+    /// let abs_difference = (x.ln_1p() - FpDouble::one()).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-9));
+    /// ```
     pub fn ln_1p(self) -> Self
     {
-        (self + Self::one()).ln()
+        let xp1 = self + Self::one();
+        let mut y = xp1.ln_nonewton();
+
+        if y.is_finite()
+        {
+            const NEWTON: usize = NEWTON_LN;
+
+            for _ in 0..NEWTON
+            {
+                y -= Self::one() - xp1/y.exp_nonewton()
+            }
+        }
+
+        y
     }
 
+    /// Hyperbolic sine function.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// let e = FpDouble::E();
+    /// let x = FpDouble::one();
+    ///
+    /// let f = x.sinh();
+    /// // Solving sinh() at 1 gives `(e^2-1)/(2e)`
+    /// let g = (e*e - FpDouble::one())/(FpDouble::from(2.0)*e);
+    /// let abs_difference = (f - g).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
     pub fn sinh(self) -> Self
     {
         if !self.is_finite()
@@ -1795,12 +2956,30 @@ where
             return self
         }
 
-        let ex = self.exp();
-        let emx = (-self).exp();
-
-        (ex - emx)*<Self as From<_>>::from(0.5)
+        let emx = (-self.abs()).exp();
+    
+        ((Self::one() - emx*emx)/emx*<Self as From<_>>::from(0.5)).copysign(self)
     }
 
+    /// Hyperbolic cosine function.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// let e = FpDouble::E();
+    /// let x = FpDouble::one();
+    /// 
+    /// let f = x.cosh();
+    /// // Solving cosh() at 1 gives this result
+    /// let g = (e*e + FpDouble::one())/(FpDouble::from(2.0)*e);
+    /// let abs_difference = (f - g).abs();
+    ///
+    /// // Same result
+    /// assert!(abs_difference < FpDouble::from(1.0e-10));
+    /// ```
     pub fn cosh(self) -> Self
     {
         if !self.is_finite()
@@ -1808,32 +2987,62 @@ where
             return self.abs()
         }
 
-        let ex = self.exp();
-        let emx = (-self).exp();
-
-        (ex + emx)*<Self as From<_>>::from(0.5)
+        let emx = (-self.abs()).exp();
+    
+        (Self::one() + emx*emx)/emx*<Self as From<_>>::from(0.5)
     }
-
+    
+    /// Hyperbolic tangent function.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// let e = FpDouble::E();
+    /// let x = FpDouble::one();
+    ///
+    /// let f = x.tanh();
+    /// // Solving tanh() at 1 gives `(1 - e^(-2))/(1 + e^(-2))`
+    /// let g = (FpDouble::one() - e.powi(-2))/(FpDouble::one() + e.powi(-2));
+    /// let abs_difference = (f - g).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1.0e-3));
+    /// ```
     pub fn tanh(self) -> Self
     {
         if self.is_nan()
         {
             return self
         }
-
-        let x2 = <Self as From<_>>::from(2.0)*self;
-        let ex2 = x2.exp();
-        let ex2p1 = ex2 + Self::one();
-        let ex2m1 = ex2 - Self::one();
-
-        if ex2m1.is_infinite()
+        if self.is_infinite()
         {
             return Self::one().copysign(self)
         }
+
+        let ex = (-self.abs()).exp();
+        let ex2 = ex*ex;
+        let ex2p1 = Self::one() + ex2;
+        let ex2m1 = Self::one() - ex2;
         
-        ex2m1/ex2p1
+        (ex2m1/ex2p1).copysign(self)
     }
 
+    /// Inverse hyperbolic sine function.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let x = FpDouble::one();
+    /// let f = x.sinh().asinh();
+    ///
+    /// let abs_difference = (f - x).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1.0e-3));
+    /// ```
     pub fn asinh(self) -> Self
     {
         if !self.is_finite()
@@ -1843,6 +3052,20 @@ where
         (self + (self*self + Self::one()).sqrt()).ln()
     }
 
+    /// Inverse hyperbolic cosine function.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let x = FpDouble::one();
+    /// let f = x.cosh().acosh();
+    ///
+    /// let abs_difference = (f - x).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1.0e-4));
+    /// ```
     pub fn acosh(self) -> Self
     {
         if self.is_nan()
@@ -1860,6 +3083,21 @@ where
         (self + (self*self - Self::one()).sqrt()).ln()
     }
 
+    /// Inverse hyperbolic tangent function.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// let e = FpDouble::E();
+    /// let f = e.tanh().atanh();
+    ///
+    /// let abs_difference = (f - e).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1.0e-2));
+    /// ```
     pub fn atanh(self) -> Self
     {
         if self.is_nan()
@@ -1878,65 +3116,49 @@ where
         {
             return Self::snan()
         }
-        if self > Self::zero()
-        {
-            <Self as From<_>>::from(0.5)*((Self::one() + self)/(Self::one() - self)).ln()
-        }
-        else
-        {
-            -<Self as From<_>>::from(0.5)*((Self::one() - self)/(Self::one() + self)).ln()
-        }
+        <Self as From<_>>::from(0.5)*((Self::one() + self.abs())/(Self::one() - self.abs())).ln().copysign(self)
     }
 
-    pub fn epsilon() -> Self
-    {
-        let bias = Self::exp_bias();
-        
-        if !Self::IS_INT_IMPLICIT
-        {
-            return Self::from_bits((bias << Self::EXP_POS) + U::one())
-        }
-
-        let exp_frac = U::from((1usize << FRAC_SIZE).ilog(EXP_BASE) as usize).unwrap();
-        if bias <= exp_frac
-        {
-            return Self::from_bits(util::powu(U::from(EXP_BASE).unwrap(), <usize as NumCast>::from(bias).unwrap() - 1))
-        }
-        Self::from_bits((bias - exp_frac) << Self::EXP_POS)
-    }
-
+    /// Returns a number composed of the magnitude of `self` and the sign of
+    /// `sign`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    ///
+    /// let f = FpDouble::from(3.5);
+    /// let s = FpDouble::from(0.42);
+    ///
+    /// assert_eq!(f.copysign(s), f);
+    /// assert_eq!(f.copysign(-s), -f);
+    /// assert_eq!((-f).copysign(s), f);
+    /// assert_eq!((-f).copysign(-s), -f);
+    ///
+    /// assert!(FpDouble::nan().copysign(FpDouble::one()).is_nan());
+    /// ```
     pub fn copysign(self, sign: Self) -> Self
     {
-        let s = sign.sign_bit();
-        let e = self.exp_bits();
-        let f = self.frac_bits();
-        if !Self::IS_INT_IMPLICIT
-        {
-            let i = self.int_bits();
-            return Self::from_bits((s << Self::SIGN_POS) + (e << Self::EXP_POS) + (i << Self::INT_POS) + (f << Self::FRAC_POS))
-        }
-        Self::from_bits((s << Self::SIGN_POS) + (e << Self::EXP_POS) + (f << Self::FRAC_POS))
-    }
-
-    pub fn is_subnormal(self) -> bool
-    {
-        Self::IS_INT_IMPLICIT && self.exp_bits() == U::zero() && !self.is_zero()
-    }
-
-    pub fn to_degrees(self) -> Self
-    {
-        self*(<Self as From<_>>::from(180.0)/Self::PI())
-    }
-    pub fn to_radians(self) -> Self
-    {
-        self*(Self::PI()/<Self as From<_>>::from(180.0))
+        let mask = (U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_SIZE) << Self::SIGN_POS;
+        
+        Self::from_bits((self.to_bits() & (!mask)) | (sign.to_bits() & mask))
     }
     
+    /// Returns the additive identity element of `Self`, `0`.
     pub fn zero() -> Self
     {
         Self::from_bits(U::zero())
     }
+    
+    /// Sets `self` to the additive identity element of `Self`, `0`.
+    fn set_zero(&mut self)
+    {
+        *self = Self::zero()
+    }
 
+    /// Returns `true` if `self` is equal to the additive identity.
     pub fn is_zero(self) -> bool
     {
         if !self.is_finite()
@@ -1949,12 +3171,8 @@ where
         }
         self.exp_bits().is_zero() && self.frac_bits().is_zero()
     }
-
-    fn set_zero(&mut self)
-    {
-        *self = Self::zero()
-    }
     
+    /// Returns the multiplicative identity element of `Self`, `1`.
     pub fn one() -> Self
     {
         let bias = Self::exp_bias();
@@ -1964,18 +3182,41 @@ where
         }
         Self::from_bits(bias << Self::EXP_POS)
     }
-
-    pub fn is_one(self) -> bool
-    {
-        self == Self::one()
-    }
-
+    
+    /// Sets `self` to the multiplicative identity element of `Self`, `1`.
     fn set_one(&mut self)
     {
         *self = Self::one()
     }
+
+    /// Returns `true` if `self` is equal to the multiplicative identity.
+    pub fn is_one(self) -> bool
+    {
+        self == Self::one()
+    }
     
-    fn div_euclid(self, rhs: Self) -> Self
+    /// Calculates Euclidean division, the matching method for `rem_euclid`.
+    ///
+    /// This computes the integer `n` such that
+    /// `self = n * rhs + self.rem_euclid(rhs)`.
+    /// In other words, the result is `self / rhs` rounded to the integer `n`
+    /// such that `self >= n * rhs`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// 
+    /// let a = FpDouble::from(7.0);
+    /// let b = FpDouble::from(4.0);
+    /// assert_eq!(a.div_euclid(b), FpDouble::from(1.0)); // 7.0 > 4.0 * 1.0
+    /// assert_eq!((-a).div_euclid(b), FpDouble::from(-2.0)); // -7.0 >= 4.0 * -2.0
+    /// assert_eq!(a.div_euclid(-b), FpDouble::from(-1.0)); // 7.0 >= -4.0 * -1.0
+    /// assert_eq!((-a).div_euclid(-b), FpDouble::from(2.0)); // -7.0 >= -4.0 * 2.0
+    /// ```
+    pub fn div_euclid(self, rhs: Self) -> Self
     {
         let q = (self / rhs).trunc();
         if self % rhs < Self::zero()
@@ -1985,13 +3226,83 @@ where
         q
     }
 
-    fn rem_euclid(self, rhs: Self) -> Self
+    /// Calculates the least nonnegative remainder of `self (mod rhs)`.
+    ///
+    /// In particular, the return value `r` satisfies `0.0 <= r < rhs.abs()` in
+    /// most cases. However, due to a floating point round-off error it can
+    /// result in `r == rhs.abs()`, violating the mathematical definition, if
+    /// `self` is much smaller than `rhs.abs()` in magnitude and `self < 0.0`.
+    /// This result is not an element of the function's codomain, but it is the
+    /// closest floating point number in the real numbers and thus fulfills the
+    /// property `self == self.div_euclid(rhs) * rhs + self.rem_euclid(rhs)`
+    /// approximately.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// 
+    /// let a = FpDouble::from(7.0);
+    /// let b = FpDouble::from(4.0);
+    /// assert_eq!(a.rem_euclid(b), FpDouble::from(3.0));
+    /// assert_eq!((-a).rem_euclid(b), FpDouble::from(1.0));
+    /// assert_eq!(a.rem_euclid(-b), FpDouble::from(3.0));
+    /// assert_eq!((-a).rem_euclid(-b), FpDouble::from(1.0));
+    /// // limitation due to round-off error
+    /// assert!((-FpDouble::epsilon()).rem_euclid(FpDouble::from(3.0)) != FpDouble::from(0.0));
+    /// ```
+    pub fn rem_euclid(self, rhs: Self) -> Self
     {
         let r = self % rhs;
         if r < Self::zero() {r + rhs.abs()} else {r}
     }
     
-    fn total_cmp(self, other: Self) -> std::cmp::Ordering
+    /// Return the ordering between `self` and `other`.
+    ///
+    /// Unlike the standard partial comparison between floating point numbers,
+    /// this comparison always produces an ordering in accordance to
+    /// the `totalOrder` predicate as defined in the IEEE 754 (2008 revision)
+    /// floating point standard. The values are ordered in the following sequence:
+    ///
+    /// - negative quiet NaN
+    /// - negative signaling NaN
+    /// - negative infinity
+    /// - negative numbers
+    /// - negative subnormal numbers
+    /// - negative zero
+    /// - positive zero
+    /// - positive subnormal numbers
+    /// - positive numbers
+    /// - positive infinity
+    /// - positive signaling NaN
+    /// - positive quiet NaN.
+    ///
+    /// The ordering established by this function does not always agree with the
+    /// [`PartialOrd`] and [`PartialEq`] implementations. For example,
+    /// they consider negative and positive zero equal, while `total_cmp`
+    /// doesn't.
+    ///
+    /// The interpretation of the signaling NaN bit follows the definition in
+    /// the IEEE 754 standard, which may not match the interpretation by some of
+    /// the older, non-conformant (e.g. MIPS) hardware implementations.
+    ///
+    /// # Examples
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::{FpSingle, FpDouble};
+    /// use std::cmp::Ordering;
+    ///
+    /// assert_eq!(FpDouble::nan().total_cmp(FpDouble::nan()), Ordering::Equal);
+    /// assert_eq!(FpSingle::nan().total_cmp(FpSingle::nan()), Ordering::Equal);
+    ///
+    /// assert_eq!((-FpDouble::nan()).total_cmp(FpDouble::nan()), Ordering::Less);
+    /// assert_eq!(FpDouble::infinity().total_cmp(FpDouble::nan()), Ordering::Less);
+    /// assert_eq!((-FpDouble::zero()).total_cmp(FpDouble::zero()), Ordering::Less);
+    /// ```
+    pub fn total_cmp(self, other: Self) -> std::cmp::Ordering
     {
         let s0 = self.sign_bit();
         let s1 = other.sign_bit();
@@ -2061,12 +3372,12 @@ where
             f0 = f0 + (self.int_bits() << FRAC_SIZE);
             f1 = f1 + (other.int_bits() << FRAC_SIZE);
             
-            while e0 > e1 && f0 < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
+            while e0 > e1 && f0 < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
             {
                 e0 = e0 - U::one();
                 f0 = f0*base;
             }            
-            while e1 > e0 && f1 < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
+            while e1 > e0 && f1 < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
             {
                 e1 = e1 - U::one();
                 f1 = f1*base;
@@ -2092,6 +3403,25 @@ where
         if s {f1.cmp(&f0)} else {f0.cmp(&f1)}
     }
 
+    /// Returns `self*EXP_BASE`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::{FpDouble, DecDouble};
+    ///
+    /// let f = FpDouble::from(2.0);
+    /// let d = DecDouble::from(2.0);
+    ///
+    /// // 2*2 - 4 == 0
+    /// let abs_difference_f = (f.mul_base() - FpDouble::from(4.0)).abs();
+    ///
+    /// // 2*10 - 20 == 0
+    /// let abs_difference_d = (d.mul_base() - DecDouble::from(20.0)).abs();
+    ///
+    /// assert!(abs_difference_f < FpDouble::from(1e-10));
+    /// assert!(abs_difference_d < DecDouble::from(1e-10));
+    /// ```
     pub fn mul_base(self) -> Self
     {
         if !self.is_finite()
@@ -2114,7 +3444,7 @@ where
         e = e + U::one();
 
         let base = U::from(EXP_BASE).unwrap();        
-        while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
+        while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
         {
             e = e - U::one();
             f = f*base;
@@ -2151,6 +3481,25 @@ where
         }
     }
 
+    /// Returns `self/EXP_BASE`.
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::{FpDouble, DecDouble};
+    ///
+    /// let f = FpDouble::from(2.0);
+    /// let d = DecDouble::from(2.0);
+    ///
+    /// // 2/2 - 1 == 0
+    /// let abs_difference_f = (f.div_base() - FpDouble::from(1.0)).abs();
+    ///
+    /// // 2/10 - 0.2 == 0
+    /// let abs_difference_d = (d.div_base() - DecDouble::from(0.2)).abs();
+    ///
+    /// assert!(abs_difference_f < FpDouble::from(1e-10));
+    /// assert!(abs_difference_d < DecDouble::from(1e-10));
+    /// ```
     pub fn div_base(self) -> Self
     {
         if !self.is_finite()
@@ -2180,7 +3529,7 @@ where
             f = util::rounding_div(f, base);
         }
               
-        while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
+        while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
         {
             e = e - U::one();
             f = f*base;
@@ -2225,15 +3574,6 @@ where
     [(); EXP_BASE - 2]:,
     U: ConstZero
 {
+    /// The additive identity element of `Self`, `0`.
     pub const ZERO: Self = Self::from_bits(U::ZERO);
-}
-
-impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
-where
-    [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,
-    [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:,
-    [(); EXP_BASE - 2]:,
-    U: ConstOne
-{
-    pub const MIN_POSITIVE: Self = Self::from_bits(U::ONE);
 }

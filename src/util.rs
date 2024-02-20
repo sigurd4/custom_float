@@ -9,6 +9,31 @@ pub const fn bitsize_of<T>() -> usize
     core::mem::size_of::<T>()*8
 }
 
+pub fn count_digits_in_base(digits_bin: usize, base: usize) -> usize
+{
+    let mut d: usize = 1;
+    let mut o = 0;
+
+    for _ in 0..digits_bin
+    {
+        if d.leading_zeros() == 0
+        {
+            o += 1;
+            d /= base;
+        }
+        d <<= 1
+    }
+
+    let y = o + d.ilog(base) as usize;
+
+    if let Some(s) = 1usize.checked_shl(digits_bin as u32)
+    {
+        assert_eq!(y, s.ilog(base) as usize)
+    }
+
+    y
+}
+
 pub fn rounding_div_pow<T, I: UInt>(mut x: T, rhs: T, mut pow: I) -> T
 where
     T: Div<T, Output = T> + Rem<T, Output = T> + Shl<usize, Output = T> + Add<T, Output = T> + PartialOrd + One + Copy

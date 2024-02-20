@@ -52,6 +52,6 @@ mod test
     #[test]
     fn test_sub()
     {
-        crate::tests::test_op2(Sub::sub, Sub::sub)
+        crate::tests::test_op2(Sub::sub, Sub::sub, None)
     }
 }

@@ -38,12 +38,12 @@ where
             frac_b = frac_b + (fb.int_bits() << Self::INT_POS)
         }
         let mut divisor = Self::from_bits((expo_a << Self::EXP_POS) + frac_b);
-        while divisor < dividend
+        while divisor < dividend.div_base()
         {
             divisor = divisor.mul_base();
         }
         /* compute quotient one bit at a time */
-        while divisor >= fb && !divisor.is_zero()
+        while divisor >= fb && !divisor.is_zero() && divisor.is_finite()
         {
             while dividend >= divisor
             {
@@ -76,6 +76,6 @@ mod test
     #[test]
     fn test_rem()
     {
-        crate::tests::test_op2(Rem::rem, Rem::rem)
+        crate::tests::test_op2(Rem::rem, Rem::rem, None)
     }
 }

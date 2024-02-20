@@ -125,7 +125,7 @@ where
                 return if s {-Self::zero()} else {Self::zero()}
             }
 
-            while e > U::zero() && f <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_SIZE
+            while e > U::zero() && f <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
             {
                 e = e - U::one();
                 f = f*base;
@@ -179,6 +179,6 @@ mod test
     #[test]
     fn test_add()
     {
-        crate::tests::test_op2(Add::add, Add::add)
+        crate::tests::test_op2(Add::add, Add::add, None)
     }
 }

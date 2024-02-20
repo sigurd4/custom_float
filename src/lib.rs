@@ -40,9 +40,9 @@ mod tests
     use num::Complex;
     use num_traits::{Float, One, ToPrimitive, Zero};
 
-    use crate::{amd::Fp24, g_711::FpG711, google::{Bf16, Bf32, Bf8}, ibm::{HFpLong, HFpShort}, ieee754::{DecDouble, FpDouble, FpHalf, FpOctuple, FpQuadruple, FpSingle}, intel::Fp80, nvidia::Tf19, Fp};
+    use crate::{amd::Fp24, g_711::FpG711, google::{Bf16, Bf32, Bf8}, ibm::{HFpLong, HFpShort}, ieee754::{DecDouble, FpDouble, FpHalf, FpQuadruple, FpSingle}, intel::Fp80, nvidia::Tf19, Fp};
 
-    pub type F = Fp24;
+    pub type F = FpSingle;
 
     #[test]
     fn it_works()
@@ -81,7 +81,7 @@ mod tests
         ]
     }
     
-    pub fn test_op2(op1: impl Fn(f32, f32) -> f32, op2: impl Fn(F, F) -> F)
+    pub fn test_op2(op1: impl Fn(f32, f32) -> f32, op2: impl Fn(F, F) -> F, d: Option<f32>)
     {
         for f0 in crate::tests::ttable()
         {
@@ -90,10 +90,16 @@ mod tests
                 let fp0 = F::from(f0);
                 let fp1 = F::from(f1);
 
-                let s = op1(f0, f1);
-                let sp = op2(fp0, fp1).into();
+                //println!("{} ? {}", f0, f1);
 
-                if s != sp && !(s.is_nan() && sp.is_nan())
+                let s = op1(f0, f1);
+                let sp: f32 = op2(fp0, fp1).into();
+
+                if match d
+                {
+                    Some(d) => (s - sp).abs() > d,
+                    None => s != sp
+                } && !(s.is_nan() && sp.is_nan())
                 {
                     if f0.is_subnormal()
                     {
@@ -109,16 +115,20 @@ mod tests
         }
     }
     
-    pub fn test_op1(op1: impl Fn(f32) -> f32, op2: impl Fn(F) -> F)
+    pub fn test_op1(op1: impl Fn(f32) -> f32, op2: impl Fn(F) -> F, d: Option<f32>)
     {
         for f0 in ttable::<f32>()
         {
             let fp0 = F::from(f0);
 
             let s = op1(f0);
-            let sp = op2(fp0).into();
+            let sp: f32 = op2(fp0).into();
 
-            if s != sp && !(s.is_nan() && sp.is_nan())
+            if match d
+            {
+                Some(d) => (s - sp).abs() > d,
+                None => s != sp
+            } && !(s.is_nan() && sp.is_nan())
             {
                 if f0.is_subnormal()
                 {

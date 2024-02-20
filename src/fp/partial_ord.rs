@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use num_traits::float::TotalOrder;
 
 use crate::{util, Fp, UInt};
@@ -8,11 +10,15 @@ where
     [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:,
     [(); EXP_BASE - 2]:
 {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering>
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering>
     {
         if self.is_nan() || other.is_nan()
         {
             return None
+        }
+        if self.is_zero() && other.is_zero()
+        {
+            return Some(Ordering::Equal)
         }
         
         return Some(self.total_cmp(other))
