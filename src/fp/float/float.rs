@@ -7,7 +7,8 @@ use crate::{util, Fp, UInt};
 impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Float for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
     [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,
-    [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:
+    [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:,
+    [(); EXP_BASE - 2]:
 {
     #[inline]
     fn nan() -> Self
@@ -369,7 +370,7 @@ mod test
 {
     use num_traits::Float;
 
-    use crate::{g_711::FpG711, intel::Fp80};
+    use crate::{g_711::FpG711, ieee754::DecDouble, intel::Fp80};
 
     #[test]
     fn test_epsilon()
@@ -400,22 +401,25 @@ mod test
     #[test]
     fn test_powf()
     {
+        let x = crate::tests::F::one();
+        let y = crate::tests::F::infinity();
+        //println!("{}", x.powf(y));
         crate::tests::test_op2(Float::powf, Float::powf);
     }
 
     #[test]
     fn test_round()
     {
-        //crate::tests::test_op1(Float::round, Float::round);
-        //crate::tests::test_op1(Float::ceil, Float::ceil);
-        //crate::tests::test_op1(Float::floor, Float::floor);
+        crate::tests::test_op1(Float::round, Float::round);
+        crate::tests::test_op1(Float::ceil, Float::ceil);
+        crate::tests::test_op1(Float::floor, Float::floor);
         crate::tests::test_op1(Float::trunc, Float::trunc);
     }
 
     #[test]
     fn test_sqrt()
     {
-        let sqrt = Fp80::from(3.0).sqrt();
+        let sqrt = DecDouble::from(3.0).sqrt();
         println!("{}^2 == {}", sqrt, sqrt*sqrt);
         let sqrt = (3.0).sqrt();
         println!("{}^2 == {}", sqrt, sqrt*sqrt);

@@ -8,6 +8,8 @@ This crate adds a custom floating point number type, `Fp<U, EXP_SIZE, INT_SIZE, 
 
 `FRAC_SIZE` is the size of the fractional part of the mantissa in bits.
 
+`EXP_BASE` is the base of the exponent.
+
 The number then automatically implements `num::Float`, and supports all ordinary floating point operations.
 
 This allows simple implementation of special floating point types, such as TensorFloat, IEEE754 Quadruple/binary128, Fp80, and BFloat16.
