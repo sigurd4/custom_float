@@ -4,6 +4,8 @@
 #![feature(trait_alias)]
 #![feature(const_fn_floating_point_arithmetic)]
 #![feature(portable_simd)]
+#![feature(associated_type_bounds)]
+#![feature(round_ties_even)]
 
 use std::fmt::Debug;
 

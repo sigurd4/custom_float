@@ -372,7 +372,7 @@ mod test
     
     use num_traits::Float;
 
-    use crate::{g_711::FpG711, ieee754::{DecDouble, FpSingle}, intel::Fp80};
+    use crate::{g_711::FpG711, ieee754::{DecDouble, FpSingle}, intel::Fp80, Fp};
 
     #[test]
     fn test_copysign()
@@ -435,6 +435,7 @@ mod test
         crate::tests::test_op1(Float::ceil, Float::ceil, None);
         crate::tests::test_op1(Float::floor, Float::floor, None);
         crate::tests::test_op1(Float::trunc, Float::trunc, None);
+        crate::tests::test_op1(f32::round_ties_even, Fp::round_ties_even, None);
     }
 
     #[test]

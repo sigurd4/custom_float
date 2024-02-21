@@ -1,6 +1,6 @@
 use std::ops::{Add, Div, Rem, Shl, Shr};
 
-use num_traits::{NumCast, One};
+use num_traits::{NumCast, One, Zero};
 
 use crate::{Int, UInt};
 
@@ -51,6 +51,20 @@ where
     T: Div<T, Output = T> + Rem<T, Output = T> + Shl<usize, Output = T> + Add<T, Output = T> + PartialOrd + One + Copy
 {
     if (x % rhs) << 1 > rhs
+    {
+        x/rhs + T::one()
+    }
+    else
+    {
+        x/rhs
+    }
+}
+
+pub fn ceil_div<T>(x: T, rhs: T) -> T
+where
+    T: Div<T, Output = T> + Rem<T, Output = T> + Shl<usize, Output = T> + Add<T, Output = T> + PartialOrd + One + Copy + Zero
+{
+    if (x % rhs) > T::zero()
     {
         x/rhs + T::one()
     }
