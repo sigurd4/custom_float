@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::num::FpCategory;
 
 use array_math::{ArrayMath, ArrayOps};
-use num_traits::{ConstOne, ConstZero, FloatConst, FromBytes, ToBytes};
+use num_traits::{ConstZero, FloatConst, FromBytes, ToBytes};
 use num_traits::NumCast;
 
 use crate::{util, Int, UInt};
