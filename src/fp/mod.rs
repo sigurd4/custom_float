@@ -3212,13 +3212,24 @@ where
             0.000001185,
             -0.000000007
         ];
-        let t: [[Self; N]; N] = ArrayOps::fill(
-            |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
-        );
-        let p: [Self; N] = t.zip(C)
-            .map2(|(t, c)| t.map2(|tn| <Self as From<_>>::from(c)*tn))
-            .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
-            .unwrap_or_default();
+
+        static mut P: Option<[f64; N]> = None;
+        let p = unsafe {
+            if P.is_none()
+            {
+                P = Some({
+                    let t: [[f64; N]; N] = ArrayOps::fill(
+                        |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
+                    );
+                    let p: [f64; N] = t.zip(C)
+                        .map2(|(t, c)| t.map2(|tn| c*tn))
+                        .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
+                        .unwrap_or_default();
+                    p
+                })
+            }
+            P.unwrap()
+        }.map(|p| <Self as From<_>>::from(p));
 
         let mut w = self*Self::FRAC_2_PI();
         let mut i = 0;
@@ -3266,13 +3277,24 @@ where
             0.000001185,
             -0.000000007
         ];
-        let t: [[Self; N]; N] = ArrayOps::fill(
-            |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
-        );
-        let p: [Self; N] = t.zip(C)
-            .map2(|(t, c)| t.map2(|tn| <Self as From<_>>::from(c)*tn))
-            .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
-            .unwrap_or_default();
+
+        static mut P: Option<[f64; N]> = None;
+        let p = unsafe {
+            if P.is_none()
+            {
+                P = Some({
+                    let t: [[f64; N]; N] = ArrayOps::fill(
+                        |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
+                    );
+                    let p: [f64; N] = t.zip(C)
+                        .map2(|(t, c)| t.map2(|tn| c*tn))
+                        .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
+                        .unwrap_or_default();
+                    p
+                })
+            }
+            P.unwrap()
+        }.map(|p| <Self as From<_>>::from(p));
 
         let mut w = self*Self::FRAC_2_PI() + Self::one();
         let mut i = 0;
@@ -3593,13 +3615,24 @@ where
             0.000001185,
             -0.000000007
         ];
-        let t: [[Self; N]; N] = ArrayOps::fill(
-            |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
-        );
-        let p: [Self; N] = t.zip(C)
-            .map2(|(t, c)| t.map2(|tn| <Self as From<_>>::from(c)*tn))
-            .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
-            .unwrap_or_default();
+
+        static mut P: Option<[f64; N]> = None;
+        let p = unsafe {
+            if P.is_none()
+            {
+                P = Some({
+                    let t: [[f64; N]; N] = ArrayOps::fill(
+                        |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
+                    );
+                    let p: [f64; N] = t.zip(C)
+                        .map2(|(t, c)| t.map2(|tn| c*tn))
+                        .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
+                        .unwrap_or_default();
+                    p
+                })
+            }
+            P.unwrap()
+        }.map(|p| <Self as From<_>>::from(p));
 
         let two = <Self as From<_>>::from(2.0);
 
