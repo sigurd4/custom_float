@@ -4151,7 +4151,16 @@ where
     #[inline]
     pub fn ln_gamma(self) -> (Self, i32)
     {
-        if self > <Self as From<_>>::from(0.5)
+        if !self.is_finite()
+        {
+            return (self.abs(), if self.is_nan() {0} else {1})
+        }
+        if self.is_zero()
+        {
+            return (Self::infinity(), if self.is_sign_negative() {-1} else {1})
+        }
+
+        if self >= <Self as From<_>>::from(0.5)
         {
             return (self.ln_gamma_lanczos(), 1)
         }
@@ -4160,7 +4169,7 @@ where
 
         if sin_fact.is_zero()
         {
-            return (Self::snan(), 0)
+            return (Self::infinity(), 0)
         }
 
         (
@@ -4723,14 +4732,13 @@ where
 #[cfg(test)]
 mod test
 {
-    use crate::ieee754::{FpDouble, FpHalf};
+    use crate::{ieee754::{FpDouble, FpHalf}, Fp};
 
     #[test]
     fn test_gamma()
     {
-        let x = FpDouble::from(5.0f32);
-        
-        println!("{}", x.gamma())
+        //crate::tests::test_op1(|x| f32::ln_gamma(x).0, |x| Fp::ln_gamma(x).0, None);
+        crate::tests::test_op1(f32::gamma, Fp::gamma, None)
     }
 
     #[test]
