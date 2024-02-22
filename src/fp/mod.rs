@@ -4124,11 +4124,32 @@ where
         {
             return Self::neg_infinity()
         }
-        if self > Self::one() || self < -Self::one()
+        let xabs = self.abs();
+        if xabs > Self::one()
         {
             return Self::snan()
         }
-        <Self as From<_>>::from(0.5)*((Self::one() + self.abs())/(Self::one() - self.abs())).ln().copysign(self)
+        //<Self as From<_>>::from(0.5)*((Self::one() + self.abs())/(Self::one() - self.abs())).ln().copysign(self)
+        
+        let mut t;
+        let one = Self::one();
+        let half = <Self as From<_>>::from(0.5);
+        if xabs < half
+        {
+            if xabs < (-Self::from_uint(28u8)).exp2()
+            {
+                return self
+            }
+
+            t = xabs + xabs;
+            t = half*(t + t*xabs/(one - xabs)).ln_1p()
+        }
+        else
+        {
+            t = half*((xabs + xabs)/(one - xabs)).ln_1p()
+        }
+
+        t.copysign(self)
     }
     
     fn ln_gamma_lanczos(self) -> Self
