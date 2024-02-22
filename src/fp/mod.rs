@@ -3378,6 +3378,75 @@ where
 
         let mut y = (self/(Self::one() - self*self).sqrt()).atan();
 
+        /*const PIO2_HI: f64 = 1.57079637050628662109375;
+        const PIO2_LO: f64 = -4.37113900018624283e-8;
+        const PIO4_HI: f64 = 0.785398185253143310546875;
+
+        const P0: f64 = 1.666675248e-1;
+        const P1: f64 = 7.495297643e-2;
+        const P2: f64 = 4.547037598e-2;
+        const P3: f64 = 2.417951451e-2;
+        const P4: f64 = 4.216630880e-2;
+
+        let pio2_hi = <Self as From<_>>::from(PIO2_HI);
+        let pio2_lo = <Self as From<_>>::from(PIO2_LO);
+        let pio4_hi = <Self as From<_>>::from(PIO4_HI);
+
+        let mut y = if x_abs.is_one()
+        {
+            self*pio2_hi + self*pio2_lo
+        }
+        else if x_abs > Self::one()
+        {
+            return (self - self)/(self - self)
+        }
+        else if x_abs < <Self as From<_>>::from(0.5)
+        {
+            if x_abs < (-Self::from_uint(27u8)).exp2()
+            {
+                self
+            }
+            else
+            {
+                let t = self*self;
+                let w = t*(<Self as From<_>>::from(P0) + t*(<Self as From<_>>::from(P1) + t*(<Self as From<_>>::from(P2) + t*(<Self as From<_>>::from(P3) + t*<Self as From<_>>::from(P4)))));
+                self + self*w
+            }
+        }
+        else
+        {
+            let mut w = Self::one() - x_abs;
+            let mut t = w*<Self as From<_>>::from(0.5);
+            let mut p = t*(<Self as From<_>>::from(P0) + t*(<Self as From<_>>::from(P1) + t*(<Self as From<_>>::from(P2) + t*(<Self as From<_>>::from(P3) + t*<Self as From<_>>::from(P4)))));
+            let s = t.sqrt();
+
+            let two = Self::from_uint(2u8);
+
+            if x_abs < <Self as From<_>>::from(0.975)
+            {
+                t = pio2_hi - (two*(s+s*p) - pio2_lo);
+            }
+            else
+            {
+                let e_s = s.exp_bits();
+                let mut f_s = s.frac_bits();
+                if !Self::IS_INT_IMPLICIT
+                {
+                    f_s = f_s + (s.int_bits() << Self::INT_POS)
+                }
+                f_s = f_s & ((U::max_value() >> FRAC_SIZE/2) << FRAC_SIZE/2);
+                w = Self::from_bits((e_s << Self::EXP_POS) + (f_s << Self::FRAC_POS));
+
+	            let c  = (t - w*w)/(s + w);
+                let r = p;
+                p = two*s*r - (pio2_lo - two*c);
+                let q  = pio4_hi - two*w;
+                t  = pio4_hi-(p-q);
+            }
+
+            t.copysign(self)
+        };*/
+
         if y.is_finite()
         {
             const NEWTON: usize = NEWTON_TRIG;
@@ -3430,6 +3499,67 @@ where
         {
             return (self - self)/(self - self)
         }
+
+        /*const PIO2_HI: f64 = 1.5707962513e+00;
+        const PIO2_LO: f64 = 7.5497894159e-08;
+
+        const PS0: f64 = 1.6666667163e-01;
+        const PS1: f64 = -3.2556581497e-01;
+        const PS2: f64 = 2.0121252537e-01;
+        const PS3: f64 = -4.0055535734e-02;
+        const PS4: f64 = 7.9153501429e-04;
+        const PS5: f64 = 3.4793309169e-05;
+        const QS1: f64 = -2.4033949375e+00;
+        const QS2: f64 = 2.0209457874e+00;
+        const QS3: f64 = -6.8828397989e-01;
+        const QS4: f64 = 7.7038154006e-02;
+
+        let mut y = if xabs < <Self as From<_>>::from(0.5)
+        {
+            if xabs < (-Self::from_uint(26u8)).exp2()
+            {
+                <Self as From<_>>::from(PIO2_HI) + <Self as From<_>>::from(PIO2_LO)
+            }
+            else
+            {
+                let z = self*self;
+                let p = z*(<Self as From<_>>::from(PS0) + z*(<Self as From<_>>::from(PS1) + z*(<Self as From<_>>::from(PS2) + z*(<Self as From<_>>::from(PS3) + z*(<Self as From<_>>::from(PS4) + z*<Self as From<_>>::from(PS5))))));
+                let q = Self::one() + z*(<Self as From<_>>::from(QS1) + z*(<Self as From<_>>::from(QS2) + z*(<Self as From<_>>::from(QS3) + z*<Self as From<_>>::from(QS4))));
+                let r = p/q;
+                <Self as From<_>>::from(PIO2_HI) - (self - (<Self as From<_>>::from(PIO2_LO) - self*r))
+            }
+        }
+        else if self.is_sign_negative()
+        {
+            let z = (Self::one() + self)*<Self as From<_>>::from(0.5);
+            let p = z*(<Self as From<_>>::from(PS0) + z*(<Self as From<_>>::from(PS1) + z*(<Self as From<_>>::from(PS2) + z*(<Self as From<_>>::from(PS3) + z*(<Self as From<_>>::from(PS4) + z*<Self as From<_>>::from(PS5))))));
+            let q = Self::one() + z*(<Self as From<_>>::from(QS1) + z*(<Self as From<_>>::from(QS2) + z*(<Self as From<_>>::from(QS3) + z*<Self as From<_>>::from(QS4))));
+            let r = p/q;
+            let s = z.sqrt();
+            let w = r*s - <Self as From<_>>::from(PIO2_LO);
+            Self::PI() - Self::from_uint(2u8)*(s + w)
+        }
+        else
+        {
+            let z = (Self::one() - self)*<Self as From<_>>::from(0.5);
+            let s = z.sqrt();
+
+            let e_s = s.exp_bits();
+            let mut f_s = s.frac_bits();
+            if !Self::IS_INT_IMPLICIT
+            {
+                f_s = f_s + (s.int_bits() << Self::INT_POS)
+            }
+            f_s = f_s & ((U::max_value() >> FRAC_SIZE/2) << FRAC_SIZE/2);
+            let df = Self::from_bits((e_s << Self::EXP_POS) + (f_s << Self::FRAC_POS));
+            let c = (z - df*df)/(s + df);
+
+            let p = z*(<Self as From<_>>::from(PS0) + z*(<Self as From<_>>::from(PS1) + z*(<Self as From<_>>::from(PS2) + z*(<Self as From<_>>::from(PS3) + z*(<Self as From<_>>::from(PS4) + z*<Self as From<_>>::from(PS5))))));
+            let q = Self::one() + z*(<Self as From<_>>::from(QS1) + z*(<Self as From<_>>::from(QS2) + z*(<Self as From<_>>::from(QS3) + z*<Self as From<_>>::from(QS4))));
+            let r = p/q;
+            let w = r*s + c;
+            Self::from_uint(2u8)*(df + w)
+        };*/
         let mut y = ((Self::one() - self*self).sqrt()/self).atan();
 
         if y.is_finite()
