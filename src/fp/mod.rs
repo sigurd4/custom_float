@@ -3839,7 +3839,7 @@ where
             for _ in 0..NEWTON
             {
                 let yp1 = y + Self::one();
-                y -= yp1*(yp1.ln() - self)
+                y -= yp1*(y.ln_1p() - self)
             }
         }
 
@@ -4131,7 +4131,7 @@ where
         }
         //<Self as From<_>>::from(0.5)*((Self::one() + self.abs())/(Self::one() - self.abs())).ln().copysign(self)
         
-        let mut t;
+        let mut t = xabs + xabs;
         let one = Self::one();
         let half = <Self as From<_>>::from(0.5);
         if xabs < half
@@ -4141,12 +4141,11 @@ where
                 return self
             }
 
-            t = xabs + xabs;
             t = half*(t + t*xabs/(one - xabs)).ln_1p()
         }
         else
         {
-            t = half*((xabs + xabs)/(one - xabs)).ln_1p()
+            t = half*(t/(one - xabs)).ln_1p()
         }
 
         t.copysign(self)
