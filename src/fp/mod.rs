@@ -4035,7 +4035,31 @@ where
         {
             return self
         }
-        (self + (self*self - Self::one()).sqrt()).ln()
+        //(self + (self*self - Self::one()).sqrt()).ln()
+
+        if self > (Self::from_uint(28u8)).exp2()
+        {
+            self.ln() + Self::LN_2()
+        }
+        else if self.is_one()
+        {
+            Self::zero()
+        }
+        else
+        {
+            let two = Self::from_uint(2u8);
+            let one = Self::one();
+            if self > two
+            {
+                let t = self*self;
+                (two*self - (self + (t - one).sqrt()).recip()).ln()
+            }
+            else
+            {
+                let t = self - one;
+                (t + (two*t + t*t).sqrt()).ln_1p()
+            }
+        }
     }
 
     /// Inverse hyperbolic tangent function.
