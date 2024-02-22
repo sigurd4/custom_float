@@ -6,6 +6,7 @@
 #![feature(portable_simd)]
 #![feature(associated_type_bounds)]
 #![feature(round_ties_even)]
+#![feature(float_gamma)]
 #![feature(lazy_cell)]
 
 use std::fmt::Debug;
