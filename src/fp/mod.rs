@@ -4003,7 +4003,39 @@ where
         {
             return self
         }
-        (self + (self*self + Self::one()).sqrt()).ln()
+        //(self + (self*self + Self::one()).sqrt()).ln()
+
+        let w;
+        let xabs = self.abs();
+        let fourteen = Self::from_uint(14u8);
+        if xabs < (-fourteen).exp2()
+        {
+            return self
+        }
+        if xabs > fourteen.exp2()
+        {
+            if !xabs.is_finite()
+            {
+                return self + self
+            }
+            w = xabs.ln() + Self::LN_2()
+        }
+        else
+        {
+            let one = Self::one();
+            let two = Self::from_uint(2u8);
+            let t = xabs*xabs;
+            w = if xabs > two
+            {
+                (two*xabs + ((t + one).sqrt() + xabs).recip()).ln()
+            }
+            else
+            {
+                (xabs + t/(one + (one + t).sqrt())).ln_1p()
+            }
+        }
+
+        w.copysign(self)
     }
 
     /// Inverse hyperbolic cosine function.
