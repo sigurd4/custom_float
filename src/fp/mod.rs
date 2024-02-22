@@ -2605,7 +2605,7 @@ where
         {
             return e
         }
-        let e = U::from(e).unwrap();
+        let e = e.to_uint::<U>().unwrap();
         let i = if INT_SIZE > 0
         {
             U::one()
@@ -2614,7 +2614,7 @@ where
         {
             U::zero()
         };
-        let y = Self::from_bits((e << Self::EXP_POS) + (i << Self::INT_POS))*z;
+        let y = z*Self::from_bits((e << Self::EXP_POS) + (i << Self::INT_POS));
 
         if neg
         {
