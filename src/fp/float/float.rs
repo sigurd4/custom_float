@@ -417,6 +417,18 @@ mod test
     }
     
     #[test]
+    fn test_asin()
+    {
+        crate::tests::test_op1(Float::asin, Float::asin, None);
+    }
+    
+    #[test]
+    fn test_acos()
+    {
+        crate::tests::test_op1(Float::acos, Float::acos, None);
+    }
+    
+    #[test]
     fn test_atan()
     {
         crate::tests::test_op2(|a, b| Float::atan(a/b), |a, b| Float::atan(a/b), Some(0.01));

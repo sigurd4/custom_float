@@ -1129,6 +1129,8 @@ where
     
     /// Returns the `NaN` value.
     ///
+    /// # Examples
+    ///
     /// ```
     /// use custom_float::ieee754::FpSingle;
     ///
@@ -1143,6 +1145,8 @@ where
     }
     
     /// Returns the `qNaN` value.
+    ///
+    /// # Examples
     ///
     /// ```
     /// use custom_float::ieee754::FpSingle;
@@ -1159,6 +1163,8 @@ where
     }
     
     /// Returns the `sNaN` value.
+    ///
+    /// # Examples
     ///
     /// ```
     /// use custom_float::ieee754::FpSingle;
@@ -1179,6 +1185,8 @@ where
     }
 
     /// Returns `true` if the number is a signaling NaN.
+    ///
+    /// # Examples
     ///
     /// ```
     /// use custom_float::ieee754::FpSingle;
@@ -1201,6 +1209,8 @@ where
 
     /// Returns the infinite value.
     ///
+    /// # Examples
+    ///
     /// ```
     /// use custom_float::ieee754::FpSingle;
     ///
@@ -1217,6 +1227,8 @@ where
     }
 
     /// Returns the negative infinite value.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -1236,6 +1248,8 @@ where
     }
 
     /// Returns `-0.0`.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -1258,6 +1272,8 @@ where
 
     /// Returns the smallest finite value.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -1275,6 +1291,8 @@ where
     }
 
     /// Returns the smallest positive, normal value.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -1304,6 +1322,8 @@ where
     /// This is the difference between `1.0` and the next larger representable number.
     ///
     /// [Machine epsilon]: https://en.wikipedia.org/wiki/Machine_epsilon
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -1335,6 +1355,8 @@ where
 
     /// Returns the largest finite value.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -1351,6 +1373,8 @@ where
     }
 
     /// Returns `true` if this value is NaN.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -1371,6 +1395,8 @@ where
 
     /// Returns `true` if this value is positive infinity or negative infinity, and
     /// `false` otherwise.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -1396,6 +1422,8 @@ where
 
     /// Returns `true` if this number is neither infinite nor NaN.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -1420,6 +1448,8 @@ where
 
     /// Returns `true` if the number is neither zero, infinite,
     /// [subnormal], or NaN.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -1457,6 +1487,8 @@ where
 
     /// Returns `true` if the number is [subnormal].
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -1486,6 +1518,8 @@ where
     /// Returns the floating point category of the number. If only one property
     /// is going to be tested, it is generally faster to use the specific
     /// predicate instead.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -1524,6 +1558,8 @@ where
 
     /// Returns the largest integer less than or equal to `self`.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -1551,6 +1587,8 @@ where
     }
 
     /// Returns the smallest integer greater than or equal to `self`.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -1580,6 +1618,8 @@ where
 
     /// Returns the nearest integer to `self`. If a value is half-way between two
     /// integers, round away from `0.0`.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -1663,6 +1703,8 @@ where
     /// Returns the integer part of `self`.
     /// This means that non-integer numbers are always truncated towards zero.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -1687,6 +1729,8 @@ where
 
     /// Returns the fractional part of a number.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -1707,6 +1751,8 @@ where
     }
 
     /// Computes the absolute value of `self`. Returns `NaN` if the number is `NaN`.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -1735,6 +1781,8 @@ where
     /// - `1.0` if the number is positive, `+0.0` or `inf`
     /// - `-1.0` if the number is negative, `-0.0` or `-inf`
     /// - `NaN` if the number is `NaN`
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -1765,6 +1813,8 @@ where
     /// `is_sign_positive` on a NaN might produce an unexpected result in some cases.
     /// See [explanation of NaN as a special value](f32) for more info.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -1793,6 +1843,8 @@ where
     /// the bit pattern of NaNs are conserved over arithmetic operations, the result of
     /// `is_sign_negative` on a NaN might produce an unexpected result in some cases.
     /// See [explanation of NaN as a special value](f32) for more info.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -1830,6 +1882,8 @@ where
     /// 
     /// The identity `x.next_up() == -(-x).next_down()` holds for all non-NaN `x`.
     /// When `x` is finite and the radix is 2, `x == x.next_up().next_down()` also holds.
+    ///
+    /// # Examples
     ///
     /// ```rust
     /// #![feature(generic_const_exprs)]
@@ -1943,6 +1997,8 @@ where
     /// The identity `x.next_down() == -(-x).next_up()` holds for all non-NaN `x`. When `x`
     /// is finite `x == x.next_down().next_up()` also holds.
     ///
+    /// # Examples
+    ///
     /// ```rust
     /// #![feature(generic_const_exprs)]
     /// 
@@ -2047,6 +2103,8 @@ where
     /// This returns NaN when *either* argument is NaN, as opposed to
     /// [`Fp::max`] which only returns NaN when *both* arguments are NaN.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -2096,6 +2154,8 @@ where
     ///
     /// This returns NaN when *either* argument is NaN, as opposed to
     /// [`Fp::min`] which only returns NaN when *both* arguments are NaN.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -2193,6 +2253,8 @@ where
 
     /// Fused multiply-add. Computes `(self * a) + b`.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -2214,6 +2276,8 @@ where
     }
 
     /// Take the reciprocal (inverse) of a number, `1/x`.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -2540,6 +2604,8 @@ where
 
     /// Returns `EXP_BASE^(self)`.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -2639,6 +2705,8 @@ where
 
     /// Returns `e^(self)`, (the exponential function).
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -2682,6 +2750,8 @@ where
 
     /// Returns `10^(self)`.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -2714,6 +2784,8 @@ where
     }
 
     /// Returns `2^(self)`.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -2751,6 +2823,8 @@ where
     }
 
     /// Returns the natural logarithm of the number.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -2790,6 +2864,8 @@ where
     /// `self.log2()` can produce more accurate results for base 2, and
     /// `self.log10()` can produce more accurate results for base 10.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -2814,6 +2890,8 @@ where
     }
 
     /// Returns the logarithm base `EXP_BASE` of the number.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -2890,6 +2968,8 @@ where
 
     /// Returns the base 2 logarithm of the number.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -2931,6 +3011,8 @@ where
 
     /// Returns the base 10 logarithm of the number.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -2963,6 +3045,8 @@ where
 
     /// Converts radians to degrees.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -2983,6 +3067,8 @@ where
     
     /// Converts degrees to radians.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -3002,6 +3088,8 @@ where
     }
 
     /// Returns the maximum of the two numbers.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -3040,6 +3128,8 @@ where
     }
 
     /// Returns the minimum of the two numbers.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -3082,6 +3172,8 @@ where
     /// * If `self <= other`: `0:0`
     /// * Else: `self - other`
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -3112,6 +3204,8 @@ where
     }
 
     /// Take the cubic root of a number.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -3188,6 +3282,8 @@ where
 
     /// Computes the sine of a number (in radians).
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -3252,6 +3348,8 @@ where
     }
 
     /// Computes the cosine of a number (in radians).
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -3318,6 +3416,8 @@ where
 
     /// Computes the tangent of a number (in radians).
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -3341,6 +3441,8 @@ where
     /// Computes the arcsine of a number. Return value is in radians in
     /// the range [-pi/2, pi/2] or NaN if the number is outside the range
     /// [-1, 1].
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -3376,7 +3478,17 @@ where
             return (self - self)/(self - self)
         }
 
-        let mut y = (self/(Self::one() - self*self).sqrt()).atan();
+        let xx = self*self;
+        let mut y = if xx < <Self as From<_>>::from(0.5)
+        {
+            (self/(Self::one() - xx).sqrt()).atan()
+        }
+        else
+        {
+            Self::FRAC_PI_2() - ((Self::one() - xx).sqrt()/self).recip().atan()
+        };
+        
+        //let mut y = Self::FRAC_PI_2() - ((Self::one() - self*self).sqrt()/self).atan();
 
         /*const PIO2_HI: f64 = 1.57079637050628662109375;
         const PIO2_LO: f64 = -4.37113900018624283e-8;
@@ -3392,17 +3504,17 @@ where
         let pio2_lo = <Self as From<_>>::from(PIO2_LO);
         let pio4_hi = <Self as From<_>>::from(PIO4_HI);
 
-        let mut y = if x_abs.is_one()
+        let mut y = if xabs.is_one()
         {
             self*pio2_hi + self*pio2_lo
         }
-        else if x_abs > Self::one()
+        else if xabs > Self::one()
         {
             return (self - self)/(self - self)
         }
-        else if x_abs < <Self as From<_>>::from(0.5)
+        else if xabs < <Self as From<_>>::from(0.5)
         {
-            if x_abs < (-Self::from_uint(27u8)).exp2()
+            if xabs < (-Self::from_uint(27u8)).exp2()
             {
                 self
             }
@@ -3415,16 +3527,16 @@ where
         }
         else
         {
-            let mut w = Self::one() - x_abs;
+            let mut w = Self::one() - xabs;
             let mut t = w*<Self as From<_>>::from(0.5);
             let mut p = t*(<Self as From<_>>::from(P0) + t*(<Self as From<_>>::from(P1) + t*(<Self as From<_>>::from(P2) + t*(<Self as From<_>>::from(P3) + t*<Self as From<_>>::from(P4)))));
             let s = t.sqrt();
 
             let two = Self::from_uint(2u8);
 
-            if x_abs < <Self as From<_>>::from(0.975)
+            if xabs >= <Self as From<_>>::from(0.975)
             {
-                t = pio2_hi - (two*(s+s*p) - pio2_lo);
+                t = pio2_hi - (two*(s + s*p) - pio2_lo);
             }
             else
             {
@@ -3437,11 +3549,11 @@ where
                 f_s = f_s & ((U::max_value() >> FRAC_SIZE/2) << FRAC_SIZE/2);
                 w = Self::from_bits((e_s << Self::EXP_POS) + (f_s << Self::FRAC_POS));
 
-	            let c  = (t - w*w)/(s + w);
+	            let c = (t - w*w)/(s + w);
                 let r = p;
                 p = two*s*r - (pio2_lo - two*c);
                 let q  = pio4_hi - two*w;
-                t  = pio4_hi-(p-q);
+                t = pio4_hi - (p - q);
             }
 
             t.copysign(self)
@@ -3464,6 +3576,8 @@ where
     /// Computes the arccosine of a number. Return value is in radians in
     /// the range [0, pi] or NaN if the number is outside the range
     /// [-1, 1].
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -3499,6 +3613,16 @@ where
         {
             return (self - self)/(self - self)
         }
+        
+        let xx = self*self;
+        let mut y = if xx > <Self as From<_>>::from(0.5)
+        {
+            ((Self::one() - xx).sqrt()/self).atan()
+        }
+        else
+        {
+            Self::FRAC_PI_2() - (self/(Self::one() - xx).sqrt()).recip().atan()
+        };
 
         /*const PIO2_HI: f64 = 1.5707962513e+00;
         const PIO2_LO: f64 = 7.5497894159e-08;
@@ -3560,7 +3684,6 @@ where
             let w = r*s + c;
             Self::from_uint(2u8)*(df + w)
         };*/
-        let mut y = ((Self::one() - self*self).sqrt()/self).atan();
 
         if y.is_finite()
         {
@@ -3578,6 +3701,8 @@ where
 
     /// Computes the arctangent of a number. Return value is in radians in the
     /// range [-pi/2, pi/2];
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -3666,6 +3791,8 @@ where
     /// * `y >= 0`: `arctan(y/x) + pi` -> `(pi/2, pi]`
     /// * `y < 0`: `arctan(y/x) - pi` -> `(-pi, -pi/2)`
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -3721,6 +3848,8 @@ where
     }
 
     /// Simultaneously computes the sine and cosine of the number, `x`. Returns `(sin(x), cos(x))`.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -3815,6 +3944,8 @@ where
 
     /// Returns `e^(self) - 1`.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -3848,6 +3979,8 @@ where
 
     /// Returns `ln(1+n)` (natural logarithm) more accurately than if
     /// the operations were performed separately.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -3883,6 +4016,8 @@ where
 
     /// Hyperbolic sine function.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -3913,6 +4048,8 @@ where
     }
 
     /// Hyperbolic cosine function.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -3945,6 +4082,8 @@ where
     }
     
     /// Hyperbolic tangent function.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -3983,6 +4122,8 @@ where
     }
 
     /// Inverse hyperbolic sine function.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -4040,6 +4181,8 @@ where
 
     /// Inverse hyperbolic cosine function.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -4095,6 +4238,8 @@ where
     }
 
     /// Inverse hyperbolic tangent function.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
@@ -4447,6 +4592,7 @@ where
     /// the older, non-conformant (e.g. MIPS) hardware implementations.
     ///
     /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -4564,6 +4710,8 @@ where
 
     /// Returns `self*EXP_BASE`.
     ///
+    /// # Examples
+    ///
     /// ```
     /// #![feature(generic_const_exprs)]
     /// 
@@ -4642,6 +4790,8 @@ where
     }
 
     /// Returns `self/EXP_BASE`.
+    ///
+    /// # Examples
     ///
     /// ```
     /// #![feature(generic_const_exprs)]
