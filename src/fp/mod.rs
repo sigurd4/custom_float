@@ -3370,10 +3370,12 @@ where
         {
             return -Self::FRAC_PI_2()
         }
-        if self > Self::one() || self < -Self::one()
+        let xabs = self.abs();
+        if xabs > Self::one()
         {
-            return Self::snan()
+            return (self - self)/(self - self)
         }
+
         let mut y = (self/(Self::one() - self*self).sqrt()).atan();
 
         if y.is_finite()
@@ -3418,13 +3420,15 @@ where
         {
             return Self::zero()
         }
+
         if self == -Self::one()
         {
             return Self::PI()
         }
-        if self > Self::one() || self < -Self::one()
+        let xabs = self.abs();
+        if xabs > Self::one()
         {
-            return Self::snan()
+            return (self - self)/(self - self)
         }
         let mut y = ((Self::one() - self*self).sqrt()/self).atan();
 
@@ -3895,7 +3899,7 @@ where
         }
         if self < Self::one()
         {
-            return Self::snan()
+            return (self - self)/(self - self)
         }
         if self.is_infinite()
         {
