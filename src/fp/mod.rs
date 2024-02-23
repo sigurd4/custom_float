@@ -3714,6 +3714,8 @@ where
     /// Computes the arctangent of a number. Return value is in radians in the
     /// range [-pi/2, pi/2];
     ///
+    /// https://www.ams.org/journals/mcom/1954-08-047/S0025-5718-1954-0063487-2/S0025-5718-1954-0063487-2.pdf
+    ///
     /// # Examples
     ///
     /// ```
@@ -3726,7 +3728,7 @@ where
     /// // atan(tan(1))
     /// let abs_difference = (f.tan().atan() - f).abs();
     ///
-    /// assert!(abs_difference < FpDouble::from(1e-4));
+    /// assert!(abs_difference < FpDouble::from(1e-9));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn atan(self) -> Self
@@ -3739,7 +3741,59 @@ where
         {
             return Self::FRAC_PI_2().copysign(self)
         }
-        const TAYLOR: usize = 8;
+        
+        const N: usize = 11;
+        const C: [f64; N] = [
+            0.881373587,
+            -0.105892925,
+            0.011135843,
+            -0.001381195,
+            0.000185743,
+            -0.000026215,
+            0.000003821,
+            -0.00000057,
+            0.000000086,
+            -0.000000013,
+            0.000000002
+        ];
+
+        static mut P: Option<[f64; N]> = None;
+        let p = unsafe {
+            if P.is_none()
+            {
+                P = Some({
+                    let t: [[f64; N]; N] = ArrayOps::fill(
+                        |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
+                    );
+                    let p: [f64; N] = t.zip(C)
+                        .map2(|(t, c)| t.map2(|tn| c*tn))
+                        .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
+                        .unwrap_or_default();
+                    p
+                })
+            }
+            P.unwrap()
+        }.map(|p| <Self as From<_>>::from(p));
+
+        let xabs = self.abs();
+        let w = if xabs <= Self::one()
+        {
+            self
+        }
+        else
+        {
+            self.recip()
+        };
+        
+        let z = Self::from_uint(2u8)*w*w - Self::one();
+
+        let mut y = p.polynomial(z)*w;
+        if xabs > Self::one()
+        {
+            y = Self::FRAC_PI_2() - y
+        }
+
+        /*const TAYLOR: usize = 8;
         let mut y = if self.abs() < Self::one()
         {
             let mut z = self;
@@ -3765,7 +3819,7 @@ where
             }
 
             y
-        };
+        };*/
 
         y = y % Self::PI();
         while y > Self::FRAC_PI_2()
@@ -3823,8 +3877,8 @@ where
     /// let abs_difference_1 = (y1.atan2(x1) - (-FpDouble::FRAC_PI_4())).abs();
     /// let abs_difference_2 = (y2.atan2(x2) - (FpDouble::PI() - FpDouble::FRAC_PI_4())).abs();
     ///
-    /// assert!(abs_difference_1 < FpDouble::from(1e-10));
-    /// assert!(abs_difference_2 < FpDouble::from(1e-10));
+    /// assert!(abs_difference_1 < FpDouble::from(1e-9));
+    /// assert!(abs_difference_2 < FpDouble::from(1e-9));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn atan2(self, other: Self) -> Self

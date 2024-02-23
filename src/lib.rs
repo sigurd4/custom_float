@@ -74,6 +74,7 @@ mod tests
             F::from(-2.2).unwrap(),
             F::from(2.2).unwrap(),
             F::one(),
+            F::one().tan(),
             F::one() + F::epsilon(),
             F::zero(),
             F::from(0.5).unwrap(),
