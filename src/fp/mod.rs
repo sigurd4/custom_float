@@ -3361,19 +3361,19 @@ where
     ///
     /// let abs_difference = (x.cos() - FpDouble::one()).abs();
     ///
-    /// assert!(abs_difference < FpDouble::from(1e-9));
+    /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn cos(self) -> Self
     {
         const N: usize = 6;
         const C: [f64; N] = [
-            1.276278962,
-            -0.285261569,
-            0.009118016,
-            -0.000136587,
-            0.000001185,
-            -0.000000007
+            0.472001216,
+            -0.499403258,
+            0.027992080,
+            -0.000596695,
+            0.000006704,
+            -0.000000047
         ];
 
         static mut P: Option<[f64; N]> = None;
@@ -3394,7 +3394,7 @@ where
             P.unwrap()
         }.map(|p| <Self as From<_>>::from(p));
 
-        let mut w = self*Self::FRAC_2_PI() + Self::one();
+        let mut w = self*Self::FRAC_2_PI();
         let mut i = 0;
         while i < 4
         {
@@ -3411,7 +3411,7 @@ where
 
         let z = two*w*w - Self::one();
 
-        p.polynomial(z)*w
+        p.polynomial(z)
     }
 
     /// Computes the tangent of a number (in radians).
@@ -3881,77 +3881,7 @@ where
     #[must_use]
     pub fn sin_cos(self) -> (Self, Self)
     {
-        const N: usize = 6;
-        const C: [f64; N] = [
-            1.276278962,
-            -0.285261569,
-            0.009118016,
-            -0.000136587,
-            0.000001185,
-            -0.000000007
-        ];
-
-        static mut P: Option<[f64; N]> = None;
-        let p = unsafe {
-            if P.is_none()
-            {
-                P = Some({
-                    let t: [[f64; N]; N] = ArrayOps::fill(
-                        |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
-                    );
-                    let p: [f64; N] = t.zip(C)
-                        .map2(|(t, c)| t.map2(|tn| c*tn))
-                        .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
-                        .unwrap_or_default();
-                    p
-                })
-            }
-            P.unwrap()
-        }.map(|p| <Self as From<_>>::from(p));
-
-        let two = <Self as From<_>>::from(2.0);
-
-        let sin = {
-            let mut w = self*Self::FRAC_2_PI();
-            let mut i = 0;
-            while i < 4
-            {
-                w -= Self::one();
-                if i % 2 == 0 && w < Self::zero()
-                {
-                    w = -w;
-                }
-                w %= <Self as From<_>>::from(4.0);
-                i += 1;
-            }
-            let w = if w > Self::one() {two - w} else if w < -Self::one() {-two - w} else {w};
-    
-            let z = two*w*w - Self::one();
-    
-            p.polynomial(z)*w
-        };
-
-        let cos = {
-            let mut w = self*Self::FRAC_2_PI() + Self::one();
-            let mut i = 0;
-            while i < 4
-            {
-                w -= Self::one();
-                if i % 2 == 0 && w < Self::zero()
-                {
-                    w = -w;
-                }
-                w %= <Self as From<_>>::from(4.0);
-                i += 1;
-            }
-            let w = if w > Self::one() {two - w} else if w < -Self::one() {-two - w} else {w};
-
-            let z = two*w*w - Self::one();
-
-            p.polynomial(z)*w
-        };
-
-        (sin, cos)
+        (self.sin(), self.cos())
     }
 
     /// Returns `e^(self) - 1`.
