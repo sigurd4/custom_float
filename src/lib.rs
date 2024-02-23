@@ -28,7 +28,8 @@ moddef::moddef!(
         fp
     },
     mod {
-        util
+        util,
+        plot for cfg(test)
     }
 );
 
@@ -40,11 +41,14 @@ mod tests
 {
     #![allow(unused)]
 
-    use array_math::ArrayMath;
+    use std::ops::{RangeBounds, Range};
+
+    use array_math::{ArrayMath, ArrayOps};
+    use linspace::LinspaceArray;
     use num::Complex;
     use num_traits::{Float, One, ToPrimitive, Zero};
 
-    use crate::{amd::Fp24, g_711::FpG711, google::{Bf16, Bf32, Bf8}, ibm::{HFpLong, HFpShort}, ieee754::{DecDouble, FpDouble, FpHalf, FpQuadruple, FpSingle}, intel::Fp80, nvidia::Tf19, Fp};
+    use crate::{amd::Fp24, g_711::FpG711, google::{Bf16, Bf32, Bf8}, ibm::{HFpLong, HFpShort}, ieee754::{DecDouble, FpDouble, FpHalf, FpQuadruple, FpSingle}, intel::Fp80, nvidia::Tf19, plot, Fp};
 
     pub type F = FpSingle;
 
@@ -120,7 +124,7 @@ mod tests
         }
     }
     
-    pub fn test_op1(fn_name: &str, op1: impl Fn(f32) -> f32, op2: impl Fn(F) -> F, d: Option<f32>)
+    pub fn test_op1(fn_name: &str, op1: impl Fn(f32) -> f32, op2: impl Fn(F) -> F, d: Option<f32>, r: Option<Range<f32>>)
     {
         for f0 in ttable::<f32>()
         {
@@ -146,6 +150,45 @@ mod tests
                 println!("{:e} ? == {:e} != {:e}", f0, s, sp);
             }
         }
+
+        if let Some(r) = r
+        {
+            plot_approx(fn_name, r, op1, |x| op2(Fp::from(x)).into())
+        }
+    }
+
+    const N: usize = 1024;
+    const PLOT_TARGET: &str = "plots";
+    
+    #[allow(unused)]
+    pub fn plot_approx<R>(
+        fn_name: &str,
+        range: R,
+        func: impl Fn(f32) -> f32,
+        approx: impl Fn(f32) -> f32
+    )
+    where
+        R: RangeBounds<f32> + LinspaceArray<f32, N>
+    {
+        let x: [f32; N] = range.linspace_array();
+        let y_approx = x.map(approx);
+
+        let y = x.map(func);
+
+        let plot_title: &str = &format!("{fn_name}(x)");
+        let plot_path: &str = &format!("{PLOT_TARGET}/{fn_name}.png");
+
+        plot::plot_curves(plot_title, plot_path, [x, x], [y, y_approx])
+            .expect("Plot error");
+
+        /*let (avg_error, max_abs_error) = y.zip(y_approx)
+            .map(|(y, y_approx)| y - y_approx)
+            .map(|y| (y, y.abs()))
+            .reduce(|a, b| (a.0 + b.0, a.1.max(b.1)))
+            .map(|(sum_error, max_abs_error)| (sum_error/N as f32, max_abs_error))
+            .unwrap_or_default();
+        println!("Average Error: {}", avg_error);
+        println!("Max |Error|: {}", max_abs_error);*/
     }
 
     #[test]

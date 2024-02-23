@@ -2987,6 +2987,13 @@ where
         {
             f = f << 1usize;
         }
+        
+        let base = U::from(EXP_BASE).unwrap();
+        while f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
+        {
+            y = y - Self::one();
+            f = f*base;
+        }
 
         if Self::IS_INT_IMPLICIT
         {
@@ -3598,19 +3605,23 @@ where
 
         let w = if xabs <= Self::FRAC_1_SQRT_2()
         {
-            self
+            self.abs()
         }
         else
         {
             (Self::one() - self*self).sqrt()
         };
         
-        let z = Self::from_uint(8u8)*w*w - Self::one();
+        let z = Self::from_uint(2u8)*w*w - Self::one();
 
         let mut y = p.polynomial(z)*w;
         if xabs > Self::FRAC_1_SQRT_2()
         {
             y = Self::FRAC_PI_2() - y
+        }
+        if self.is_sign_negative()
+        {
+            y = -y
         }
 
         /*let xx = self*self;
@@ -3791,7 +3802,7 @@ where
             (Self::one() - self*self).sqrt()
         };
         
-        let z = Self::from_uint(8u8)*w*w - Self::one();
+        let z = Self::from_uint(2u8)*w*w - Self::one();
 
         let mut y = p.polynomial(z)*w;
         if xabs <= Self::FRAC_1_SQRT_2()
@@ -3800,7 +3811,7 @@ where
         }
         if self.is_sign_negative()
         {
-            y = Self::PI() - (y - Self::PI())
+            y = Self::PI() - y
         }
         
 
@@ -5115,8 +5126,8 @@ mod test
     #[test]
     fn test_gamma()
     {
-        crate::tests::test_op1("ln_gamma", |x| f32::ln_gamma(x).0, |x| Fp::ln_gamma(x).0, None);
-        crate::tests::test_op1("gamma", f32::gamma, Fp::gamma, None)
+        crate::tests::test_op1("ln_gamma", |x| f32::ln_gamma(x).0, |x| Fp::ln_gamma(x).0, None, Some(-5.0..5.0));
+        crate::tests::test_op1("gamma", f32::gamma, Fp::gamma, None, Some(-5.0..5.0))
     }
 
     #[test]
