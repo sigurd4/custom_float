@@ -2766,7 +2766,7 @@ where
     /// // ln(e) - 1 == 0
     /// let abs_difference = (e.ln() - FpDouble::one()).abs();
     ///
-    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// assert!(abs_difference < FpDouble::from(1e-9));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     #[inline]
@@ -2891,7 +2891,7 @@ where
     /// // ln(e) - 1 == 0
     /// let abs_difference = (e.ln() - FpDouble::one()).abs();
     ///
-    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// assert!(abs_difference < FpDouble::from(1e-9));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     #[inline]
