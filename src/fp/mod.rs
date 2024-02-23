@@ -2689,7 +2689,20 @@ where
         let e = x.floor();
         let f = x - e;
 
-        let z = <Self as From<_>>::from((Into::<f64>::into(f)*(EXP_BASE as f64).ln()).exp());
+        let ln_exp_base = if EXP_BASE == 2
+        {
+            Self::LN_2()
+        }
+        else if EXP_BASE == 10
+        {
+            Self::LN_10()
+        }
+        else
+        {
+            <Self as From<_>>::from((EXP_BASE as f64).ln())
+        };
+
+        let z = <Self as From<_>>::from(Into::<f64>::into(f*ln_exp_base).exp());
 
         let e = e + Self::from_uint(Self::exp_bias());
         if e > Self::from_uint((U::one() << EXP_SIZE) - U::one())
@@ -2892,7 +2905,7 @@ where
 
             for _ in 0..NEWTON
             {
-                y -= Self::one() - self/y.exp_nonewton()
+                y -= Self::one() - self/y.exp()
             }
         }
 
@@ -3361,6 +3374,14 @@ where
     #[inline]
     pub fn sin(self) -> Self
     {
+        if self.is_nan()
+        {
+            return self
+        }
+        if self.is_infinite()
+        {
+            return Self::snan()
+        }
         if self.abs() < (-Self::from_uint(12u8)).exp2()
         {
             return self
@@ -3434,6 +3455,15 @@ where
     #[inline]
     pub fn cos(self) -> Self
     {
+        if self.is_nan()
+        {
+            return self
+        }
+        if self.is_infinite()
+        {
+            return Self::snan()
+        }
+        
         const N: usize = 6;
         const C: [f64; N] = [
             0.472001216,
@@ -3512,8 +3542,18 @@ where
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     #[inline]
-    pub fn tan(self) -> Self
+    pub fn tan(mut self) -> Self
     {
+        self = self % Self::PI();
+        while self > Self::FRAC_PI_2()
+        {
+            self -= Self::PI()
+        }
+        while self < -Self::FRAC_PI_2()
+        {
+            self += Self::PI()
+        }
+
         let (sin, cos) = self.sin_cos();
 
         let mut y = sin/cos;
@@ -4146,6 +4186,15 @@ where
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn exp_m1(self) -> Self
     {
+        if self > Self::one()
+        {
+            return self.exp() - Self::one()
+        }
+        if self.is_zero()
+        {
+            return Self::zero()
+        }
+
         let mut y = self.exp_nonewton() - Self::one();
 
         if y.is_finite()
@@ -4155,7 +4204,12 @@ where
             for _ in 0..NEWTON
             {
                 let yp1 = y + Self::one();
-                y -= yp1*(y.ln_1p() - self)
+                let dy = yp1*(y.ln_1p() - self);
+                if !dy.is_finite()
+                {
+                    break
+                }
+                y -= dy
             }
         }
 
@@ -4192,7 +4246,7 @@ where
 
             for _ in 0..NEWTON
             {
-                y -= Self::one() - xp1/y.exp_nonewton()
+                y -= Self::one() - xp1/y.exp()
             }
         }
 
@@ -4297,8 +4351,13 @@ where
         {
             return Self::one().copysign(self)
         }
+        let xabs = self.abs();
+        if xabs < (-Self::from_uint(27u8)).exp2()
+        {
+            return self
+        }
 
-        let ex = (-self.abs()).exp();
+        let ex = (-xabs).exp();
         let ex2 = ex*ex;
         let ex2p1 = Self::one() + ex2;
         let ex2m1 = Self::one() - ex2;
@@ -4555,7 +4614,7 @@ where
         }
 
         (
-            Self::PI().ln() - sin_fact.abs().ln() + (Self::one() - self).ln_gamma_lanczos(),
+            Self::PI().ln() - sin_fact.abs().ln() - (Self::one() - self).ln_gamma_lanczos(),
             if sin_fact.is_sign_negative() {-1} else {1}
         )
     }

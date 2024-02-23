@@ -5,6 +5,7 @@ use plotters::{prelude::*, element::PointCollection, coord::ranged3d::{Projectio
 
 type T = f32;
 
+const CLAMP: T = 200.0;
 const PLOT_RES: (u32, u32) = (1024, 760);
 const PLOT_CAPTION_FONT: (&str, u32) = ("sans", 20);
 const PLOT_MARGIN: u32 = 5;
@@ -21,9 +22,11 @@ fn isometric(mut pb: ProjectionMatrixBuilder) -> ProjectionMatrix
 pub fn plot_curves<const N: usize, const M: usize>(
     plot_title: &str, plot_path: &str,
     x: [[T; N]; M],
-    y: [[T; N]; M]
+    mut y: [[T; N]; M]
 ) -> Result<(), Box<dyn std::error::Error>>
 {
+    y.map_assign(|y| y.map(|y| y.clamp(-CLAMP, CLAMP)));
+
     let x_min = x.into_iter().flatten().reduce(T::min).unwrap();
     let x_max = x.into_iter().flatten().reduce(T::max).unwrap();
     

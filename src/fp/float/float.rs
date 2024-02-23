@@ -382,12 +382,6 @@ mod test
     }
 
     #[test]
-    fn test_trig()
-    {
-        crate::tests::test_op1("tanh", Float::tanh, Float::tanh, None, Some(-5.0..5.0));
-    }
-
-    #[test]
     fn test_exp2()
     {
         crate::tests::test_op1("exp2", Float::exp2, Float::exp2, None, Some(-5.0..5.0));
@@ -400,15 +394,69 @@ mod test
     }
 
     #[test]
+    fn test_exp_m1()
+    {
+        crate::tests::test_op1("exp_m1", Float::exp_m1, Float::exp_m1, None, Some(-5.0..5.0));
+    }
+
+    #[test]
     fn test_log2()
     {
         crate::tests::test_op1("log2", Float::log2, Float::log2, None, Some(0.5..5.0));
     }
 
     #[test]
+    fn test_log10()
+    {
+        crate::tests::test_op1("log10", Float::log10, Float::log10, None, Some(0.5..5.0));
+    }
+
+    #[test]
     fn test_ln()
     {
         crate::tests::test_op1("ln", Float::ln, Float::ln, None, Some(0.5..5.0));
+    }
+
+    #[test]
+    fn test_ln_1p()
+    {
+        crate::tests::test_op1("ln_1p", Float::ln_1p, Float::ln_1p, None, Some(0.5..5.0));
+    }
+
+    #[test]
+    fn test_sinh()
+    {
+        crate::tests::test_op1("sinh", Float::sinh, Float::sinh, None, Some(-5.0..5.0));
+    }
+
+    #[test]
+    fn test_cosh()
+    {
+        crate::tests::test_op1("cosh", Float::cosh, Float::cosh, None, Some(-5.0..5.0));
+    }
+
+    #[test]
+    fn test_tanh()
+    {
+        crate::tests::test_op1("tanh", Float::tanh, Float::tanh, None, Some(-5.0..5.0));
+    }
+
+    #[test]
+    fn test_asinh()
+    {
+        crate::tests::test_op1("asinh", Float::asinh, Float::asinh, None, Some(-5.0..5.0));
+    }
+
+    #[test]
+    fn test_acosh()
+    {
+        crate::tests::test_op1("acosh", Float::acosh, Float::acosh, None, Some(1.0..5.0));
+    }
+
+    #[test]
+    fn test_atanh()
+    {
+        crate::tests::test_op1("atanh", Float::atanh, Float::atanh, None, Some(-0.99..0.99));
     }
 
     #[test]
@@ -427,6 +475,12 @@ mod test
     fn test_cos()
     {
         crate::tests::test_op1("cos", Float::cos, Float::cos, None, Some(-5.0..5.0));
+    }
+    
+    #[test]
+    fn test_tan()
+    {
+        crate::tests::test_op1("tan", Float::tan, Float::tan, None, Some(-1.5..1.5));
     }
     
     #[test]
