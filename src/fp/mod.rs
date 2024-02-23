@@ -3428,14 +3428,26 @@ where
     /// 
     /// let abs_difference = (x.tan() - FpDouble::one()).abs();
     ///
-    /// assert!(abs_difference < FpDouble::from(1e-3));
+    /// assert!(abs_difference < FpDouble::from(1e-9));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn tan(self) -> Self
     {
         let (sin, cos) = self.sin_cos();
 
-        sin/cos
+        let mut y = sin/cos;
+
+        if y.is_finite()
+        {
+            const NEWTON: usize = NEWTON_TRIG;
+
+            for _ in 0..NEWTON
+            {
+                y = y - (y.atan() - self)*(y*y + Self::one())
+            }
+        }
+
+        y
     }
 
     /// Computes the arcsine of a number. Return value is in radians in
