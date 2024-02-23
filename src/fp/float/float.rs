@@ -378,88 +378,100 @@ mod test
     #[test]
     fn test_copysign()
     {
-        crate::tests::test_op2(Float::copysign, Float::copysign, None);
+        crate::tests::test_op2("copysign", Float::copysign, Float::copysign, None);
     }
 
     #[test]
     fn test_trig()
     {
-        crate::tests::test_op1(Float::tanh, Float::tanh, None);
+        crate::tests::test_op1("tanh", Float::tanh, Float::tanh, None);
     }
 
     #[test]
     fn test_exp2()
     {
-        crate::tests::test_op1(Float::exp2, Float::exp2, None);
+        crate::tests::test_op1("exp2", Float::exp2, Float::exp2, None);
     }
 
     #[test]
     fn test_exp()
     {
-        crate::tests::test_op1(Float::exp, Float::exp, None);
+        crate::tests::test_op1("exp", Float::exp, Float::exp, None);
     }
 
     #[test]
     fn test_log2()
     {
-        crate::tests::test_op1(Float::log2, Float::log2, None);
+        crate::tests::test_op1("log2", Float::log2, Float::log2, None);
     }
 
     #[test]
     fn test_ln()
     {
-        crate::tests::test_op1(Float::ln, Float::ln, None);
+        crate::tests::test_op1("ln", Float::ln, Float::ln, None);
     }
 
     #[test]
     fn test_powf()
     {
-        crate::tests::test_op2(Float::powf, Float::powf, Some(0.1));
+        crate::tests::test_op2("powf", Float::powf, Float::powf, Some(0.1));
+    }
+
+    #[test]
+    fn test_sin()
+    {
+        crate::tests::test_op1("sin", Float::sin, Float::sin, None);
+    }
+    
+    #[test]
+    fn test_cos()
+    {
+        crate::tests::test_op1("cos", Float::cos, Float::cos, None);
     }
     
     #[test]
     fn test_asin()
     {
-        crate::tests::test_op1(Float::asin, Float::asin, None);
+        crate::tests::test_op1("asin", Float::asin, Float::asin, None);
     }
     
     #[test]
     fn test_acos()
     {
-        crate::tests::test_op1(Float::acos, Float::acos, None);
+        crate::tests::test_op1("acos", Float::acos, Float::acos, None);
     }
     
     #[test]
     fn test_atan()
     {
-        crate::tests::test_op2(|a, b| Float::atan(a/b), |a, b| Float::atan(a/b), Some(0.01));
+        crate::tests::test_op2("atan", |a, b| Float::atan(a/b), |a, b| Float::atan(a/b), Some(0.01));
     }
 
     #[test]
     fn test_atan2()
     {
-        crate::tests::test_op2(Float::atan2, Float::atan2, Some(0.01));
+        crate::tests::test_op2("atan2", Float::atan2, Float::atan2, Some(0.01));
     }
 
     #[test]
     fn test_round()
     {
-        crate::tests::test_op1(Float::round, Float::round, None);
-        crate::tests::test_op1(Float::ceil, Float::ceil, None);
-        crate::tests::test_op1(Float::floor, Float::floor, None);
-        crate::tests::test_op1(Float::trunc, Float::trunc, None);
-        crate::tests::test_op1(f32::round_ties_even, Fp::round_ties_even, None);
+        crate::tests::test_op1("round", Float::round, Float::round, None);
+        crate::tests::test_op1("ceil", Float::ceil, Float::ceil, None);
+        crate::tests::test_op1("floor", Float::floor, Float::floor, None);
+        crate::tests::test_op1("trunc", Float::trunc, Float::trunc, None);
+        crate::tests::test_op1("round_ties_even", f32::round_ties_even, Fp::round_ties_even, None);
     }
 
     #[test]
     fn test_sqrt()
     {
-        crate::tests::test_op1(Float::sqrt, Float::sqrt, Some(0.01));
+        crate::tests::test_op1("sqrt", Float::sqrt, Float::sqrt, Some(0.01));
     }
     
     #[test]
     fn test_cbrt()
     {
-        crate::tests::test_op1(Float::cbrt, Float::cbrt, Some(0.001));
+        crate::tests::test_op1("cbrt", Float::cbrt, Float::cbrt, Some(0.001));
     }
 }

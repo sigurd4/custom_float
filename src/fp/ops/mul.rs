@@ -226,6 +226,6 @@ mod test
     #[test]
     fn test_mul()
     {
-        crate::tests::test_op2(Mul::mul, Mul::mul, None)
+        crate::tests::test_op2("mul", Mul::mul, Mul::mul, None)
     }
 }

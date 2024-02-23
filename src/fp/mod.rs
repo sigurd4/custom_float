@@ -1093,18 +1093,21 @@ where
 
     /// Returns the sign bit of the custom floating-point number.
     #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
     pub fn sign_bit(self) -> U
     {
         (self.to_bits() & U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_POS - Self::SIGN_SIZE) >> Self::SIGN_POS
     }
     /// Returns the exponent bits of the custom floating-point number.
     #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
     pub fn exp_bits(self) -> U
     {
         (self.to_bits() & U::max_value() >> util::bitsize_of::<U>() - Self::EXP_POS - EXP_SIZE) >> Self::EXP_POS
     }
     /// Returns the integer bits of the custom floating-point number.
     #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
     pub fn int_bits(self) -> U
     {
         if Self::IS_INT_IMPLICIT
@@ -1115,6 +1118,7 @@ where
     }
     /// Returns the fractional bits of the custom floating-point number.
     #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
     pub fn frac_bits(self) -> U
     {
         (self.to_bits() & U::max_value() >> util::bitsize_of::<U>() - Self::FRAC_POS - FRAC_SIZE) >> Self::FRAC_POS
@@ -1122,6 +1126,7 @@ where
 
     /// Returns the exponent bias
     #[must_use]
+    #[inline]
     pub fn exp_bias() -> U
     {
         U::max_value() >> util::bitsize_of::<U>() + 1 - EXP_SIZE
@@ -1139,6 +1144,7 @@ where
     /// assert!(nan.is_nan());
     /// ```
     #[must_use]
+    #[inline]
     pub fn nan() -> Self
     {
         Self::snan()
@@ -1157,6 +1163,7 @@ where
     /// assert!(!qnan.is_snan());
     /// ```
     #[must_use]
+    #[inline]
     pub fn qnan() -> Self
     {
         Self::from_bits(U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_POS)
@@ -1175,6 +1182,7 @@ where
     /// assert!(snan.is_snan());
     /// ```
     #[must_use]
+    #[inline]
     pub fn snan() -> Self
     {
         if Self::INT_POS + INT_SIZE < 1
@@ -1198,6 +1206,7 @@ where
     /// assert!(!qnan.is_snan());
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
     pub fn is_snan(self) -> bool
     {
         if Self::INT_POS + INT_SIZE < 1 || !self.is_nan()
@@ -1221,6 +1230,7 @@ where
     /// assert!(infinity > FpSingle::max_value());
     /// ```
     #[must_use]
+    #[inline]
     pub fn infinity() -> Self
     {
         Self::from_bits((U::max_value() >> util::bitsize_of::<U>() - EXP_SIZE) << Self::EXP_POS)
@@ -1242,6 +1252,7 @@ where
     /// assert!(neg_infinity < FpSingle::min_value());
     /// ```
     #[must_use]
+    #[inline]
     pub fn neg_infinity() -> Self
     {
         -Self::infinity()
@@ -1265,6 +1276,7 @@ where
     /// assert_eq!(zero * FpSingle::from(10.0), zero);
     /// ```
     #[must_use]
+    #[inline]
     pub fn neg_zero() -> Self
     {
         -Self::zero()
@@ -1285,6 +1297,7 @@ where
     /// assert_eq!(x, FpDouble::from(f64::MIN));
     /// ```
     #[must_use]
+    #[inline]
     pub fn min_value() -> Self
     {
         -Self::max_value()
@@ -1305,6 +1318,7 @@ where
     /// assert_eq!(x, FpDouble::from(f64::MIN_POSITIVE));
     /// ```
     #[must_use]
+    #[inline]
     pub fn min_positive_value() -> Self
     {
         if Self::IS_INT_IMPLICIT
@@ -1336,6 +1350,7 @@ where
     /// assert_eq!(x, FpDouble::from(f64::EPSILON));
     /// ```
     #[must_use]
+    #[inline]
     pub fn epsilon() -> Self
     {
         let bias = Self::exp_bias();
@@ -1367,6 +1382,7 @@ where
     /// assert_eq!(x, FpDouble::from(f64::MAX));
     /// ```
     #[must_use]
+    #[inline]
     pub fn max_value() -> Self
     {
         Self::from_bits(((U::max_value() >> util::bitsize_of::<U>() - EXP_SIZE) << Self::EXP_POS) - U::one())
@@ -1388,6 +1404,7 @@ where
     /// assert!(!f.is_nan());
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
     pub fn is_nan(self) -> bool
     {
         !self.is_finite() && !(self.frac_bits().is_zero() && (INT_SIZE == 0 || self.int_bits().is_zero()))
@@ -1415,6 +1432,7 @@ where
     /// assert!(neg_inf.is_infinite());
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
     pub fn is_infinite(self) -> bool
     {
         !self.is_finite() && self.frac_bits().is_zero() && (INT_SIZE == 0 || self.int_bits().is_zero())
@@ -1441,6 +1459,7 @@ where
     /// assert!(!neg_inf.is_finite());
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
     pub fn is_finite(self) -> bool
     {
         self.exp_bits() != (U::max_value() >> util::bitsize_of::<U>() - EXP_SIZE)
@@ -1472,6 +1491,7 @@ where
     /// ```
     /// [subnormal]: http://en.wikipedia.org/wiki/Denormal_number
     #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
     pub fn is_normal(self) -> bool
     {
         if !self.is_finite()
@@ -1510,6 +1530,7 @@ where
     /// ```
     /// [subnormal]: https://en.wikipedia.org/wiki/Denormal_number
     #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
     pub fn is_subnormal(self) -> bool
     {
         Self::IS_INT_IMPLICIT && self.exp_bits() == U::zero() && !self.is_zero()
@@ -1534,6 +1555,7 @@ where
     /// assert_eq!(inf.classify(), FpCategory::Infinite);
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
     pub fn classify(self) -> FpCategory
     {
         let e = self.exp_bits();
@@ -1572,6 +1594,7 @@ where
     /// assert_eq!(g.floor(), FpDouble::from(3.0));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn floor(self) -> Self
     {
         if !self.is_finite()
@@ -1602,6 +1625,7 @@ where
     /// assert_eq!(g.ceil(), FpDouble::from(4.0));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn ceil(self) -> Self
     {
         if !self.is_finite()
@@ -1633,6 +1657,7 @@ where
     /// assert_eq!(g.round(), FpDouble::from(-3.0));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn round(self) -> Self
     {
         if !self.is_finite()
@@ -1673,6 +1698,7 @@ where
     /// assert_eq!(i.round_ties_even(), FpSingle::from(4.0));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn round_ties_even(self) -> Self
     {
         if !self.is_finite()
@@ -1683,19 +1709,13 @@ where
         let t = self % <Self as From<_>>::from(2.0);
         let mut m = self % one;
         let half = <Self as From<_>>::from(0.5);
-        if self.is_sign_positive() && m >= half
+        if self.is_sign_positive() && m >= half && (m != half || t > one)
         {
-            if m != half || t > one
-            {
-                m -= Self::one()
-            }
+            m -= Self::one()
         }
-        if self.is_sign_negative() && m <= -half
+        if self.is_sign_negative() && m <= -half && (m != -half || t < -one)
         {
-            if m != -half || t < -one
-            {
-                m += Self::one()
-            }
+            m += Self::one()
         }
         self - m
     }
@@ -1717,6 +1737,7 @@ where
     /// assert_eq!(g.trunc(), FpDouble::from(-3.0));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn trunc(self) -> Self
     {
         if !self.is_finite()
@@ -1745,6 +1766,7 @@ where
     /// assert!(abs_difference_y < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn fract(self) -> Self
     {
         self - self.trunc()
@@ -1771,6 +1793,7 @@ where
     /// assert!(FpDouble::nan().abs().is_nan());
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn abs(self) -> Self
     {
         Self::from_bits(self.to_bits() & (U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_POS))
@@ -1797,6 +1820,7 @@ where
     /// assert!(FpDouble::nan().signum().is_nan());
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn signum(self) -> Self
     {
         if self.is_nan()
@@ -1832,6 +1856,7 @@ where
     /// assert!(!neg_nan.is_sign_positive());
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
     pub fn is_sign_positive(self) -> bool
     {
         self.sign_bit().is_zero()
@@ -1863,6 +1888,7 @@ where
     /// assert!(neg_nan.is_sign_negative());
     /// ```
     #[must_use = "this returns the result of the operation, without modifying the original"]
+    #[inline]
     pub fn is_sign_negative(self) -> bool
     {
         !self.sign_bit().is_zero()
@@ -2218,6 +2244,7 @@ where
     /// assert_eq!(FpSingle::from(-5.5).midpoint(FpSingle::from(8.0)), FpSingle::from(1.25));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn midpoint(self, other: Self) -> Self
     {
         let half = <Self as From<_>>::from(0.5);
@@ -2270,6 +2297,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn mul_add(self, a: Self, b: Self) -> Self
     {
         (self*a) + b
@@ -2290,6 +2318,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn recip(self) -> Self
     {
         Self::one()/self
@@ -2314,6 +2343,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn powi<I: Int>(self, n: I) -> Self
     {
         util::powi(self, n)
@@ -2338,6 +2368,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn powu<I: UInt>(self, n: I) -> Self
     {
         util::powu(self, n)
@@ -2547,6 +2578,7 @@ where
     /// assert!(negative.sqrt().is_nan());
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn sqrt(self) -> Self
     {   
         if self.is_nan()
@@ -2624,6 +2656,7 @@ where
     /// assert!(abs_difference_d < DecDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn exp_base(self) -> Self
     {
         if self.is_nan()
@@ -2689,6 +2722,7 @@ where
         y
     }
 
+    #[inline]
     fn exp_nonewton(self) -> Self
     {
         if EXP_BASE == 2
@@ -2722,6 +2756,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn exp(self) -> Self
     {
         let mut y = self.exp_nonewton();
@@ -2739,6 +2774,7 @@ where
         y
     }
     
+    #[inline]
     fn exp10_nonewton(self) -> Self
     {
         if EXP_BASE == 10
@@ -2765,6 +2801,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-6));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn exp10(self) -> Self
     {
         if EXP_BASE == 10
@@ -2774,6 +2811,7 @@ where
         (self*Self::LN_10()).exp()
     }
 
+    #[inline]
     fn exp2_nonewton(self) -> Self
     {
         if EXP_BASE == 2
@@ -2800,6 +2838,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn exp2(self) -> Self
     {
         if EXP_BASE == 2
@@ -2809,6 +2848,7 @@ where
         (self*Self::LN_2()).exp()
     }
 
+    #[inline]
     fn ln_nonewton(self) -> Self
     {
         if EXP_BASE == 2
@@ -2841,6 +2881,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn ln(self) -> Self
     {
         let mut y = self.ln_nonewton();
@@ -2884,6 +2925,7 @@ where
     /// assert!(abs_difference_2 < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn log(self, base: Self) -> Self
     {
         self.ln()/base.ln()
@@ -2911,6 +2953,7 @@ where
     /// assert!(abs_difference_10 < DecDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn log_base(self) -> Self
     {
         if self.is_nan()
@@ -2957,6 +3000,7 @@ where
         y
     }
     
+    #[inline]
     fn log2_nonewton(self) -> Self
     {
         if EXP_BASE == 2
@@ -2983,6 +3027,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn log2(self) -> Self
     {
         let mut y = self.log2_nonewton();
@@ -3000,6 +3045,7 @@ where
         y
     }
     
+    #[inline]
     fn log10_nonewton(self) -> Self
     {
         if EXP_BASE == 10
@@ -3026,6 +3072,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-3));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn log10(self) -> Self
     {
         let mut y = self.log10_nonewton();
@@ -3060,6 +3107,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn to_degrees(self) -> Self
     {
         self/(Self::FRAC_PI_2()/<Self as From<_>>::from(90.0))
@@ -3082,6 +3130,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn to_radians(self) -> Self
     {
         self*(Self::FRAC_PI_2()/<Self as From<_>>::from(90.0))
@@ -3102,6 +3151,7 @@ where
     /// assert_eq!(x.max(y), y);
     /// ```
     #[must_use = "this returns the result of the comparison, without modifying either input"]
+    #[inline]
     pub fn max(self, other: Self) -> Self
     {
         match (self.is_nan(), other.is_nan())
@@ -3142,6 +3192,7 @@ where
     /// assert_eq!(x.min(y), x);
     /// ```
     #[must_use = "this returns the result of the comparison, without modifying either input"]
+    #[inline]
     pub fn min(self, other: Self) -> Self
     {
         match (self.is_nan(), other.is_nan())
@@ -3198,6 +3249,7 @@ where
                 `fdimf`, depending on how you wish to handle NaN (please consider \
                 filing an issue describing your use-case too)."
     )]
+    #[inline]
     pub fn abs_sub(self, other: Self) -> Self
     {
         (self - other).max(Self::zero())
@@ -3220,6 +3272,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-9));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn cbrt(self) -> Self
     {
         if self.is_nan()
@@ -3275,6 +3328,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn hypot(self, other: Self) -> Self
     {
         (self*self + other*other).sqrt()
@@ -3297,8 +3351,14 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn sin(self) -> Self
     {
+        if self.abs() < (-Self::from_uint(12u8)).exp2()
+        {
+            return self
+        }
+
         const N: usize = 6;
         const C: [f64; N] = [
             1.276278962,
@@ -3364,6 +3424,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn cos(self) -> Self
     {
         const N: usize = 6;
@@ -3395,6 +3456,7 @@ where
         }.map(|p| <Self as From<_>>::from(p));
 
         let mut w = self*Self::FRAC_2_PI();
+        let mut s = false;
         let mut i = 0;
         while i < 4
         {
@@ -3402,16 +3464,27 @@ where
             if i % 2 == 0 && w < Self::zero()
             {
                 w = -w;
+                s = !s;
             }
             w %= <Self as From<_>>::from(4.0);
             i += 1;
         }
         let two = <Self as From<_>>::from(2.0);
+        if w.abs() > Self::one()
+        {
+            s = !s;
+        }
         let w = if w > Self::one() {two - w} else if w < -Self::one() {-two - w} else {w};
 
         let z = two*w*w - Self::one();
 
-        p.polynomial(z)
+        let y = p.polynomial(z);
+
+        if s
+        {
+            return -y
+        }
+        y
     }
 
     /// Computes the tangent of a number (in radians).
@@ -3431,6 +3504,7 @@ where
     /// assert!(abs_difference < FpDouble::from(1e-9));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
     pub fn tan(self) -> Self
     {
         let (sin, cos) = self.sin_cos();
@@ -3484,6 +3558,10 @@ where
         if xabs > Self::one()
         {
             return (self - self)/(self - self)
+        }
+        if xabs < (-Self::from_uint(27u8)).exp2()
+        {
+            return self
         }
         
         const N: usize = 10;
@@ -3667,6 +3745,10 @@ where
         {
             return (self - self)/(self - self)
         }
+        if xabs < (-Self::from_uint(27u8)).exp2()
+        {
+            return Self::FRAC_PI_2() - self
+        }
         
         const N: usize = 10;
         const C: [f64; N] = [
@@ -3702,7 +3784,7 @@ where
 
         let w = if xabs <= Self::FRAC_1_SQRT_2()
         {
-            self
+            self.abs()
         }
         else
         {
@@ -3716,6 +3798,11 @@ where
         {
             y = Self::FRAC_PI_2() - y
         }
+        if self.is_sign_negative()
+        {
+            y = Self::PI() - (y - Self::PI())
+        }
+        
 
         /*let xx = self*self;
         let mut y = if xx > <Self as From<_>>::from(0.5)
@@ -4437,7 +4524,7 @@ where
     {
         if !self.is_finite()
         {
-            return (self.abs(), if self.is_nan() {0} else {1})
+            return (self.abs(), if self.is_nan() || self.is_sign_negative() {0} else {1})
         }
         if self.is_zero()
         {
@@ -5028,8 +5115,8 @@ mod test
     #[test]
     fn test_gamma()
     {
-        //crate::tests::test_op1(|x| f32::ln_gamma(x).0, |x| Fp::ln_gamma(x).0, None);
-        crate::tests::test_op1(f32::gamma, Fp::gamma, None)
+        crate::tests::test_op1("ln_gamma", |x| f32::ln_gamma(x).0, |x| Fp::ln_gamma(x).0, None);
+        crate::tests::test_op1("gamma", f32::gamma, Fp::gamma, None)
     }
 
     #[test]

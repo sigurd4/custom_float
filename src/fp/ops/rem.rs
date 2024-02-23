@@ -76,6 +76,6 @@ mod test
     #[test]
     fn test_rem()
     {
-        crate::tests::test_op2(Rem::rem, Rem::rem, None)
+        crate::tests::test_op2("rem", Rem::rem, Rem::rem, None)
     }
 }

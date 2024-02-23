@@ -179,6 +179,6 @@ mod test
     #[test]
     fn test_add()
     {
-        crate::tests::test_op2(Add::add, Add::add, None)
+        crate::tests::test_op2("add", Add::add, Add::add, None)
     }
 }

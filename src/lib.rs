@@ -86,7 +86,7 @@ mod tests
         ]
     }
     
-    pub fn test_op2(op1: impl Fn(f32, f32) -> f32, op2: impl Fn(F, F) -> F, d: Option<f32>)
+    pub fn test_op2(fn_name: &str, op1: impl Fn(f32, f32) -> f32, op2: impl Fn(F, F) -> F, d: Option<f32>)
     {
         for f0 in crate::tests::ttable()
         {
@@ -120,7 +120,7 @@ mod tests
         }
     }
     
-    pub fn test_op1(op1: impl Fn(f32) -> f32, op2: impl Fn(F) -> F, d: Option<f32>)
+    pub fn test_op1(fn_name: &str, op1: impl Fn(f32) -> f32, op2: impl Fn(F) -> F, d: Option<f32>)
     {
         for f0 in ttable::<f32>()
         {

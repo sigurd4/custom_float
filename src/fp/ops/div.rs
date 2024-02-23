@@ -275,6 +275,6 @@ mod test
     #[test]
     fn test_div()
     {
-        crate::tests::test_op2(Div::div, Div::div, None)
+        crate::tests::test_op2("div", Div::div, Div::div, None)
     }
 }
