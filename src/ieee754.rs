@@ -3,7 +3,7 @@
 #[cfg(feature = "ethnum")]
 use ethnum::U256;
 
-use crate::{util, Fp, UInt};
+use crate::Fp;
 
 pub type FpHalf = Fp<u16, 5, 0, 10, 2>;
 pub type FpSingle = Fp<u32, 8, 0, 23, 2>;

@@ -16,6 +16,7 @@ where
 
     fn abs_sub(&self, other: &Self) -> Self
     {
+        #[allow(deprecated)]
         (*self).abs_sub(*other)
     }
 

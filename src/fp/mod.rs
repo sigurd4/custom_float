@@ -3476,21 +3476,66 @@ where
         {
             return self
         }
-        if self == Self::one()
-        {
-            return Self::FRAC_PI_2()
-        }
-        if self == -Self::one()
-        {
-            return -Self::FRAC_PI_2()
-        }
         let xabs = self.abs();
+        if xabs.is_one()
+        {
+            return Self::FRAC_PI_2().copysign(self)
+        }
         if xabs > Self::one()
         {
             return (self - self)/(self - self)
         }
+        
+        const N: usize = 10;
+        const C: [f64; N] = [
+            1.051231959,
+            0.054946487,
+            0.004080631,
+            0.000407890,
+            0.000046985,
+            0.000005881,
+            0.000000777,
+            0.000000107,
+            0.000000015,
+            0.000000002
+        ];
 
-        let xx = self*self;
+        static mut P: Option<[f64; N]> = None;
+        let p = unsafe {
+            if P.is_none()
+            {
+                P = Some({
+                    let t: [[f64; N]; N] = ArrayOps::fill(
+                        |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
+                    );
+                    let p: [f64; N] = t.zip(C)
+                        .map2(|(t, c)| t.map2(|tn| c*tn))
+                        .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
+                        .unwrap_or_default();
+                    p
+                })
+            }
+            P.unwrap()
+        }.map(|p| <Self as From<_>>::from(p));
+
+        let w = if xabs <= Self::FRAC_1_SQRT_2()
+        {
+            self
+        }
+        else
+        {
+            (Self::one() - self*self).sqrt()
+        };
+        
+        let z = Self::from_uint(8u8)*w*w - Self::one();
+
+        let mut y = p.polynomial(z)*w;
+        if xabs > Self::FRAC_1_SQRT_2()
+        {
+            y = Self::FRAC_PI_2() - y
+        }
+
+        /*let xx = self*self;
         let mut y = if xx < <Self as From<_>>::from(0.5)
         {
             (self/(Self::one() - xx).sqrt()).atan()
@@ -3498,9 +3543,7 @@ where
         else
         {
             Self::FRAC_PI_2() - ((Self::one() - xx).sqrt()/self).recip().atan()
-        };
-        
-        //let mut y = Self::FRAC_PI_2() - ((Self::one() - self*self).sqrt()/self).atan();
+        };*/
 
         /*const PIO2_HI: f64 = 1.57079637050628662109375;
         const PIO2_LO: f64 = -4.37113900018624283e-8;
@@ -3615,7 +3658,6 @@ where
         {
             return Self::zero()
         }
-
         if self == -Self::one()
         {
             return Self::PI()
@@ -3626,7 +3668,56 @@ where
             return (self - self)/(self - self)
         }
         
-        let xx = self*self;
+        const N: usize = 10;
+        const C: [f64; N] = [
+            1.051231959,
+            0.054946487,
+            0.004080631,
+            0.000407890,
+            0.000046985,
+            0.000005881,
+            0.000000777,
+            0.000000107,
+            0.000000015,
+            0.000000002
+        ];
+
+        static mut P: Option<[f64; N]> = None;
+        let p = unsafe {
+            if P.is_none()
+            {
+                P = Some({
+                    let t: [[f64; N]; N] = ArrayOps::fill(
+                        |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
+                    );
+                    let p: [f64; N] = t.zip(C)
+                        .map2(|(t, c)| t.map2(|tn| c*tn))
+                        .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
+                        .unwrap_or_default();
+                    p
+                })
+            }
+            P.unwrap()
+        }.map(|p| <Self as From<_>>::from(p));
+
+        let w = if xabs <= Self::FRAC_1_SQRT_2()
+        {
+            self
+        }
+        else
+        {
+            (Self::one() - self*self).sqrt()
+        };
+        
+        let z = Self::from_uint(8u8)*w*w - Self::one();
+
+        let mut y = p.polynomial(z)*w;
+        if xabs <= Self::FRAC_1_SQRT_2()
+        {
+            y = Self::FRAC_PI_2() - y
+        }
+
+        /*let xx = self*self;
         let mut y = if xx > <Self as From<_>>::from(0.5)
         {
             ((Self::one() - xx).sqrt()/self).atan()
@@ -3634,7 +3725,7 @@ where
         else
         {
             Self::FRAC_PI_2() - (self/(Self::one() - xx).sqrt()).recip().atan()
-        };
+        };*/
 
         /*const PIO2_HI: f64 = 1.5707962513e+00;
         const PIO2_LO: f64 = 7.5497894159e-08;
@@ -4930,6 +5021,8 @@ where
 #[cfg(test)]
 mod test
 {
+    #![allow(unused)]
+
     use crate::{ieee754::{FpDouble, FpHalf}, Fp};
 
     #[test]

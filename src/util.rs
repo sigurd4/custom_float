@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::ops::{Add, Div, Rem, Shl, Shr};
 
 use num_traits::{NumCast, One, Zero};
