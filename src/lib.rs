@@ -153,12 +153,46 @@ mod tests
 
         if let Some(r) = r
         {
-            plot_approx(fn_name, r, op1, |x| op2(Fp::from(x)).into())
+            plot_approx(fn_name, r.clone(), &op1, |x| op2(Fp::from(x)).into());
+            plot_err(fn_name, r, op1, |x| op2(Fp::from(x)).into())
         }
     }
 
     const N: usize = 1024;
     const PLOT_TARGET: &str = "plots";
+    
+    #[allow(unused)]
+    pub fn plot_err<R>(
+        fn_name: &str,
+        range: R,
+        func: impl Fn(f32) -> f32,
+        approx: impl Fn(f32) -> f32
+    )
+    where
+        R: RangeBounds<f32> + LinspaceArray<f32, N>
+    {
+        let x: [f32; N] = range.linspace_array();
+        let y_approx = x.map(approx);
+
+        let y = x.map(func);
+
+        let e = y_approx.sub_each(y);
+
+        let plot_title: &str = &format!("{fn_name}(x) error");
+        let plot_path: &str = &format!("{PLOT_TARGET}/error/{fn_name}_error.png");
+
+        plot::plot_curves(plot_title, plot_path, [x], [e])
+            .expect("Plot error");
+
+        /*let (avg_error, max_abs_error) = y.zip(y_approx)
+            .map(|(y, y_approx)| y - y_approx)
+            .map(|y| (y, y.abs()))
+            .reduce(|a, b| (a.0 + b.0, a.1.max(b.1)))
+            .map(|(sum_error, max_abs_error)| (sum_error/N as f32, max_abs_error))
+            .unwrap_or_default();
+        println!("Average Error: {}", avg_error);
+        println!("Max |Error|: {}", max_abs_error);*/
+    }
     
     #[allow(unused)]
     pub fn plot_approx<R>(
