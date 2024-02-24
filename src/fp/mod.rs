@@ -3287,7 +3287,11 @@ where
     #[inline]
     pub fn abs_sub(self, other: Self) -> Self
     {
-        (self - other).max(Self::zero())
+        if other >= self
+        {
+            return Self::zero()
+        }
+        self - other
     }
 
     /// Take the cubic root of a number.
