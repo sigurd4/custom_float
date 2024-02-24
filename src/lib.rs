@@ -158,32 +158,36 @@ mod tests
         {
             plot_approx(fn_name, r.clone(), &op1, |x| op2(Fp::from(x)).into());
             plot_err(fn_name, r.clone(), &op1, |x| op2(Fp::from(x)).into());
-            plot_bench(fn_name, r, |x| {
-                let t0 = Instant::now();
+            if BENCH
+            {
+                plot_bench(fn_name, r, |x| {
+                    let t0 = Instant::now();
 
-                for _ in 0..M
-                {
-                    let _ = op1(x);
-                }
+                    for _ in 0..M
+                    {
+                        let _ = op1(x);
+                    }
 
-                Instant::now().duration_since(t0).div_f64(M as f64).as_secs_f32()
-            }, |x| {
-                let x = Fp::from(x);
-                let t0 = Instant::now();
+                    Instant::now().duration_since(t0).div_f64(M as f64).as_secs_f32()
+                }, |x| {
+                    let x = Fp::from(x);
+                    let t0 = Instant::now();
 
-                for _ in 0..M
-                {
-                    let _ = op2(x);
-                }
+                    for _ in 0..M
+                    {
+                        let _ = op2(x);
+                    }
 
-                Instant::now().duration_since(t0).div_f64(M as f64).as_secs_f32()
-            })
+                    Instant::now().duration_since(t0).div_f64(M as f64).as_secs_f32()
+                })
+            }
         }
     }
 
     const M: usize = 64;
     const N: usize = 1024;
     const PLOT_TARGET: &str = "plots";
+    const BENCH: bool = false;
     
     #[allow(unused)]
     pub fn plot_err<R>(
