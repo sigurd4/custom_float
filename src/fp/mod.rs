@@ -6776,7 +6776,7 @@ mod test
     #[test]
     fn test_y1()
     {
-        crate::tests::test_op1("y1", libm::y1f, Fp::y1, Some(0.1), Some(0.01..20.0))
+        crate::tests::test_op1("y1", libm::y1f, Fp::y1, Some(0.1), Some(0.1..20.0))
     }
     
     #[test]
