@@ -486,13 +486,13 @@ mod test
     #[test]
     fn test_asin()
     {
-        crate::tests::test_op1("asin", Float::asin, Float::asin, None, Some(-5.0..5.0));
+        crate::tests::test_op1("asin", Float::asin, Float::asin, None, Some(-1.0..1.0));
     }
     
     #[test]
     fn test_acos()
     {
-        crate::tests::test_op1("acos", Float::acos, Float::acos, None, Some(-5.0..5.0));
+        crate::tests::test_op1("acos", Float::acos, Float::acos, None, Some(-1.0..1.0));
     }
     
     #[test]

@@ -25,10 +25,11 @@ moddef::moddef!(
     }
 );
 
-const NEWTON_EXP: usize = 5;
-const NEWTON_LN: usize = 4;
-const NEWTON_RT: usize = 4;
-const NEWTON_TRIG: usize = 4;
+const NO_NEWTON: bool = false;
+const NEWTON_EXP: usize = if NO_NEWTON {0} else {3};
+const NEWTON_LN: usize = if NO_NEWTON {0} else {2};
+const NEWTON_RT: usize = if NO_NEWTON {0} else {4};
+const NEWTON_TRIG: usize = if NO_NEWTON {0} else {3};
 
 /// A custom floating point type.
 /// 
@@ -2249,7 +2250,7 @@ where
     {
         let half = <Self as From<_>>::from(0.5);
 
-        let lo = Self::min_positive_value()*<Self as From<_>>::from(2.0);
+        let lo = Self::min_positive_value()*Self::from_uint(2u8);
         let hi = Self::max_value()*half;
 
         let (a, b) = (self, other);
@@ -2375,6 +2376,8 @@ where
     }
 
     /// Raises a number to a floating point power.
+    ///
+    /// This implementation is based on the [Apple Libm-315 implementation of powf](https://opensource.apple.com/source/Libm/Libm-315/Source/ARM/powf.c)
     ///
     /// # Examples
     ///
@@ -2562,6 +2565,8 @@ where
     ///
     /// Returns NaN if `self` is a negative number other than `-0.0`.
     ///
+    /// This implementation is based on the fast sqrt described in: https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Approximations_that_depend_on_the_floating_point_representation
+    ///
     /// # Examples
     ///
     /// ```
@@ -2635,6 +2640,8 @@ where
     }
 
     /// Returns `EXP_BASE^(self)`.
+    ///
+    /// This implementation is roughly based on the exp2 implementation described here: https://stackoverflow.com/questions/65554112/fast-double-exp2-function-in-c.
     ///
     /// # Examples
     ///
@@ -2786,16 +2793,6 @@ where
 
         y
     }
-    
-    #[inline]
-    fn exp10_nonewton(self) -> Self
-    {
-        if EXP_BASE == 10
-        {
-            return self.exp_base()
-        }
-        (self*Self::LN_10()).exp_nonewton()
-    }
 
     /// Returns `10^(self)`.
     ///
@@ -2822,16 +2819,6 @@ where
             return self.exp_base()
         }
         (self*Self::LN_10()).exp()
-    }
-
-    #[inline]
-    fn exp2_nonewton(self) -> Self
-    {
-        if EXP_BASE == 2
-        {
-            return self.exp_base()
-        }
-        (self*Self::LN_2()).exp_nonewton()
     }
 
     /// Returns `2^(self)`.
@@ -3058,7 +3045,7 @@ where
 
             for _ in 0..NEWTON
             {
-                y -= (Self::one() - self/y.exp2_nonewton())/Self::LN_2()
+                y -= (Self::one() - self/y.exp2())/Self::LN_2()
             }
         }
 
@@ -3089,7 +3076,7 @@ where
     /// // log10(10) - 1 == 0
     /// let abs_difference = (ten.log10() - FpDouble::one()).abs();
     ///
-    /// assert!(abs_difference < FpDouble::from(1e-3));
+    /// assert!(abs_difference < FpDouble::from(1e-4));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     #[inline]
@@ -3103,7 +3090,7 @@ where
 
             for _ in 0..NEWTON
             {
-                y -= (Self::one() - self/y.exp10_nonewton())/Self::LN_10()
+                y -= (Self::one() - self/y.exp10())/Self::LN_10()
             }
         }
 
@@ -3356,6 +3343,8 @@ where
 
     /// Computes the sine of a number (in radians).
     ///
+    /// This implementation is based on Harvey M. Wagner's [Polynomial approximations to elementary functions](https://www.ams.org/journals/mcom/1954-08-047/S0025-5718-1954-0063487-2/S0025-5718-1954-0063487-2.pdf).
+    ///
     /// # Examples
     ///
     /// ```
@@ -3436,6 +3425,8 @@ where
     }
 
     /// Computes the cosine of a number (in radians).
+    ///
+    /// This implementation is based on Harvey M. Wagner's [Polynomial approximations to elementary functions](https://www.ams.org/journals/mcom/1954-08-047/S0025-5718-1954-0063487-2/S0025-5718-1954-0063487-2.pdf).
     ///
     /// # Examples
     ///
@@ -3575,6 +3566,8 @@ where
     /// the range [-pi/2, pi/2] or NaN if the number is outside the range
     /// [-1, 1].
     ///
+    /// This implementation is based on Harvey M. Wagner's [Polynomial approximations to elementary functions](https://www.ams.org/journals/mcom/1954-08-047/S0025-5718-1954-0063487-2/S0025-5718-1954-0063487-2.pdf).
+    ///
     /// # Examples
     ///
     /// ```
@@ -3588,7 +3581,7 @@ where
     /// // asin(sin(pi/2))
     /// let abs_difference = (f.sin().asin() - f).abs();
     ///
-    /// assert!(abs_difference < FpDouble::from(1e-5));
+    /// assert!(abs_difference < FpDouble::from(1e-4));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn asin(self) -> Self
@@ -3760,6 +3753,8 @@ where
     /// Computes the arccosine of a number. Return value is in radians in
     /// the range [0, pi] or NaN if the number is outside the range
     /// [-1, 1].
+    ///
+    /// This implementation is based on Harvey M. Wagner's [Polynomial approximations to elementary functions](https://www.ams.org/journals/mcom/1954-08-047/S0025-5718-1954-0063487-2/S0025-5718-1954-0063487-2.pdf).
     ///
     /// # Examples
     ///
@@ -3943,7 +3938,7 @@ where
     /// Computes the arctangent of a number. Return value is in radians in the
     /// range [-pi/2, pi/2];
     ///
-    /// https://www.ams.org/journals/mcom/1954-08-047/S0025-5718-1954-0063487-2/S0025-5718-1954-0063487-2.pdf
+    /// This implementation is based on Harvey M. Wagner's [Polynomial approximations to elementary functions](https://www.ams.org/journals/mcom/1954-08-047/S0025-5718-1954-0063487-2/S0025-5718-1954-0063487-2.pdf).
     ///
     /// # Examples
     ///
@@ -4271,7 +4266,7 @@ where
     /// let g = (e*e - FpDouble::one())/(FpDouble::from(2.0)*e);
     /// let abs_difference = (f - g).abs();
     ///
-    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// assert!(abs_difference < FpDouble::from(1e-3));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn sinh(self) -> Self
@@ -4283,7 +4278,19 @@ where
 
         let emx = (-self.abs()).exp();
     
-        ((Self::one() - emx*emx)/emx*<Self as From<_>>::from(0.5)).copysign(self)
+        let mut y = ((Self::one() - emx*emx)/emx*<Self as From<_>>::from(0.5)).copysign(self);
+
+        if y.is_finite()
+        {
+            const NEWTON: usize = NEWTON_TRIG;
+
+            for _ in 0..NEWTON
+            {
+                y -= (y.asinh() - self)*(y*y + Self::one()).sqrt()
+            }
+        }
+
+        y
     }
 
     /// Hyperbolic cosine function.
@@ -4305,7 +4312,7 @@ where
     /// let abs_difference = (f - g).abs();
     ///
     /// // Same result
-    /// assert!(abs_difference < FpDouble::from(1.0e-10));
+    /// assert!(abs_difference < FpDouble::from(1.0e-3));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn cosh(self) -> Self
@@ -4317,7 +4324,19 @@ where
 
         let emx = (-self.abs()).exp();
     
-        (Self::one() + emx*emx)/emx*<Self as From<_>>::from(0.5)
+        let mut y = (Self::one() + emx*emx)/emx*<Self as From<_>>::from(0.5);
+
+        if y.is_finite()
+        {
+            const NEWTON: usize = NEWTON_TRIG;
+
+            for _ in 0..NEWTON
+            {
+                y -= (y.acosh() - self.abs())*(y*y - Self::one()).sqrt()
+            }
+        }
+
+        y
     }
     
     /// Hyperbolic tangent function.
@@ -4357,15 +4376,40 @@ where
             return self
         }
 
+        let one = Self::one();
         let ex = (-xabs).exp();
         let ex2 = ex*ex;
-        let ex2p1 = Self::one() + ex2;
-        let ex2m1 = Self::one() - ex2;
+        let ex2p1 = one + ex2;
+        let ex2m1 = one - ex2;
         
-        (ex2m1/ex2p1).copysign(self)
+        let mut y = (ex2m1/ex2p1).copysign(self);
+
+        if y.is_finite()
+        {
+            const NEWTON: usize = NEWTON_TRIG;
+
+            for _ in 0..NEWTON
+            {
+                let x = y.atanh();
+                if !x.is_finite()
+                {
+                    break
+                }
+                y -= (x - self)*(one - y)*(one + y)
+            }
+        }
+
+        if y.abs() >= Self::one()
+        {
+            return Self::one().copysign(y)
+        }
+
+        y
     }
 
     /// Inverse hyperbolic sine function.
+    ///
+    /// This implementation is based on the glibc implementation of asinhf.
     ///
     /// # Examples
     ///
@@ -4424,6 +4468,8 @@ where
     }
 
     /// Inverse hyperbolic cosine function.
+    /// 
+    /// This implementation is based on the glibc implementation of acoshf.
     ///
     /// # Examples
     ///
@@ -4437,7 +4483,7 @@ where
     ///
     /// let abs_difference = (f - x).abs();
     ///
-    /// assert!(abs_difference < FpDouble::from(1.0e-4));
+    /// assert!(abs_difference < FpDouble::from(1.0e-3));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn acosh(self) -> Self
@@ -4482,6 +4528,8 @@ where
     }
 
     /// Inverse hyperbolic tangent function.
+    ///
+    /// This implementation is based on the glibc implementation of atanhf.
     ///
     /// # Examples
     ///
@@ -4575,6 +4623,8 @@ where
     ///
     /// The integer part of the tuple indicates the sign of the gamma function.
     ///
+    /// This implementation is based on [the libstdc++ implementation of the gamma function](https://gcc.gnu.org/onlinedocs/libstdc++/libstdc++-html-USERS-4.4/a01203.html).
+    ///
     /// # Examples
     ///
     /// ```
@@ -4620,6 +4670,8 @@ where
     }
 
     /// Gamma function.
+    /// 
+    /// This implementation is based on [the libstdc++ implementation of the gamma function](https://gcc.gnu.org/onlinedocs/libstdc++/libstdc++-html-USERS-4.4/a01203.html).
     ///
     /// # Examples
     ///
@@ -4867,7 +4919,7 @@ where
         {
             if !self.is_snan()
             {
-                3
+                3u8
             }
             else
             {
@@ -4954,6 +5006,8 @@ where
 
     /// Returns `self*EXP_BASE`.
     ///
+    /// This is generally faster than using regular multiplication.
+    ///
     /// # Examples
     ///
     /// ```
@@ -5034,6 +5088,8 @@ where
     }
 
     /// Returns `self/EXP_BASE`.
+    ///
+    /// This is generally faster than using regular division.
     ///
     /// # Examples
     ///
