@@ -85,6 +85,15 @@ where
     const MANTISSA_OP_SIZE: usize = FRAC_SIZE + INT_SIZE + Self::IS_INT_IMPLICIT as usize;
     const BASE_PADDING: usize = util::bitsize_of::<usize>() - EXP_BASE.leading_zeros() as usize - 1;
 
+    /// Converts to this type from the input type.
+    #[inline]
+    pub fn from<T>(from: T) -> Self
+    where
+        Self: From<T>
+    {
+        <Self as From<T>>::from(from)
+    }
+
     /// Converts from one custom floating-point number to another.
     /// Rounding errors may occurr.
     #[must_use = "method returns a new number and does not mutate the original value"]
@@ -1666,7 +1675,7 @@ where
             return self
         }
         let mut m = self % Self::one();
-        let half = <Self as From<_>>::from(0.5);
+        let half = Self::from(0.5);
         if self.is_sign_positive() && m >= half
         {
             m -= Self::one()
@@ -1707,9 +1716,9 @@ where
             return self
         }
         let one = Self::one();
-        let t = self % <Self as From<_>>::from(2.0);
+        let t = self % Self::from(2.0);
         let mut m = self % one;
-        let half = <Self as From<_>>::from(0.5);
+        let half = Self::from(0.5);
         if self.is_sign_positive() && m >= half && (m != half || t > one)
         {
             m -= Self::one()
@@ -2248,7 +2257,7 @@ where
     #[inline]
     pub fn midpoint(self, other: Self) -> Self
     {
-        let half = <Self as From<_>>::from(0.5);
+        let half = Self::from(0.5);
 
         let lo = Self::min_positive_value()*Self::from_uint(2u8);
         let hi = Self::max_value()*half;
@@ -2442,7 +2451,7 @@ where
         }
         
         // if n is an odd integer
-        let n_d = (nabs + Self::one())*<Self as From<_>>::from(0.5);
+        let n_d = (nabs + Self::one())*Self::from(0.5);
         let noi = n_d.trunc() == n_d;
 
         if xabs.is_zero()
@@ -2545,7 +2554,7 @@ where
         }
         
         //special case for sqrts
-        if <Self as From<_>>::from(0.5) == nabs
+        if Self::from(0.5) == nabs
         {
             if self < Self::zero() || n > Self::zero()
             {
@@ -2607,7 +2616,7 @@ where
         {
             let xabs_log = self.logb();
 
-            let n_xabs_log = <Self as From<_>>::from(0.5)*xabs_log;
+            let n_xabs_log = Self::from(0.5)*xabs_log;
             
             n_xabs_log.expb()
         }
@@ -2630,7 +2639,7 @@ where
         };
 
         const NEWTON: usize = NEWTON_RT;
-        let half = <Self as From<_>>::from(0.5);
+        let half = Self::from(0.5);
         let mut y = y;
         for _ in 0..NEWTON
         {
@@ -2711,10 +2720,10 @@ where
         }
         else
         {
-            <Self as From<_>>::from((EXP_BASE as f64).ln())
+            Self::from((EXP_BASE as f64).ln())
         };
 
-        let z = <Self as From<_>>::from(Into::<f64>::into(f*ln_exp_base).exp());
+        let z = Self::from(Into::<f64>::into(f*ln_exp_base).exp());
 
         let e = e + Self::from_uint(Self::exp_bias());
         if e > Self::from_uint((U::one() << EXP_SIZE) - U::one())
@@ -2759,7 +2768,7 @@ where
             return (self/Self::LN_10()).expb()
         }
         
-        (self/<Self as From<_>>::from((EXP_BASE as f64).ln())).expb()
+        (self/Self::from((EXP_BASE as f64).ln())).expb()
     }
 
     /// Returns `e^(self)`, (the exponential function).
@@ -2869,7 +2878,7 @@ where
         {
             return self.logb()*Self::LN_10()
         }
-        self.logb()*<Self as From<_>>::from((EXP_BASE as f64).ln())
+        self.logb()*Self::from((EXP_BASE as f64).ln())
     }
 
     /// Returns the natural logarithm of the number.
@@ -3021,7 +3030,7 @@ where
         let u = Self::from_bits(f + (bias << Self::EXP_POS));
         
         let u: f64 = u.into();
-        y += <Self as From<_>>::from(u.log(EXP_BASE as f64)); 
+        y += Self::from(u.log(EXP_BASE as f64)); 
         y
     }
     
@@ -3145,7 +3154,7 @@ where
     #[inline]
     pub fn to_degrees(self) -> Self
     {
-        self/(Self::FRAC_PI_2()/<Self as From<_>>::from(90.0))
+        self/(Self::FRAC_PI_2()/Self::from(90.0))
     }
     
     /// Converts degrees to radians.
@@ -3168,7 +3177,7 @@ where
     #[inline]
     pub fn to_radians(self) -> Self
     {
-        self*(Self::FRAC_PI_2()/<Self as From<_>>::from(90.0))
+        self*(Self::FRAC_PI_2()/Self::from(90.0))
     }
 
     /// Returns the maximum of the two numbers.
@@ -3330,14 +3339,14 @@ where
         let y = {
             let xabs_log = self.abs().logb();
 
-            let n_xabs_log = xabs_log/<Self as From<_>>::from(3.0);
+            let n_xabs_log = xabs_log/Self::from(3.0);
             
             n_xabs_log.expb().copysign(self)
         };
 
         const NEWTON: usize = NEWTON_RT;
-        let third = <Self as From<_>>::from(3.0).recip();
-        let two = <Self as From<_>>::from(2.0);
+        let third = Self::from(3.0).recip();
+        let two = Self::from(2.0);
         let mut y = y;
         for _ in 0..NEWTON
         {
@@ -3376,8 +3385,8 @@ where
     pub fn hypot(self, other: Self) -> Self
     {
         let bias = Self::exp_bias();
-        let hi = <Self as From<_>>::from(bias.to_f64().unwrap()*0.7).expb();
-        let lo = <Self as From<_>>::from(-bias.to_f64().unwrap()*0.7).expb();
+        let hi = Self::from(bias.to_f64().unwrap()*0.7).expb();
+        let lo = Self::from(-bias.to_f64().unwrap()*0.7).expb();
     
         let mut x = self.abs();
         let mut y = other.abs();
@@ -3459,7 +3468,7 @@ where
         {
             return Self::snan()
         }
-        if self.abs() < <Self as From<_>>::from(0.000244140625)
+        if self.abs() < Self::from(0.000244140625)
         {
             return self
         }
@@ -3490,7 +3499,7 @@ where
                 })
             }
             P.unwrap()
-        }.map(|p| <Self as From<_>>::from(p));
+        }.map(|p| Self::from(p));
 
         let mut w = self*Self::FRAC_2_PI();
         let mut i = 0;
@@ -3501,13 +3510,13 @@ where
             {
                 w = -w;
             }
-            w %= <Self as From<_>>::from(4.0);
+            w %= Self::from(4.0);
             i += 1;
         }
-        let two = <Self as From<_>>::from(2.0);
+        let two = Self::from(2.0);
         let w = if w > Self::one() {two - w} else if w < -Self::one() {-two - w} else {w};
         
-        if w.abs() < <Self as From<_>>::from(1.5542474911317903883680055016847e-4)
+        if w.abs() < Self::from(1.5542474911317903883680055016847e-4)
         {
             return w*Self::FRAC_PI_2()
         }
@@ -3574,7 +3583,7 @@ where
                 })
             }
             P.unwrap()
-        }.map(|p| <Self as From<_>>::from(p));
+        }.map(|p| Self::from(p));
 
         let mut w = self*Self::FRAC_2_PI();
         let mut s = false;
@@ -3587,10 +3596,10 @@ where
                 w = -w;
                 s = !s;
             }
-            w %= <Self as From<_>>::from(4.0);
+            w %= Self::from(4.0);
             i += 1;
         }
-        let two = <Self as From<_>>::from(2.0);
+        let two = Self::from(2.0);
         if w.abs() > Self::one()
         {
             s = !s;
@@ -3702,7 +3711,7 @@ where
         {
             return (self - self)/(self - self)
         }
-        if xabs < <Self as From<_>>::from(0.000000007450580596923828125)
+        if xabs < Self::from(0.000000007450580596923828125)
         {
             return self
         }
@@ -3737,7 +3746,7 @@ where
                 })
             }
             P.unwrap()
-        }.map(|p| <Self as From<_>>::from(p));
+        }.map(|p| Self::from(p));
 
         let w = if xabs <= Self::FRAC_1_SQRT_2()
         {
@@ -3761,7 +3770,7 @@ where
         }
 
         /*let xx = self*self;
-        let mut y = if xx < <Self as From<_>>::from(0.5)
+        let mut y = if xx < Self::from(0.5)
         {
             (self/(Self::one() - xx).sqrt()).atan()
         }
@@ -3780,9 +3789,9 @@ where
         const P3: f64 = 2.417951451e-2;
         const P4: f64 = 4.216630880e-2;
 
-        let pio2_hi = <Self as From<_>>::from(PIO2_HI);
-        let pio2_lo = <Self as From<_>>::from(PIO2_LO);
-        let pio4_hi = <Self as From<_>>::from(PIO4_HI);
+        let pio2_hi = Self::from(PIO2_HI);
+        let pio2_lo = Self::from(PIO2_LO);
+        let pio4_hi = Self::from(PIO4_HI);
 
         let mut y = if xabs.is_one()
         {
@@ -3792,29 +3801,29 @@ where
         {
             return (self - self)/(self - self)
         }
-        else if xabs < <Self as From<_>>::from(0.5)
+        else if xabs < Self::from(0.5)
         {
-            if xabs < <Self as From<_>>::from(0.000000007450580596923828125)
+            if xabs < Self::from(0.000000007450580596923828125)
             {
                 self
             }
             else
             {
                 let t = self*self;
-                let w = t*(<Self as From<_>>::from(P0) + t*(<Self as From<_>>::from(P1) + t*(<Self as From<_>>::from(P2) + t*(<Self as From<_>>::from(P3) + t*<Self as From<_>>::from(P4)))));
+                let w = t*(Self::from(P0) + t*(Self::from(P1) + t*(Self::from(P2) + t*(Self::from(P3) + t*Self::from(P4)))));
                 self + self*w
             }
         }
         else
         {
             let mut w = Self::one() - xabs;
-            let mut t = w*<Self as From<_>>::from(0.5);
-            let mut p = t*(<Self as From<_>>::from(P0) + t*(<Self as From<_>>::from(P1) + t*(<Self as From<_>>::from(P2) + t*(<Self as From<_>>::from(P3) + t*<Self as From<_>>::from(P4)))));
+            let mut t = w*Self::from(0.5);
+            let mut p = t*(Self::from(P0) + t*(Self::from(P1) + t*(Self::from(P2) + t*(Self::from(P3) + t*Self::from(P4)))));
             let s = t.sqrt();
 
             let two = Self::from_uint(2u8);
 
-            if xabs >= <Self as From<_>>::from(0.975)
+            if xabs >= Self::from(0.975)
             {
                 t = pio2_hi - (two*(s + s*p) - pio2_lo);
             }
@@ -3899,7 +3908,7 @@ where
         {
             return (self - self)/(self - self)
         }
-        if xabs < <Self as From<_>>::from(0.00000001490116119384765625)
+        if xabs < Self::from(0.00000001490116119384765625)
         {
             return Self::FRAC_PI_2() - self
         }
@@ -3934,7 +3943,7 @@ where
                 })
             }
             P.unwrap()
-        }.map(|p| <Self as From<_>>::from(p));
+        }.map(|p| Self::from(p));
 
         let w = if xabs <= Self::FRAC_1_SQRT_2()
         {
@@ -3959,7 +3968,7 @@ where
         
 
         /*let xx = self*self;
-        let mut y = if xx > <Self as From<_>>::from(0.5)
+        let mut y = if xx > Self::from(0.5)
         {
             ((Self::one() - xx).sqrt()/self).atan()
         }
@@ -3982,34 +3991,34 @@ where
         const QS3: f64 = -6.8828397989e-01;
         const QS4: f64 = 7.7038154006e-02;
 
-        let mut y = if xabs < <Self as From<_>>::from(0.5)
+        let mut y = if xabs < Self::from(0.5)
         {
-            if xabs < <Self as From<_>>::from(0.00000001490116119384765625)
+            if xabs < Self::from(0.00000001490116119384765625)
             {
-                <Self as From<_>>::from(PIO2_HI) + <Self as From<_>>::from(PIO2_LO)
+                Self::from(PIO2_HI) + Self::from(PIO2_LO)
             }
             else
             {
                 let z = self*self;
-                let p = z*(<Self as From<_>>::from(PS0) + z*(<Self as From<_>>::from(PS1) + z*(<Self as From<_>>::from(PS2) + z*(<Self as From<_>>::from(PS3) + z*(<Self as From<_>>::from(PS4) + z*<Self as From<_>>::from(PS5))))));
-                let q = Self::one() + z*(<Self as From<_>>::from(QS1) + z*(<Self as From<_>>::from(QS2) + z*(<Self as From<_>>::from(QS3) + z*<Self as From<_>>::from(QS4))));
+                let p = z*(Self::from(PS0) + z*(Self::from(PS1) + z*(Self::from(PS2) + z*(Self::from(PS3) + z*(Self::from(PS4) + z*Self::from(PS5))))));
+                let q = Self::one() + z*(Self::from(QS1) + z*(Self::from(QS2) + z*(Self::from(QS3) + z*Self::from(QS4))));
                 let r = p/q;
-                <Self as From<_>>::from(PIO2_HI) - (self - (<Self as From<_>>::from(PIO2_LO) - self*r))
+                Self::from(PIO2_HI) - (self - (Self::from(PIO2_LO) - self*r))
             }
         }
         else if self.is_sign_negative()
         {
-            let z = (Self::one() + self)*<Self as From<_>>::from(0.5);
-            let p = z*(<Self as From<_>>::from(PS0) + z*(<Self as From<_>>::from(PS1) + z*(<Self as From<_>>::from(PS2) + z*(<Self as From<_>>::from(PS3) + z*(<Self as From<_>>::from(PS4) + z*<Self as From<_>>::from(PS5))))));
-            let q = Self::one() + z*(<Self as From<_>>::from(QS1) + z*(<Self as From<_>>::from(QS2) + z*(<Self as From<_>>::from(QS3) + z*<Self as From<_>>::from(QS4))));
+            let z = (Self::one() + self)*Self::from(0.5);
+            let p = z*(Self::from(PS0) + z*(Self::from(PS1) + z*(Self::from(PS2) + z*(Self::from(PS3) + z*(Self::from(PS4) + z*Self::from(PS5))))));
+            let q = Self::one() + z*(Self::from(QS1) + z*(Self::from(QS2) + z*(Self::from(QS3) + z*Self::from(QS4))));
             let r = p/q;
             let s = z.sqrt();
-            let w = r*s - <Self as From<_>>::from(PIO2_LO);
+            let w = r*s - Self::from(PIO2_LO);
             Self::PI() - Self::from_uint(2u8)*(s + w)
         }
         else
         {
-            let z = (Self::one() - self)*<Self as From<_>>::from(0.5);
+            let z = (Self::one() - self)*Self::from(0.5);
             let s = z.sqrt();
 
             let e_s = s.exp_bits();
@@ -4022,8 +4031,8 @@ where
             let df = Self::from_bits((e_s << Self::EXP_POS) + (f_s << Self::FRAC_POS));
             let c = (z - df*df)/(s + df);
 
-            let p = z*(<Self as From<_>>::from(PS0) + z*(<Self as From<_>>::from(PS1) + z*(<Self as From<_>>::from(PS2) + z*(<Self as From<_>>::from(PS3) + z*(<Self as From<_>>::from(PS4) + z*<Self as From<_>>::from(PS5))))));
-            let q = Self::one() + z*(<Self as From<_>>::from(QS1) + z*(<Self as From<_>>::from(QS2) + z*(<Self as From<_>>::from(QS3) + z*<Self as From<_>>::from(QS4))));
+            let p = z*(Self::from(PS0) + z*(Self::from(PS1) + z*(Self::from(PS2) + z*(Self::from(PS3) + z*(Self::from(PS4) + z*Self::from(PS5))))));
+            let q = Self::one() + z*(Self::from(QS1) + z*(Self::from(QS2) + z*(Self::from(QS3) + z*Self::from(QS4))));
             let r = p/q;
             let w = r*s + c;
             Self::from_uint(2u8)*(df + w)
@@ -4110,7 +4119,7 @@ where
                 })
             }
             P.unwrap()
-        }.map(|p| <Self as From<_>>::from(p));
+        }.map(|p| Self::from(p));
 
         let xabs = self.abs();
         let w = if xabs <= Self::one()
@@ -4401,13 +4410,13 @@ where
 
         let emx = (-self.abs()).exp();
     
-        let mut y = ((Self::one() - emx*emx)/emx*<Self as From<_>>::from(0.5)).copysign(self);
+        let mut y = ((Self::one() - emx*emx)/emx*Self::from(0.5)).copysign(self);
 
         if y.is_nan()
         {
             let ex = (self.abs()).exp();
         
-            y = ((ex*ex - Self::one())/ex*<Self as From<_>>::from(0.5)).copysign(self);
+            y = ((ex*ex - Self::one())/ex*Self::from(0.5)).copysign(self);
         }
 
         if y.is_finite()
@@ -4464,7 +4473,7 @@ where
 
         let emx = (-self.abs()).exp();
     
-        let mut y = (Self::one() + emx*emx)/emx*<Self as From<_>>::from(0.5);
+        let mut y = (Self::one() + emx*emx)/emx*Self::from(0.5);
 
         if y.is_finite()
         {
@@ -4517,7 +4526,7 @@ where
         }
         let one = Self::one();
         let xabs = self.abs();
-        if xabs < <Self as From<_>>::from(2.7755575615628913510590791702271e-17)
+        if xabs < Self::from(2.7755575615628913510590791702271e-17)
         {
             return self*(one + self)
         }
@@ -4585,11 +4594,11 @@ where
 
         let w;
         let xabs = self.abs();
-        if xabs < <Self as From<_>>::from(0.00006103515625)
+        if xabs < Self::from(0.00006103515625)
         {
             return self
         }
-        if xabs > <Self as From<_>>::from(16384.0)
+        if xabs > Self::from(16384.0)
         {
             if !xabs.is_finite()
             {
@@ -4650,7 +4659,7 @@ where
         }
         //(self + (self*self - Self::one()).sqrt()).ln()
 
-        if self > <Self as From<_>>::from(268435456.0)
+        if self > Self::from(268435456.0)
         {
             self.ln() + Self::LN_2()
         }
@@ -4714,14 +4723,14 @@ where
         {
             return Self::snan()
         }
-        //<Self as From<_>>::from(0.5)*((Self::one() + self.abs())/(Self::one() - self.abs())).ln().copysign(self)
+        //Self::from(0.5)*((Self::one() + self.abs())/(Self::one() - self.abs())).ln().copysign(self)
         
         let mut t = xabs + xabs;
         let one = Self::one();
-        let half = <Self as From<_>>::from(0.5);
+        let half = Self::from(0.5);
         if xabs < half
         {
-            if xabs < <Self as From<_>>::from(0.0000000037252902984619140625)
+            if xabs < Self::from(0.0000000037252902984619140625)
             {
                 return self
             }
@@ -4754,17 +4763,17 @@ where
 
         const LOGROOT2PI: f64 = 0.9189385332046727417803297364056176;
 
-        let mut sum = <Self as From<_>>::from(LANCZOS_CHEB_7[0]);
+        let mut sum = Self::from(LANCZOS_CHEB_7[0]);
         for k in 1..LANCZOS_CHEB_7.len()
         {
-            sum += <Self as From<_>>::from(LANCZOS_CHEB_7[k])/(xm1 + Self::from_uint(k))
+            sum += Self::from(LANCZOS_CHEB_7[k])/(xm1 + Self::from_uint(k))
         }
 
-        let term1 = (xm1 + <Self as From<_>>::from(0.5))
-            *((xm1 + <Self as From<_>>::from(7.5))/Self::E()).ln();
-        let term2 = <Self as From<_>>::from(LOGROOT2PI) + sum.ln();
+        let term1 = (xm1 + Self::from(0.5))
+            *((xm1 + Self::from(7.5))/Self::E()).ln();
+        let term2 = Self::from(LOGROOT2PI) + sum.ln();
 
-        term1 + (term2 - <Self as From<_>>::from(7u8))
+        term1 + (term2 - Self::from(7u8))
     }
 
     /// Natural logarithm of the absolute value of the gamma function
@@ -4799,7 +4808,7 @@ where
             return (Self::infinity(), if self.is_sign_negative() {-1} else {1})
         }
 
-        if self >= <Self as From<_>>::from(0.5)
+        if self >= Self::from(0.5)
         {
             return (self.ln_gamma_lanczos(), 1)
         }
@@ -5394,10 +5403,10 @@ where
 
         let one = Self::one();
         let s = self.abs() - one;
-        let p = PA.map(<Self as From<_>>::from).polynomial(s);
-        let q = one + s*QA.map(<Self as From<_>>::from).polynomial(s);
+        let p = PA.map(Self::from).polynomial(s);
+        let q = one + s*QA.map(Self::from).polynomial(s);
     
-        one - <Self as From<_>>::from(ERX) - p/q
+        one - Self::from(ERX) - p/q
     }
     
     fn erfc2(mut self) -> Self
@@ -5447,7 +5456,7 @@ where
             -2.24409524465858183362e+01 /* 0xC03670E2, 0x42712D62 */
         ];
 
-        if self.abs() < <Self as From<_>>::from(1.25)
+        if self.abs() < Self::from(1.25)
         {
             /* |x| < 1.25 */
             return self.erfc1();
@@ -5458,21 +5467,21 @@ where
         let r;
         let big_s;
         let one = Self::one();
-        if self < <Self as From<_>>::from(1.0/0.35)
+        if self < Self::from(1.0/0.35)
         {
             /* |x| < 1/.35 ~ 2.85714 */
-            r = RA.map(<Self as From<_>>::from).polynomial(s);
-            big_s = one + s*SA.map(<Self as From<_>>::from).polynomial(s);
+            r = RA.map(Self::from).polynomial(s);
+            big_s = one + s*SA.map(Self::from).polynomial(s);
         }
         else
         {
             /* |x| > 1/.35 */
-            r = RB.map(<Self as From<_>>::from).polynomial(s);
-            big_s = one + s*SB.map(<Self as From<_>>::from).polynomial(s);
+            r = RB.map(Self::from).polynomial(s);
+            big_s = one + s*SB.map(Self::from).polynomial(s);
         }
         let z = Self::from_bits((self.to_bits() >> FRAC_SIZE/2) << FRAC_SIZE/2);
 
-        (-z * z - <Self as From<_>>::from(0.5625)).exp() * ((z - self) * (z + self) + r / big_s).exp() / self
+        (-z * z - Self::from(0.5625)).exp() * ((z - self) * (z + self) + r / big_s).exp() / self
     }
         
     /// Error function (f64)
@@ -5513,18 +5522,18 @@ where
             return Self::one().copysign(self)
         }
         let y;
-        if xabs < <Self as From<_>>::from(0.84375)
+        if xabs < Self::from(0.84375)
         {
             /* |x| < 0.84375 */
-            if xabs < <Self as From<_>>::from(0.0000000037252902984619140625)
+            if xabs < Self::from(0.0000000037252902984619140625)
             {
                 /* |x| < 2**-28 */
                 /* avoid underflow */
-                return <Self as From<_>>::from(0.125)*(<Self as From<_>>::from(8u8)*self + <Self as From<_>>::from(EFX8) * self);
+                return Self::from(0.125)*(Self::from(8u8)*self + Self::from(EFX8) * self);
             }
             let z = self*self;
-            let r = PP.map(<Self as From<_>>::from).polynomial(z);
-            let s = one + z*QQ.map(<Self as From<_>>::from).polynomial(z);
+            let r = PP.map(Self::from).polynomial(z);
+            let s = one + z*QQ.map(Self::from).polynomial(z);
             y = r / s;
             return self + self * y;
         }
@@ -5535,7 +5544,7 @@ where
         }
         else
         {
-            let x1p_1022 = <Self as From<_>>::from(f64::from_bits(0x0010000000000000));
+            let x1p_1022 = Self::from(f64::from_bits(0x0010000000000000));
             y = one - x1p_1022;
         }
     
@@ -5587,23 +5596,23 @@ where
         }
         let xabs = self.abs();
         let one = Self::one();
-        if xabs < <Self as From<_>>::from(0.84375)
+        if xabs < Self::from(0.84375)
         {
             /* |x| < 0.84375 */
-            if xabs < <Self as From<_>>::from(1.3877787807814456755295395851135e-17)
+            if xabs < Self::from(1.3877787807814456755295395851135e-17)
             {
                 /* |x| < 2**-56 */
                 return one - self;
             }
             let z = self*self;
-            let r = PP.map(<Self as From<_>>::from).polynomial(z);
-            let s = one + z*QQ.map(<Self as From<_>>::from).polynomial(z);
+            let r = PP.map(Self::from).polynomial(z);
+            let s = one + z*QQ.map(Self::from).polynomial(z);
             let y = r / s;
-            if !sign.is_zero() || xabs < <Self as From<_>>::from(1.0/4.0) {
+            if !sign.is_zero() || xabs < Self::from(1.0/4.0) {
                 /* x < 1/4 */
                 return one - (self + self*y);
             }
-            let half = <Self as From<_>>::from(0.5);
+            let half = Self::from(0.5);
             return half - (self - half + self*y);
         }
         if xabs < Self::from_uint(28u8)
@@ -5617,7 +5626,7 @@ where
             return self.erfc2();
         }
 
-        let x1p_1022 = <Self as From<_>>::from(f64::from_bits(0x0010000000000000));
+        let x1p_1022 = Self::from(f64::from_bits(0x0010000000000000));
         if !sign.is_zero()
         {
             two - x1p_1022
@@ -5716,12 +5725,12 @@ where
             p = &PR8;
             q = &PS8;
         }
-        else if xabs >= <Self as From<_>>::from(4.5454)
+        else if xabs >= Self::from(4.5454)
         {
             p = &PR5;
             q = &PS5;
         }
-        else if xabs >= <Self as From<_>>::from(2.857)
+        else if xabs >= Self::from(2.857)
         {
             p = &PR3;
             q = &PS3;
@@ -5733,8 +5742,8 @@ where
         }
         let one = Self::one();
         let z = (self*self).recip();
-        let r = p.map(<Self as From<_>>::from).polynomial(z);
-        let s = one + z*q.map(<Self as From<_>>::from).polynomial(z);
+        let r = p.map(Self::from).polynomial(z);
+        let s = one + z*q.map(Self::from).polynomial(z);
         
         one + r/s
     }
@@ -5831,12 +5840,12 @@ where
             p = &QR8;
             q = &QS8;
         }
-        else if xabs >= <Self as From<_>>::from(4.5454)
+        else if xabs >= Self::from(4.5454)
         {
             p = &QR5;
             q = &QS5;
         }
-        else if xabs >= <Self as From<_>>::from(2.857)
+        else if xabs >= Self::from(2.857)
         {
             p = &QR3;
             q = &QS3;
@@ -5848,10 +5857,10 @@ where
         }
         let one = Self::one();
         let z = (self*self).recip();
-        let r = p.map(<Self as From<_>>::from).polynomial(z);
-        let s = one + z*q.map(<Self as From<_>>::from).polynomial(z);
+        let r = p.map(Self::from).polynomial(z);
+        let s = one + z*q.map(Self::from).polynomial(z);
         
-        (<Self as From<_>>::from(-0.125) + r/s)/self
+        (Self::from(-0.125) + r/s)/self
     }
 
     fn bessel0_common(self, y0: bool) -> Self
@@ -5888,7 +5897,7 @@ where
             {
                 ss = z / cc;
             }
-            if xabs < <Self as From<_>>::from((EXP_BASE as f64).powf(17.0/127.0*Self::exp_bias().to_f64().unwrap()))
+            if xabs < Self::from((EXP_BASE as f64).powf(17.0/127.0*Self::exp_bias().to_f64().unwrap()))
             {
                 if y0 {
                     ss = -ss;
@@ -5896,7 +5905,7 @@ where
                 cc = self.bessel0_p()*cc - self.bessel0_q()*ss;
             }
         }
-        return <Self as From<_>>::from(INVSQRTPI) * cc / self.sqrt();
+        return Self::from(INVSQRTPI) * cc / self.sqrt();
     }
     
     /// Bessel function of first kind with α = 0.
@@ -5920,7 +5929,7 @@ where
         let one = Self::one();
 
         /* 1 - x*x/4 + x*x*R(x^2)/S(x^2) */
-        if self >= <Self as From<_>>::from(0.0001220703125)
+        if self >= Self::from(0.0001220703125)
         {
             /* R0/S0 on [0, 2.00] */
             const R0: [f64; 4] = [
@@ -5939,18 +5948,18 @@ where
             /* |x| >= 2**-13 */
             /* up to 4ulp error close to 2 */
             let z = self*self;
-            let r = z*R0.map(<Self as From<_>>::from).polynomial(z);
-            let s = one + z*S0.map(<Self as From<_>>::from).polynomial(z);
+            let r = z*R0.map(Self::from).polynomial(z);
+            let s = one + z*S0.map(Self::from).polynomial(z);
             return (one + self/two)*(one - self/two) + z*(r/s);
         }
 
         /* 1 - x*x/4 */
         /* prevent underflow */
         /* inexact should be raised when x!=0, this is not done correctly */
-        if self >= <Self as From<_>>::from((EXP_BASE as f64).powf(-13.0/127.0*Self::exp_bias().to_f64().unwrap()))
+        if self >= Self::from((EXP_BASE as f64).powf(-13.0/127.0*Self::exp_bias().to_f64().unwrap()))
         {
             /* |x| >= 2**-127 */
-            self = <Self as From<_>>::from(0.25)*self*self;
+            self = Self::from(0.25)*self*self;
         }
 
         one - self
@@ -5999,16 +6008,16 @@ where
         ];
 
         /* U(x^2)/V(x^2) + (2/pi)*j0(x)*log(x) */
-        if self >= <Self as From<_>>::from((EXP_BASE as f64).powf(-1.625*EXP_SIZE as f64))
+        if self >= Self::from((EXP_BASE as f64).powf(-1.625*EXP_SIZE as f64))
         {
             /* large ulp error near the first zero, x ~= 0.89 */
             let z = self*self;
-            let u = U0.map(<Self as From<_>>::from).polynomial(z);
-            let v = Self::one() + z*V0.map(<Self as From<_>>::from).polynomial(z);
-            return u/v + <Self as From<_>>::from(TPI)*(self.j0()*self.ln());
+            let u = U0.map(Self::from).polynomial(z);
+            let v = Self::one() + z*V0.map(Self::from).polynomial(z);
+            return u/v + Self::from(TPI)*(self.j0()*self.ln());
         }
 
-        <Self as From<_>>::from(U0[0]) + <Self as From<_>>::from(TPI)*self.ln()
+        Self::from(U0[0]) + Self::from(TPI)*self.ln()
     }
     
     fn bessel1_p(self) -> Self
@@ -6099,12 +6108,12 @@ where
             p = &PR8;
             q = &PS8;
         }
-        else if xabs >= <Self as From<_>>::from(4.5454)
+        else if xabs >= Self::from(4.5454)
         {
             p = &PR5;
             q = &PS5;
         }
-        else if xabs >= <Self as From<_>>::from(2.857)
+        else if xabs >= Self::from(2.857)
         {
             p = &PR3;
             q = &PS3;
@@ -6116,8 +6125,8 @@ where
         }
         let one = Self::one();
         let z = (self*self).recip();
-        let r = p.map(<Self as From<_>>::from).polynomial(z);
-        let s = one + z*q.map(<Self as From<_>>::from).polynomial(z);
+        let r = p.map(Self::from).polynomial(z);
+        let s = one + z*q.map(Self::from).polynomial(z);
         
         one + r/s
     }
@@ -6214,12 +6223,12 @@ where
             p = &QR8;
             q = &QS8;
         }
-        else if xabs >= <Self as From<_>>::from(4.5454)
+        else if xabs >= Self::from(4.5454)
         {
             p = &QR5;
             q = &QS5;
         }
-        else if xabs >= <Self as From<_>>::from(2.857)
+        else if xabs >= Self::from(2.857)
         {
             p = &QR3;
             q = &QS3;
@@ -6231,10 +6240,10 @@ where
         }
         let one = Self::one();
         let z = (self*self).recip();
-        let r = p.map(<Self as From<_>>::from).polynomial(z);
-        let s = one + z*q.map(<Self as From<_>>::from).polynomial(z);
+        let r = p.map(Self::from).polynomial(z);
+        let s = one + z*q.map(Self::from).polynomial(z);
         
-        (<Self as From<_>>::from(0.375) + r/s)/self
+        (Self::from(0.375) + r/s)/self
     }
     
     fn bessel1_common(self, y1: bool, sign: bool) -> Self
@@ -6272,7 +6281,7 @@ where
             {
                 ss = z / cc;
             }
-            if xabs < <Self as From<_>>::from((EXP_BASE as f64).powf(17.0/127.0*Self::exp_bias().to_f64().unwrap()))
+            if xabs < Self::from((EXP_BASE as f64).powf(17.0/127.0*Self::exp_bias().to_f64().unwrap()))
             {
                 if y1
                 {
@@ -6286,7 +6295,7 @@ where
             cc = -cc;
         }
 
-        <Self as From<_>>::from(INVSQRTPI)*cc/self.sqrt()
+        Self::from(INVSQRTPI)*cc/self.sqrt()
     }
 
     pub fn j1(self) -> Self
@@ -6303,7 +6312,7 @@ where
             return xabs.bessel1_common(false, sign)
         }
         let mut z;
-        if xabs >= <Self as From<_>>::from((EXP_BASE as f64).powf(-13.0/127.0*Self::exp_bias().to_f64().unwrap()))
+        if xabs >= Self::from((EXP_BASE as f64).powf(-13.0/127.0*Self::exp_bias().to_f64().unwrap()))
         {
             /* R0/S0 on [0,2] */
             const R0: [f64; 4] = [
@@ -6322,15 +6331,15 @@ where
 
             /* |x| >= 2**-127 */
             z = self*self;
-            let r = z*R0.map(<Self as From<_>>::from).polynomial(z);
-            let s = Self::one() + z*S0.map(<Self as From<_>>::from).polynomial(z);
+            let r = z*R0.map(Self::from).polynomial(z);
+            let s = Self::one() + z*S0.map(Self::from).polynomial(z);
             z = r / s;
         } else {
             /* avoid underflow, raise inexact if x!=0 */
             z = self;
         }
 
-        (<Self as From<_>>::from(0.5) + z)*self
+        (Self::from(0.5) + z)*self
     }
     
     pub fn y1(self) -> Self
@@ -6372,16 +6381,352 @@ where
             1.66559246207992079114e-11, /* 0x3DB25039, 0xDACA772A */
         ];
 
-        if self < <Self as From<_>>::from((EXP_BASE as f64).powf(-3.125*EXP_SIZE as f64))
+        if self < Self::from((EXP_BASE as f64).powf(-3.125*EXP_SIZE as f64))
         {
-            return -<Self as From<_>>::from(TPI)/self;
+            return -Self::from(TPI)/self;
         }
 
         let z = self*self;
-        let u = U0.map(<Self as From<_>>::from).polynomial(z);
-        let v = Self::one() + z*V0.map(<Self as From<_>>::from).polynomial(z);
+        let u = U0.map(Self::from).polynomial(z);
+        let v = Self::one() + z*V0.map(Self::from).polynomial(z);
         
-        self*(u/v) + <Self as From<_>>::from(TPI)*(self.j1()*self.ln() - self.recip())
+        self*(u/v) + Self::from(TPI)*(self.j1()*self.ln() - self.recip())
+    }
+
+    pub fn jn(mut self, n: i32) -> Self
+    {
+        const INVSQRTPI: f64 = 5.64189583547756279280e-01; /* 0x3FE20DD7, 0x50429B6D */
+
+        let mut sign = !self.sign_bit().is_zero();
+
+        if self.is_nan()
+        {
+            /* nan */
+            return self;
+        }
+
+        /* J(-n,x) = (-1)^n * J(n, x), J(n, -x) = (-1)^n * J(n, x)
+        * Thus, J(-n,x) = J(n,-x)
+        */
+        /* nm1 = |n|-1 is used instead of |n| to handle n==INT_MIN */
+        if n == 0
+        {
+            return self.j0();
+        }
+        let nm1;
+        if n < 0
+        {
+            nm1 = -(n + 1);
+            self = -self;
+            sign = !sign;
+        }
+        else
+        {
+            nm1 = n - 1;
+        }
+        if nm1 == 0
+        {
+            return self.j1();
+        }
+
+        sign &= (n & 1) != 0; /* even n: 0, odd n: signbit(x) */
+        self = self.abs();
+
+        let one = Self::one();
+        let two = Self::from_uint(2u8);
+
+        let mut b;
+        if self.is_zero() || self.is_infinite()
+        {
+            /* if x is 0 or inf */
+            b = Self::zero();
+        }
+        else if Self::from_int(nm1) < self
+        {
+            /* Safe to use J(n+1,x)=2n/x *J(n,x)-J(n-1,x) */
+            if self >= Self::from(2.1359870359209100823950217061696e96)
+            {
+                /* x > 2**302 */
+                /* (x >> n**2)
+                *      Jn(x) = cos(x-(2n+1)*pi/4)*sqrt(2/x*pi)
+                *      Yn(x) = sin(x-(2n+1)*pi/4)*sqrt(2/x*pi)
+                *      Let s=sin(x), c=cos(x),
+                *          xn=x-(2n+1)*pi/4, sqt2 = sqrt(2),then
+                *
+                *             n    sin(xn)*sqt2    cos(xn)*sqt2
+                *          ----------------------------------
+                *             0     s-c             c+s
+                *             1    -s-c            -c+s
+                *             2    -s+c            -c-s
+                *             3     s+c             c-s
+                */
+                let (s, c) = self.sin_cos();
+                let temp = match nm1 & 3 {
+                    0 => -c + s,
+                    1 => -c - s,
+                    2 => c - s,
+                    3 | _ => c + s,
+                };
+                b = Self::from(INVSQRTPI)*temp/self.sqrt();
+            }
+            else
+            {
+                let mut a = self.j0();
+                b = self.j1();
+                let mut i = 0;
+                while i < nm1 {
+                    i += 1;
+                    let temp = b;
+                    b = b*(two*Self::from_int(i)/self) - a; /* avoid underflow */
+                    a = temp;
+                }
+            }
+        }
+        else
+        {
+            if self < Self::from(0.00000000186264514923095703125)
+            {
+                /* x < 2**-29 */
+                /* x is tiny, return the first Taylor expansion of J(n,x)
+                * J(n,x) = 1/n!*(x/2)^n  - ...
+                */
+                if nm1 > 32
+                {
+                    /* underflow */
+                    b = Self::zero();
+                }
+                else
+                {
+                    let temp = self*Self::from(0.5);
+                    b = temp;
+                    let mut a = one;
+                    let mut i = 2;
+                    while i <= nm1 + 1
+                    {
+                        a *= Self::from_int(i); /* a = n! */
+                        b *= temp; /* b = (x/2)^n */
+                        i += 1;
+                    }
+                    b = b / a;
+                }
+            }
+            else
+            {
+                /* use backward recurrence */
+                /*                      x      x^2      x^2
+                *  J(n,x)/J(n-1,x) =  ----   ------   ------   .....
+                *                      2n  - 2(n+1) - 2(n+2)
+                *
+                *                      1      1        1
+                *  (for large x)   =  ----  ------   ------   .....
+                *                      2n   2(n+1)   2(n+2)
+                *                      -- - ------ - ------ -
+                *                       x     x         x
+                *
+                * Let w = 2n/x and h=2/x, then the above quotient
+                * is equal to the continued fraction:
+                *                  1
+                *      = -----------------------
+                *                     1
+                *         w - -----------------
+                *                        1
+                *              w+h - ---------
+                *                     w+2h - ...
+                *
+                * To determine how many terms needed, let
+                * Q(0) = w, Q(1) = w(w+h) - 1,
+                * Q(k) = (w+k*h)*Q(k-1) - Q(k-2),
+                * When Q(k) > 1e4      good for single
+                * When Q(k) > 1e9      good for double
+                * When Q(k) > 1e17     good for quadruple
+                */
+                /* determine k */
+
+                let nf = Self::from_int(nm1) + one;
+                let mut w = two*nf/self;
+                let h = two/self;
+                let mut z = w + h;
+                let mut q0 = w;
+                let mut q1 = w*z - one;
+                let mut k = 1;
+                let q1_min = Self::from((EXP_BASE as f64).powf(13.287712379549449391481277717958/8.0*EXP_SIZE as f64));
+                while q1 < q1_min
+                {
+                    k += 1;
+                    z += h;
+                    let tmp = z * q1 - q0;
+                    q0 = q1;
+                    q1 = tmp;
+                }
+                let mut t = Self::zero();
+                let mut i = k;
+                while i >= 0
+                {
+                    t = (two*(Self::from_int(i) + nf)/self - t).recip();
+                    i -= 1;
+                }
+                let mut a = t;
+                b = one;
+                /*  estimate log((2/x)^n*n!) = n*log(2/x)+n*ln(n)
+                *  Hence, if n*(log(2n/x)) > ...
+                *  single 8.8722839355e+01
+                *  double 7.09782712893383973096e+02
+                *  long double 1.1356523406294143949491931077970765006170e+04
+                *  then recurrent value may overflow and the result is
+                *  likely underflow to zero
+                */
+                let tmp = nf*w.abs().ln();
+                if tmp < Self::from(0.69860503429133858267716535433071*Self::exp_bias().to_f64().unwrap())
+                {
+                    i = nm1;
+                    while i > 0
+                    {
+                        let temp = b;
+                        b = b*(two*Self::from_int(i))/self - a;
+                        a = temp;
+                        i -= 1;
+                    }
+                }
+                else
+                {
+                    let x1p500 = Self::from((EXP_BASE as f64).powf(0.47244094488188976377952755905512*Self::exp_bias().to_f64().unwrap())); // 0x1p500 == 2^500
+
+                    i = nm1;
+                    while i > 0
+                    {
+                        let temp = b;
+                        b = b*(two*Self::from_int(i))/self - a;
+                        a = temp;
+                        /* scale b to avoid spurious overflow */
+                        if b > x1p500
+                        {
+                            a /= b;
+                            t /= b;
+                            b = one;
+                        }
+                        i -= 1;
+                    }
+                }
+                z = self.j0();
+                w = self.j1();
+                if z.abs() >= w.abs()
+                {
+                    b = t * z / b;
+                }
+                else
+                {
+                    b = t * w / a;
+                }
+            }
+        }
+
+        if sign
+        {
+            -b
+        }
+        else
+        {
+            b
+        }
+    }
+
+    pub fn yn(self, n: i32) -> Self
+    {
+        const INVSQRTPI: f64 = 5.64189583547756279280e-01; /* 0x3FE20DD7, 0x50429B6D */
+
+        if self.is_nan()
+        {
+            /* nan */
+            return self;
+        }
+        let zero = Self::zero();
+        if self < zero
+        {
+            /* x < 0 */
+            return Self::snan();
+        }
+        if self.is_infinite()
+        {
+            return zero;
+        }
+    
+        if n == 0
+        {
+            return self.y0();
+        }
+        let nm1;
+        let sign;
+        if n < 0
+        {
+            nm1 = -(n + 1);
+            sign = (n & 1) != 0;
+        }
+        else
+        {
+            nm1 = n - 1;
+            sign = false;
+        }
+        if nm1 == 0
+        {
+            if sign
+            {
+                return -self.y1();
+            }
+
+            return self.y1();
+        }
+    
+        let two = Self::from(2u8);
+
+        let mut b;
+        if self > Self::from(8.1481439053379443450737827536375e90)
+        {
+            /* x > 2**302 */
+            /* (x >> n**2)
+             *      Jn(x) = cos(x-(2n+1)*pi/4)*sqrt(2/x*pi)
+             *      Yn(x) = sin(x-(2n+1)*pi/4)*sqrt(2/x*pi)
+             *      Let s=sin(x), c=cos(x),
+             *          xn=x-(2n+1)*pi/4, sqt2 = sqrt(2),then
+             *
+             *             n    sin(xn)*sqt2    cos(xn)*sqt2
+             *          ----------------------------------
+             *             0     s-c             c+s
+             *             1    -s-c            -c+s
+             *             2    -s+c            -c-s
+             *             3     s+c             c-s
+             */
+            let (s, c) = self.sin_cos();
+            let temp = match nm1 & 3 {
+                0 => -s - c,
+                1 => -s + c,
+                2 => s + c,
+                3 | _ => s - c,
+            };
+            b = Self::from(INVSQRTPI)*temp/self.sqrt();
+        }
+        else
+        {
+            let mut a = self.y0();
+            b = self.y1();
+            /* quit if b is -inf */
+            let mut i = 0;
+            while i < nm1 && b.is_finite()
+            {
+                i += 1;
+                let temp = b;
+                b = (two*Self::from(i)/self)*b - a;
+                a = temp;
+            }
+        }
+    
+        if sign
+        {
+            -b
+        }
+        else
+        {
+            b
+        }
     }
 }
 
@@ -6419,7 +6764,7 @@ mod test
     #[test]
     fn test_y0()
     {
-        crate::tests::test_op1("y0", libm::y0f, Fp::y0, Some(0.1), Some(0.001..20.0))
+        crate::tests::test_op1("y0", libm::y0f, Fp::y0, Some(0.1), Some(0.01..20.0))
     }
     
     #[test]
@@ -6431,7 +6776,31 @@ mod test
     #[test]
     fn test_y1()
     {
-        crate::tests::test_op1("y1", libm::y1f, Fp::y1, Some(0.1), Some(0.001..20.0))
+        crate::tests::test_op1("y1", libm::y1f, Fp::y1, Some(0.1), Some(0.01..20.0))
+    }
+    
+    #[test]
+    fn test_j2()
+    {
+        crate::tests::test_op1("j2", |x| libm::jnf(2, x), |x| x.jn(2), Some(0.1), Some(-20.0..20.0))
+    }
+    
+    #[test]
+    fn test_y2()
+    {
+        crate::tests::test_op1("y2", |x| libm::ynf(2, x), |x| x.yn(2), Some(0.1), Some(1.0..20.0))
+    }
+    
+    #[test]
+    fn test_j3()
+    {
+        crate::tests::test_op1("j3", |x| libm::jnf(3, x), |x| x.jn(3), Some(0.1), Some(-20.0..20.0))
+    }
+    
+    #[test]
+    fn test_y3()
+    {
+        crate::tests::test_op1("y3", |x| libm::ynf(3, x), |x| x.yn(3), Some(0.1), Some(1.0..20.0))
     }
     
     #[test]
