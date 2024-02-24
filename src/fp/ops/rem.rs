@@ -1,4 +1,4 @@
-use std::ops::{Rem, RemAssign};
+use core::ops::{Rem, RemAssign};
 
 use crate::{UInt, Fp, util};
 

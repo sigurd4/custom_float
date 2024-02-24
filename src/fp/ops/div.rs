@@ -1,4 +1,4 @@
-use std::ops::{Div, DivAssign};
+use core::ops::{Div, DivAssign};
 
 use crate::fp::{UInt, Fp, util};
 

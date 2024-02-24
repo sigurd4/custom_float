@@ -1,3 +1,5 @@
+use core::cmp::Ordering;
+
 use num_traits::float::TotalOrder;
 
 use crate::{util, Fp, UInt};
@@ -9,7 +11,7 @@ where
     [(); EXP_BASE - 2]:
 {
     #[inline]
-    fn total_cmp(&self, other: &Self) -> std::cmp::Ordering
+    fn total_cmp(&self, other: &Self) -> Ordering
     {
         (*self).total_cmp(*other)
     }

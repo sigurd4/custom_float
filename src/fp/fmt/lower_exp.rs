@@ -1,4 +1,4 @@
-use std::fmt::LowerExp;
+use core::fmt::LowerExp;
 
 use crate::{util, Fp, UInt};
 
@@ -8,7 +8,7 @@ where
     [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:,
     [(); EXP_BASE - 2]:
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
     {
         let x = Into::<f64>::into(*self);
         if self.is_finite() != x.is_finite()

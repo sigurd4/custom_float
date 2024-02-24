@@ -1,4 +1,4 @@
-use std::num::FpCategory;
+use core::num::FpCategory;
 
 use num_traits::{float::FloatCore, Float};
 

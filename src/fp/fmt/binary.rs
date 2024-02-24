@@ -1,4 +1,4 @@
-use std::fmt::Binary;
+use core::fmt::Binary;
 
 use crate::{util, Fp, UInt};
 
@@ -10,7 +10,7 @@ where
     [(); EXP_BASE - 2]:
 {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
     {
         <U as Binary>::fmt(&self.to_bits(), f)
     }

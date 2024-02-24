@@ -1,3 +1,5 @@
+use core::num::FpCategory;
+
 use num_traits::{float::FloatCore, NumCast};
 
 use crate::{util, Fp, UInt};
@@ -58,7 +60,7 @@ where
     }
 
     #[inline]
-    fn classify(self) -> std::num::FpCategory
+    fn classify(self) -> FpCategory
     {
         self.classify()
     }

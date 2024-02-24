@@ -1,5 +1,5 @@
-use std::cmp::Ordering;
-use std::num::FpCategory;
+use core::cmp::Ordering;
+use core::num::FpCategory;
 
 use array_math::{ArrayMath, ArrayOps};
 use num_traits::{ConstZero, FloatConst, FromBytes, ToBytes};
@@ -4996,7 +4996,7 @@ where
     /// assert_eq!((-FpDouble::zero()).total_cmp(FpDouble::zero()), Ordering::Less);
     /// ```
     #[must_use = "this returns the result of the comparison, without modifying either input"]
-    pub fn total_cmp(self, other: Self) -> std::cmp::Ordering
+    pub fn total_cmp(self, other: Self) -> Ordering
     {
         let s0 = self.sign_bit();
         let s1 = other.sign_bit();

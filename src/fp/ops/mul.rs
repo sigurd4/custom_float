@@ -1,4 +1,4 @@
-use std::ops::{Mul, MulAssign};
+use core::ops::{Mul, MulAssign};
 
 use crate::fp::{UInt, Fp, util};
 

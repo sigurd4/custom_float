@@ -1,4 +1,4 @@
-use std::ops::{Neg, Sub, SubAssign};
+use core::ops::{Neg, Sub, SubAssign};
 
 use crate::{UInt, Fp, util};
 

@@ -1,4 +1,7 @@
 #![allow(incomplete_features)]
+
+#![cfg_attr(not(test), no_std)]
+
 #![feature(const_trait_impl)]
 #![feature(generic_const_exprs)]
 #![feature(trait_alias)]
@@ -9,7 +12,7 @@
 #![feature(float_gamma)]
 #![feature(lazy_cell)]
 
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use num_traits::{CheckedNeg, CheckedShl, CheckedShr, PrimInt, Signed, Unsigned};
 
