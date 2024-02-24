@@ -44,7 +44,7 @@ mod tests
 {
     #![allow(unused)]
 
-    use std::ops::{RangeBounds, Range};
+    use std::{ops::{Range, RangeBounds}, time::{Instant, SystemTime}};
 
     use array_math::{ArrayMath, ArrayOps};
     use linspace::LinspaceArray;
@@ -157,10 +157,31 @@ mod tests
         if let Some(r) = r
         {
             plot_approx(fn_name, r.clone(), &op1, |x| op2(Fp::from(x)).into());
-            plot_err(fn_name, r, op1, |x| op2(Fp::from(x)).into())
+            plot_err(fn_name, r.clone(), &op1, |x| op2(Fp::from(x)).into());
+            plot_bench(fn_name, r, |x| {
+                let t0 = Instant::now();
+
+                for _ in 0..M
+                {
+                    let _ = op1(x);
+                }
+
+                Instant::now().duration_since(t0).div_f64(M as f64).as_secs_f32()
+            }, |x| {
+                let x = Fp::from(x);
+                let t0 = Instant::now();
+
+                for _ in 0..M
+                {
+                    let _ = op2(x);
+                }
+
+                Instant::now().duration_since(t0).div_f64(M as f64).as_secs_f32()
+            })
         }
     }
 
+    const M: usize = 64;
     const N: usize = 1024;
     const PLOT_TARGET: &str = "plots";
     
@@ -214,6 +235,37 @@ mod tests
 
         let plot_title: &str = &format!("{fn_name}(x)");
         let plot_path: &str = &format!("{PLOT_TARGET}/{fn_name}.png");
+
+        plot::plot_curves(plot_title, plot_path, [x, x], [y, y_approx])
+            .expect("Plot error");
+
+        /*let (avg_error, max_abs_error) = y.zip(y_approx)
+            .map(|(y, y_approx)| y - y_approx)
+            .map(|y| (y, y.abs()))
+            .reduce(|a, b| (a.0 + b.0, a.1.max(b.1)))
+            .map(|(sum_error, max_abs_error)| (sum_error/N as f32, max_abs_error))
+            .unwrap_or_default();
+        println!("Average Error: {}", avg_error);
+        println!("Max |Error|: {}", max_abs_error);*/
+    }
+    
+    #[allow(unused)]
+    pub fn plot_bench<R>(
+        fn_name: &str,
+        range: R,
+        func: impl Fn(f32) -> f32,
+        approx: impl Fn(f32) -> f32
+    )
+    where
+        R: RangeBounds<f32> + LinspaceArray<f32, N>
+    {
+        let x: [f32; N] = range.linspace_array();
+        let y_approx = x.map(approx);
+
+        let y = x.map(func);
+
+        let plot_title: &str = &format!("{fn_name}(x) benchmark");
+        let plot_path: &str = &format!("{PLOT_TARGET}/bench/{fn_name}_bench.png");
 
         plot::plot_curves(plot_title, plot_path, [x, x], [y, y_approx])
             .expect("Plot error");
