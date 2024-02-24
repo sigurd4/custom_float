@@ -11,6 +11,7 @@ pub const fn bitsize_of<T>() -> usize
     core::mem::size_of::<T>()*8
 }
 
+/// Returns (2^`digits_bin`).ilog(base)
 pub fn count_digits_in_base(digits_bin: usize, base: usize) -> usize
 {
     let mut d: usize = 1;

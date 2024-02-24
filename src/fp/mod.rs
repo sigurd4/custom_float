@@ -3371,7 +3371,58 @@ where
     #[inline]
     pub fn hypot(self, other: Self) -> Self
     {
-        (self*self + other*other).sqrt()
+        let bias = Self::exp_bias();
+        let hi = <Self as From<_>>::from(bias.to_f64().unwrap()*0.7).exp_base();
+        let lo = <Self as From<_>>::from(-bias.to_f64().unwrap()*0.7).exp_base();
+    
+        let mut x = self.abs();
+        let mut y = other.abs();
+    
+        /* arrange |x| >= |y| */
+        if x < y
+        {
+            core::mem::swap(&mut x, &mut y)
+        }
+    
+        /* special cases */
+        let ex = x.exp_bits();
+        let ey = y.exp_bits();
+        /* note: hypot(inf,nan) == inf */
+        if y.is_infinite() || x.is_zero()
+        {
+            return y;
+        }
+        if x.is_infinite() || y.is_zero()
+        {
+            return x;
+        }
+        /* note: hypot(x,y) ~= x + y*y/x/2 with inexact for small y/x */
+        if match <usize as NumCast>::from(ex - ey)
+        {
+            Some(de) => de > util::count_digits_in_base(FRAC_SIZE + 1, EXP_BASE),
+            None => true
+        }
+        {
+            return x + y;
+        }
+    
+        /* precise sqrt argument in nearest rounding mode without overflow */
+        /* xh*xh must not overflow and xl*xl must not underflow in sq */
+        let bias_half = bias/U::from(2).unwrap();
+        let mut z = Self::one();
+        if ex > bias + bias_half
+        {
+            z = hi;
+            x *= lo;
+            y *= lo;
+        }
+        else if ey < bias - bias_half
+        {
+            z = lo;
+            x *= hi;
+            y *= hi;
+        }
+        z * (x*x + y*y).sqrt()
     }
 
     /// Computes the sine of a number (in radians).
