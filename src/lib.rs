@@ -237,17 +237,7 @@ mod tests
     #[test]
     fn test_convert()
     {
-        for f0 in ttable::<f32>()
-        {
-            let fp = F::from(f0);
-
-            let f1: f32 = fp.into();
-
-            if f0 != f1 && !(f0.is_nan() && f1.is_nan())
-            {
-                println!("{} != {}", f0, f1)
-            }
-        }
+        test_op1("ident", |x| x, |x| x, None, Some(-5.0..20.0))
     }
 
     #[test]

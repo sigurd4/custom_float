@@ -420,7 +420,7 @@ mod test
     #[test]
     fn test_ln_1p()
     {
-        crate::tests::test_op1("ln_1p", Float::ln_1p, Float::ln_1p, None, Some(0.5..5.0));
+        crate::tests::test_op1("ln_1p", Float::ln_1p, Float::ln_1p, None, Some(-0.5..5.0));
     }
 
     #[test]

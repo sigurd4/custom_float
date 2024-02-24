@@ -2634,7 +2634,12 @@ where
         let mut y = y;
         for _ in 0..NEWTON
         {
-            y = half*(y + self/y);
+            let y_ = half*(y + self/y);
+            if !y_.is_finite()
+            {
+                break
+            }
+            y = y_;
         }
         y
     }
@@ -2714,11 +2719,11 @@ where
         let e = e + Self::from_uint(Self::exp_bias());
         if e > Self::from_uint((U::one() << EXP_SIZE) - U::one())
         {
-            return Self::infinity()*z
+            return if neg {Self::zero()} else {Self::infinity()}*z
         }
         if e < Self::zero()
         {
-            return Self::zero()*z
+            return if !neg {Self::zero()} else {Self::infinity()}*z
         }
         if e.is_nan()
         {
@@ -2787,7 +2792,12 @@ where
 
             for _ in 0..NEWTON
             {
-                y -= y*(y.ln_nonewton() - self)
+                let dy = y*(y.ln_nonewton() - self);
+                if !dy.is_finite()
+                {
+                    break
+                }
+                y -= dy
             }
         }
 
@@ -2892,7 +2902,12 @@ where
 
             for _ in 0..NEWTON
             {
-                y -= Self::one() - self/y.exp()
+                let dy = Self::one() - self/y.exp();
+                if !dy.is_finite()
+                {
+                    break
+                }
+                y -= dy
             }
         }
 
@@ -2989,10 +3004,13 @@ where
         }
         
         let base = U::from(EXP_BASE).unwrap();
-        while f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
+        if e.is_zero() && Self::IS_INT_IMPLICIT
         {
-            y = y - Self::one();
-            f = f*base;
+            while f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
+            {
+                y = y - Self::one();
+                f = f*base;
+            }
         }
 
         if Self::IS_INT_IMPLICIT
@@ -3045,7 +3063,12 @@ where
 
             for _ in 0..NEWTON
             {
-                y -= (Self::one() - self/y.exp2())/Self::LN_2()
+                let dy = (Self::one() - self/y.exp2())/Self::LN_2();
+                if !dy.is_finite()
+                {
+                    break
+                }
+                y -= dy
             }
         }
 
@@ -3090,7 +3113,12 @@ where
 
             for _ in 0..NEWTON
             {
-                y -= (Self::one() - self/y.exp10())/Self::LN_10()
+                let dy = (Self::one() - self/y.exp10())/Self::LN_10();
+                if !dy.is_finite()
+                {
+                    break
+                }
+                y -= dy
             }
         }
 
@@ -3309,7 +3337,12 @@ where
         let mut y = y;
         for _ in 0..NEWTON
         {
-            y = third*(self/(y*y) + two*y);
+            let y_ = third*(self/(y*y) + two*y);
+            if !y_.is_finite()
+            {
+                break
+            }
+            y = y_;
         }
         y
     }
@@ -3371,7 +3404,7 @@ where
         {
             return Self::snan()
         }
-        if self.abs() < (-Self::from_uint(12u8)).exp2()
+        if self.abs() < <Self as From<_>>::from(0.000244140625)
         {
             return self
         }
@@ -3418,6 +3451,11 @@ where
         }
         let two = <Self as From<_>>::from(2.0);
         let w = if w > Self::one() {two - w} else if w < -Self::one() {-two - w} else {w};
+        
+        if w.abs() < <Self as From<_>>::from(1.5542474911317903883680055016847e-4)
+        {
+            return w*Self::FRAC_PI_2()
+        }
 
         let z = two*w*w - Self::one();
 
@@ -3555,8 +3593,18 @@ where
 
             for _ in 0..NEWTON
             {
-                y = y - (y.atan() - self)*(y*y + Self::one())
+                let dy = (y.atan() - self)*(y*y + Self::one());
+                if !dy.is_finite()
+                {
+                    break
+                }
+                y -= dy
             }
+        }
+
+        if y.is_nan()
+        {
+            return Self::infinity().copysign(self)
         }
 
         y
@@ -3599,7 +3647,7 @@ where
         {
             return (self - self)/(self - self)
         }
-        if xabs < (-Self::from_uint(27u8)).exp2()
+        if xabs < <Self as From<_>>::from(0.000000007450580596923828125)
         {
             return self
         }
@@ -3691,7 +3739,7 @@ where
         }
         else if xabs < <Self as From<_>>::from(0.5)
         {
-            if xabs < (-Self::from_uint(27u8)).exp2()
+            if xabs < <Self as From<_>>::from(0.000000007450580596923828125)
             {
                 self
             }
@@ -3743,7 +3791,12 @@ where
             for _ in 0..NEWTON
             {
                 let (sin, cos) = y.sin_cos();
-                y -= (sin - self)/cos
+                let dy = (sin - self)/cos;
+                if !dy.is_finite()
+                {
+                    break
+                }
+                y -= dy
             }
         }
 
@@ -3791,7 +3844,7 @@ where
         {
             return (self - self)/(self - self)
         }
-        if xabs < (-Self::from_uint(27u8)).exp2()
+        if xabs < <Self as From<_>>::from(0.00000001490116119384765625)
         {
             return Self::FRAC_PI_2() - self
         }
@@ -3876,7 +3929,7 @@ where
 
         let mut y = if xabs < <Self as From<_>>::from(0.5)
         {
-            if xabs < (-Self::from_uint(26u8)).exp2()
+            if xabs < <Self as From<_>>::from(0.00000001490116119384765625)
             {
                 <Self as From<_>>::from(PIO2_HI) + <Self as From<_>>::from(PIO2_LO)
             }
@@ -3928,7 +3981,12 @@ where
             for _ in 0..NEWTON
             {
                 let (sin, cos) = y.sin_cos();
-                y += (cos - self)/sin
+                let dy = (cos - self)/sin;
+                if !dy.is_finite()
+                {
+                    break
+                }
+                y += dy
             }
         }
 
@@ -4062,7 +4120,12 @@ where
             for _ in 0..NEWTON
             {
                 let (sin, cos) = y.sin_cos();
-                y -= (sin - cos*self)*cos
+                let dy = (sin - cos*self)*cos;
+                if !dy.is_finite()
+                {
+                    break
+                }
+                y -= dy
             }
         }
         
@@ -4241,7 +4304,12 @@ where
 
             for _ in 0..NEWTON
             {
-                y -= Self::one() - xp1/y.exp()
+                let dy = Self::one() - xp1/y.exp();
+                if !dy.is_finite()
+                {
+                    break
+                }
+                y -= dy
             }
         }
 
@@ -4280,14 +4348,31 @@ where
     
         let mut y = ((Self::one() - emx*emx)/emx*<Self as From<_>>::from(0.5)).copysign(self);
 
+        if y.is_nan()
+        {
+            let ex = (self.abs()).exp();
+        
+            y = ((ex*ex - Self::one())/ex*<Self as From<_>>::from(0.5)).copysign(self);
+        }
+
         if y.is_finite()
         {
             const NEWTON: usize = NEWTON_TRIG;
 
             for _ in 0..NEWTON
             {
-                y -= (y.asinh() - self)*(y*y + Self::one()).sqrt()
+                let dy = (y.asinh() - self)*(y*y + Self::one()).sqrt();
+                if !dy.is_finite()
+                {
+                    break
+                }
+                y -= dy
             }
+        }
+
+        if y.is_nan()
+        {
+            return Self::infinity().copysign(self)
         }
 
         y
@@ -4332,7 +4417,12 @@ where
 
             for _ in 0..NEWTON
             {
-                y -= (y.acosh() - self.abs())*(y*y - Self::one()).sqrt()
+                let dy = (y.acosh() - self.abs())*(y*y - Self::one()).sqrt();
+                if !dy.is_finite()
+                {
+                    break
+                }
+                y -= dy
             }
         }
 
@@ -4370,13 +4460,13 @@ where
         {
             return Self::one().copysign(self)
         }
+        let one = Self::one();
         let xabs = self.abs();
-        if xabs < (-Self::from_uint(27u8)).exp2()
+        if xabs < <Self as From<_>>::from(2.7755575615628913510590791702271e-17)
         {
-            return self
+            return self*(one + self)
         }
 
-        let one = Self::one();
         let ex = (-xabs).exp();
         let ex2 = ex*ex;
         let ex2p1 = one + ex2;
@@ -4402,6 +4492,10 @@ where
         if y.abs() >= Self::one()
         {
             return Self::one().copysign(y)
+        }
+        if y.is_nan()
+        {
+            return Self::one().copysign(self)
         }
 
         y
@@ -4436,12 +4530,11 @@ where
 
         let w;
         let xabs = self.abs();
-        let fourteen = Self::from_uint(14u8);
-        if xabs < (-fourteen).exp2()
+        if xabs < <Self as From<_>>::from(0.00006103515625)
         {
             return self
         }
-        if xabs > fourteen.exp2()
+        if xabs > <Self as From<_>>::from(16384.0)
         {
             if !xabs.is_finite()
             {
@@ -4502,7 +4595,7 @@ where
         }
         //(self + (self*self - Self::one()).sqrt()).ln()
 
-        if self > (Self::from_uint(28u8)).exp2()
+        if self > <Self as From<_>>::from(268435456.0)
         {
             self.ln() + Self::LN_2()
         }
@@ -4573,7 +4666,7 @@ where
         let half = <Self as From<_>>::from(0.5);
         if xabs < half
         {
-            if xabs < (-Self::from_uint(28u8)).exp2()
+            if xabs < <Self as From<_>>::from(0.0000000037252902984619140625)
             {
                 return self
             }
@@ -5241,8 +5334,8 @@ mod test
     #[test]
     fn test_gamma()
     {
-        crate::tests::test_op1("ln_gamma", |x| f32::ln_gamma(x).0, |x| Fp::ln_gamma(x).0, None, Some(-5.0..5.0));
-        crate::tests::test_op1("gamma", f32::gamma, Fp::gamma, None, Some(-5.0..5.0))
+        crate::tests::test_op1("ln_gamma", |x| f32::ln_gamma(x).0, |x| Fp::ln_gamma(x).0, None, Some(-4.5..20.0));
+        crate::tests::test_op1("gamma", f32::gamma, Fp::gamma, None, Some(-4.5..7.0))
     }
 
     #[test]
