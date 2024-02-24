@@ -38,9 +38,9 @@ where
             frac_b = frac_b + (fb.int_bits() << Self::INT_POS)
         }
         let mut divisor = Self::from_bits((expo_a << Self::EXP_POS) + frac_b);
-        while divisor < dividend.div_base()
+        while divisor < dividend.divb()
         {
-            divisor = divisor.mul_base();
+            divisor = divisor.mulb();
         }
         /* compute quotient one bit at a time */
         while divisor >= fb && !divisor.is_zero() && divisor.is_finite()
@@ -49,7 +49,7 @@ where
             {
                 dividend -= divisor;
             }
-            divisor = divisor.div_base();
+            divisor = divisor.divb();
         }
         /* dividend now represents remainder */
         dividend.copysign(self)

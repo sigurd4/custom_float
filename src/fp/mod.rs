@@ -2554,11 +2554,11 @@ where
             return (Self::one()/self).sqrt()
         }
 
-        let xabs_log = xabs.log_base();
+        let xabs_log = xabs.logb();
 
         let n_xabs_log = n*xabs_log;
         
-        n_xabs_log.exp_base()
+        n_xabs_log.expb()
     }
 
     /// Returns the square root of a number.
@@ -2605,11 +2605,11 @@ where
 
         let y = if EXP_BASE != 2
         {
-            let xabs_log = self.log_base();
+            let xabs_log = self.logb();
 
             let n_xabs_log = <Self as From<_>>::from(0.5)*xabs_log;
             
-            n_xabs_log.exp_base()
+            n_xabs_log.expb()
         }
         else if !Self::IS_INT_IMPLICIT
         {
@@ -2659,17 +2659,17 @@ where
     /// let d = DecDouble::from(2.0);
     ///
     /// // 2^2 - 4 == 0
-    /// let abs_difference_f = (f.exp_base() - FpDouble::from(4.0)).abs();
+    /// let abs_difference_f = (f.expb() - FpDouble::from(4.0)).abs();
     ///
     /// // 10^2 - 100 == 0
-    /// let abs_difference_d = (d.exp_base() - DecDouble::from(100.0)).abs();
+    /// let abs_difference_d = (d.expb() - DecDouble::from(100.0)).abs();
     ///
     /// assert!(abs_difference_f < FpDouble::from(1e-10));
     /// assert!(abs_difference_d < DecDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     #[inline]
-    pub fn exp_base(self) -> Self
+    pub fn expb(self) -> Self
     {
         if self.is_nan()
         {
@@ -2752,14 +2752,14 @@ where
     {
         if EXP_BASE == 2
         {
-            return (self/Self::LN_2()).exp_base()
+            return (self/Self::LN_2()).expb()
         }
         if EXP_BASE == 10
         {
-            return (self/Self::LN_10()).exp_base()
+            return (self/Self::LN_10()).expb()
         }
         
-        (self/<Self as From<_>>::from((EXP_BASE as f64).ln())).exp_base()
+        (self/<Self as From<_>>::from((EXP_BASE as f64).ln())).expb()
     }
 
     /// Returns `e^(self)`, (the exponential function).
@@ -2826,7 +2826,7 @@ where
     {
         if EXP_BASE == 10
         {
-            return self.exp_base()
+            return self.expb()
         }
         (self*Self::LN_10()).exp()
     }
@@ -2853,7 +2853,7 @@ where
     {
         if EXP_BASE == 2
         {
-            return self.exp_base()
+            return self.expb()
         }
         (self*Self::LN_2()).exp()
     }
@@ -2863,13 +2863,13 @@ where
     {
         if EXP_BASE == 2
         {
-            return self.log_base()*Self::LN_2()
+            return self.logb()*Self::LN_2()
         }
         if EXP_BASE == 10
         {
-            return self.log_base()*Self::LN_10()
+            return self.logb()*Self::LN_10()
         }
-        self.log_base()*<Self as From<_>>::from((EXP_BASE as f64).ln())
+        self.logb()*<Self as From<_>>::from((EXP_BASE as f64).ln())
     }
 
     /// Returns the natural logarithm of the number.
@@ -2959,17 +2959,17 @@ where
     /// let ten = DecDouble::from(10.0);
     ///
     /// // log2(2) - 1 == 0
-    /// let abs_difference_2 = (two.log_base() - FpDouble::one()).abs();
+    /// let abs_difference_2 = (two.logb() - FpDouble::one()).abs();
     /// 
     /// // log10(10) - 1 == 0
-    /// let abs_difference_10 = (ten.log_base() - DecDouble::one()).abs();
+    /// let abs_difference_10 = (ten.logb() - DecDouble::one()).abs();
     ///
     /// assert!(abs_difference_2 < FpDouble::from(1e-10));
     /// assert!(abs_difference_10 < DecDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     #[inline]
-    pub fn log_base(self) -> Self
+    pub fn logb(self) -> Self
     {
         if self.is_nan()
         {
@@ -3030,7 +3030,7 @@ where
     {
         if EXP_BASE == 2
         {
-            return self.log_base()
+            return self.logb()
         }
         self.ln_nonewton()/Self::LN_2()
     }
@@ -3080,7 +3080,7 @@ where
     {
         if EXP_BASE == 10
         {
-            return self.log_base()
+            return self.logb()
         }
         self.ln_nonewton()/Self::LN_10()
     }
@@ -3328,11 +3328,11 @@ where
         }
 
         let y = {
-            let xabs_log = self.abs().log_base();
+            let xabs_log = self.abs().logb();
 
             let n_xabs_log = xabs_log/<Self as From<_>>::from(3.0);
             
-            n_xabs_log.exp_base().copysign(self)
+            n_xabs_log.expb().copysign(self)
         };
 
         const NEWTON: usize = NEWTON_RT;
@@ -3376,8 +3376,8 @@ where
     pub fn hypot(self, other: Self) -> Self
     {
         let bias = Self::exp_bias();
-        let hi = <Self as From<_>>::from(bias.to_f64().unwrap()*0.7).exp_base();
-        let lo = <Self as From<_>>::from(-bias.to_f64().unwrap()*0.7).exp_base();
+        let hi = <Self as From<_>>::from(bias.to_f64().unwrap()*0.7).expb();
+        let lo = <Self as From<_>>::from(-bias.to_f64().unwrap()*0.7).expb();
     
         let mut x = self.abs();
         let mut y = other.abs();
@@ -5167,16 +5167,16 @@ where
     /// let d = DecDouble::from(2.0);
     ///
     /// // 2*2 - 4 == 0
-    /// let abs_difference_f = (f.mul_base() - FpDouble::from(4.0)).abs();
+    /// let abs_difference_f = (f.mulb() - FpDouble::from(4.0)).abs();
     ///
     /// // 2*10 - 20 == 0
-    /// let abs_difference_d = (d.mul_base() - DecDouble::from(20.0)).abs();
+    /// let abs_difference_d = (d.mulb() - DecDouble::from(20.0)).abs();
     ///
     /// assert!(abs_difference_f < FpDouble::from(1e-10));
     /// assert!(abs_difference_d < DecDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
-    pub fn mul_base(self) -> Self
+    pub fn mulb(self) -> Self
     {
         if !self.is_finite()
         {
@@ -5250,16 +5250,16 @@ where
     /// let d = DecDouble::from(2.0);
     ///
     /// // 2/2 - 1 == 0
-    /// let abs_difference_f = (f.div_base() - FpDouble::from(1.0)).abs();
+    /// let abs_difference_f = (f.divb() - FpDouble::from(1.0)).abs();
     ///
     /// // 2/10 - 0.2 == 0
-    /// let abs_difference_d = (d.div_base() - DecDouble::from(0.2)).abs();
+    /// let abs_difference_d = (d.divb() - DecDouble::from(0.2)).abs();
     ///
     /// assert!(abs_difference_f < FpDouble::from(1e-10));
     /// assert!(abs_difference_d < DecDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
-    pub fn div_base(self) -> Self
+    pub fn divb(self) -> Self
     {
         if !self.is_finite()
         {
