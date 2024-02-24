@@ -18,8 +18,6 @@ The number then automatically implements `num::Float`, and supports all ordinary
 
 This allows simple implementation of special floating point types, such as TensorFloat, IEEE754 Quadruple/binary128, Fp80, and BFloat16.
 
-The accuracy of all of the floating point operations are not perfect, but work well enough to be usable.
+The accuracy of all of the floating point operations are not perfect, but work well enough to be usable. Various plots showing the accuracy of basic functions are shown in the [plots](https://github.com/sigurd4/custom_float/tree/master/plots) subfolder.
 
-All arithmetic operations are performed using bitwise operators and integer arithmetic.
-
-All floats can be converted into each other.
+All floats can be converted into each other painlessly, though the conversion may produce rounding errors or unbounded outputs when converting to a float with lesser resolution.
