@@ -5908,7 +5908,7 @@ where
         return Self::from(INVSQRTPI) * cc / self.sqrt();
     }
     
-    /// Bessel function of first kind with α = 0.
+    /// Bessel function of the first kind with α = 0.
     pub fn j0(mut self) -> Self
     {
         self = self.abs();
@@ -5965,7 +5965,7 @@ where
         one - self
     }
 
-    /// Bessel function of second kind with α = 0.
+    /// Bessel function of the second kind with α = 0.
     pub fn y0(self) -> Self
     {
         /* y0(nan)=nan, y0(<0)=nan, y0(0)=-inf, y0(inf)=0 */
@@ -6298,6 +6298,7 @@ where
         Self::from(INVSQRTPI)*cc/self.sqrt()
     }
 
+    /// Bessel function of the first kind with α = 1.
     pub fn j1(self) -> Self
     {
         let sign = !self.sign_bit().is_zero();
@@ -6342,6 +6343,7 @@ where
         (Self::from(0.5) + z)*self
     }
     
+    /// Bessel function of the second kind with α = 1.
     pub fn y1(self) -> Self
     {
         /* y1(nan)=nan, y1(<0)=nan, y1(0)=-inf, y1(inf)=0 */
@@ -6393,6 +6395,7 @@ where
         self*(u/v) + Self::from(TPI)*(self.j1()*self.ln() - self.recip())
     }
 
+    /// Bessel function of the first kind with α = `n`.
     pub fn jn(mut self, n: i32) -> Self
     {
         const INVSQRTPI: f64 = 5.64189583547756279280e-01; /* 0x3FE20DD7, 0x50429B6D */
@@ -6630,6 +6633,7 @@ where
         }
     }
 
+    /// Bessel function of the second kind with α = `n`.
     pub fn yn(self, n: i32) -> Self
     {
         const INVSQRTPI: f64 = 5.64189583547756279280e-01; /* 0x3FE20DD7, 0x50429B6D */
