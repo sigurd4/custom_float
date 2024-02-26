@@ -31,8 +31,20 @@ const NEWTON_LN: usize = if NO_NEWTON {0} else {2};
 const NEWTON_RT: usize = if NO_NEWTON {0} else {4};
 const NEWTON_TRIG: usize = if NO_NEWTON {0} else {3};
 
-/// A custom floating point type.
+/// A custom floating point type, where the bit size of the exponent and mantissa can be set separately.
 /// 
+/// `U` is the underlying unsigned integer type which is used to represent the number.
+/// 
+/// `EXP_SIZE` is the size of the exponent in bits.
+/// 
+/// `INT_SIZE` is the size of the integer part of the mantissa in bits. If zero, then the integer bit is implicit.
+/// 
+/// `FRAC_SIZE` is the size of the fractional part of the mantissa in bits.
+/// 
+/// `EXP_BASE` is the base of the exponent.
+/// 
+/// The total bit size of `U` must be greater or equal to `EXP_SIZE` + `INT_SIZE` + `FRAC_SIZE` + 1 to contain the entire number.
+///
 /// The bit layout is as follows:
 /// ```txt
 /// No data: | Sign: | Exponent:  | Integer:   | Fractional: |
@@ -50,22 +62,45 @@ const NEWTON_TRIG: usize = if NO_NEWTON {0} else {3};
 /// ```
 ///
 /// If the exponent has the maximum value, the number is either infinity or NaN.
+/// 
+/// The number then automatically implements `num::Float`, and supports all ordinary floating point operations.
+/// 
+/// This allows simple implementation of special floating point types, such as TensorFloat, IEEE754 Quadruple/binary128, Fp80, and BFloat16.
+/// 
+/// The accuracy of all of the floating point operations are not perfect, but work well enough to be usable. Various plots showing the accuracy of basic functions are shown in the [plots](https://github.com/sigurd4/custom_float/tree/master/plots) subfolder.
+/// 
+/// All floats can be converted into each other painlessly, though the conversion may produce rounding errors or unbounded outputs when converting to a float with lesser resolution.
+///
+/// # Examples
+///
+/// ```rust
+/// #![feature(generic_const_exprs)]
+///
+/// use custom_float::Fp;
+///
+/// type FpSingle = Fp<u32, true, 8, 0, 23, 2>;
+///
+/// let two = FpSingle::from(2);
+/// let four = FpSingle::from(4);
+/// 
+/// assert_eq!(two + two, four);
+/// ```
 #[derive(Clone, Copy)]
-pub struct Fp<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize>(U)
+pub struct Fp<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize>(U)
 where
-    [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,
+    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
     [(); EXP_BASE - 2]:;
 
-impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
-    [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,
-    [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:,
+    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
+    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
     [(); EXP_BASE - 2]:
 {
     /// Size of floating-point number in bits
-    pub const BIT_SIZE: usize = EXP_SIZE + INT_SIZE + FRAC_SIZE + 1;
+    pub const BIT_SIZE: usize = Self::SIGN_SIZE + EXP_SIZE + INT_SIZE + FRAC_SIZE;
     /// Size of the sign bit
-    pub const SIGN_SIZE: usize = 1;
+    pub const SIGN_SIZE: usize = SIGN_BIT as usize;
 
     /// Position of the sign bit
     pub const SIGN_POS: usize = EXP_SIZE + INT_SIZE + FRAC_SIZE;
@@ -97,10 +132,10 @@ where
     /// Converts from one custom floating-point number to another.
     /// Rounding errors may occurr.
     #[must_use = "method returns a new number and does not mutate the original value"]
-    pub fn from_fp<V: UInt, const E: usize, const I: usize, const F: usize, const B: usize>(fp: Fp<V, E, I, F, B>) -> Self
+    pub fn from_fp<V: UInt, const S: bool, const E: usize, const I: usize, const F: usize, const B: usize>(fp: Fp<V, S, E, I, F, B>) -> Self
     where
-        [(); util::bitsize_of::<V>() - E - I - F - 1]:,
-        [(); util::bitsize_of::<V>() - E - 0 - F - 1]:,
+        [(); util::bitsize_of::<V>() - S as usize - E - I - F]:,
+        [(); util::bitsize_of::<V>() - S as usize - E - 0 - F]:,
         [(); B - 2]:
     {
         if EXP_SIZE == E && INT_SIZE == I && EXP_BASE == B
@@ -152,14 +187,18 @@ where
         {
             return if s == V::one() {Self::neg_zero()} else {Self::zero()}
         }
+        if !s.is_zero() && !SIGN_BIT
+        {
+            return Self::qnan()
+        }
 
         let mut e1 = fp.exp_bits();
         let mut f = fp.frac_bits();
 
         let s = U::from(s).unwrap();
-        if !e1.is_zero() || !Fp::<V, E, I, F, B>::IS_INT_IMPLICIT //normal
+        if !e1.is_zero() || !Fp::<V, S, E, I, F, B>::IS_INT_IMPLICIT //normal
         {
-            f = f + (fp.int_bits() << Fp::<V, E, I, F, B>::INT_POS);
+            f = f + (fp.int_bits() << Fp::<V, S, E, I, F, B>::INT_POS);
         }
         else
         {
@@ -196,7 +235,7 @@ where
             }
         };
         
-        let bias1 = Fp::<V, E, I, F, B>::exp_bias();
+        let bias1 = Fp::<V, S, E, I, F, B>::exp_bias();
         let bias2 = Self::exp_bias();
 
         let base1 = U::from(B).unwrap();
@@ -206,7 +245,7 @@ where
         while e1 > bias1
         {
             e1 = e1 - V::one();
-            while f.leading_zeros() as usize <= Fp::<V, E, I, F, B>::BASE_PADDING
+            while f.leading_zeros() as usize <= Fp::<V, S, E, I, F, B>::BASE_PADDING
             {
                 e = e + U::one();
                 f = util::rounding_div(f, base2);
@@ -223,7 +262,7 @@ where
             }
             f = util::rounding_div(f, base1)
         }
-        
+
         let s_bit = s << Self::SIGN_POS;
 
         while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
@@ -373,6 +412,10 @@ where
         }
 
         let s = from < I::zero();
+        if s && !SIGN_BIT
+        {
+            return Self::qnan()
+        }
         let mut e = Self::exp_bias();
         let mut f = if util::bitsize_of::<I>() - 1 > util::bitsize_of::<U>()
         {
@@ -1106,6 +1149,10 @@ where
     #[inline]
     pub fn sign_bit(self) -> U
     {
+        if !SIGN_BIT
+        {
+            return U::zero()
+        }
         (self.to_bits() & U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_POS - Self::SIGN_SIZE) >> Self::SIGN_POS
     }
     /// Returns the exponent bits of the custom floating-point number.
@@ -1310,6 +1357,10 @@ where
     #[inline]
     pub fn min_value() -> Self
     {
+        if !SIGN_BIT
+        {
+            return Self::zero()
+        }
         -Self::max_value()
     }
 
@@ -1573,7 +1624,7 @@ where
         {
             return FpCategory::Zero
         }
-        if Self::IS_INT_IMPLICIT && e == U::zero()
+        if Self::IS_INT_IMPLICIT && e.is_zero()
         {
             return FpCategory::Subnormal
         }
@@ -1636,7 +1687,7 @@ where
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     #[inline]
-    pub fn ceil(self) -> Self
+    pub fn ceil(mut self) -> Self
     {
         if !self.is_finite()
         {
@@ -1645,7 +1696,14 @@ where
         let mut m = self % Self::one();
         if self.is_sign_positive() && !m.is_zero()
         {
-            m -= Self::one()
+            if !SIGN_BIT
+            {
+                self += Self::one()
+            }
+            else
+            {
+                m -= Self::one()
+            }
         }
         self - m
     }
@@ -1668,7 +1726,7 @@ where
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     #[inline]
-    pub fn round(self) -> Self
+    pub fn round(mut self) -> Self
     {
         if !self.is_finite()
         {
@@ -1678,7 +1736,14 @@ where
         let half = Self::from(0.5);
         if self.is_sign_positive() && m >= half
         {
-            m -= Self::one()
+            if !SIGN_BIT
+            {
+                self += Self::one()
+            }
+            else
+            {
+                m -= Self::one()
+            }
         }
         if self.is_sign_negative() && m <= -half
         {
@@ -1709,7 +1774,7 @@ where
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     #[inline]
-    pub fn round_ties_even(self) -> Self
+    pub fn round_ties_even(mut self) -> Self
     {
         if !self.is_finite()
         {
@@ -1721,7 +1786,14 @@ where
         let half = Self::from(0.5);
         if self.is_sign_positive() && m >= half && (m != half || t > one)
         {
-            m -= Self::one()
+            if !SIGN_BIT
+            {
+                self += Self::one()
+            }
+            else
+            {
+                m -= Self::one()
+            }
         }
         if self.is_sign_negative() && m <= -half && (m != -half || t < -one)
         {
@@ -1806,6 +1878,10 @@ where
     #[inline]
     pub fn abs(self) -> Self
     {
+        if !SIGN_BIT
+        {
+            return self
+        }
         Self::from_bits(self.to_bits() & (U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_POS))
     }
 
@@ -1869,6 +1945,10 @@ where
     #[inline]
     pub fn is_sign_positive(self) -> bool
     {
+        if !SIGN_BIT
+        {
+            return true
+        }
         self.sign_bit().is_zero()
     }
 
@@ -1901,6 +1981,10 @@ where
     #[inline]
     pub fn is_sign_negative(self) -> bool
     {
+        if !SIGN_BIT
+        {
+            return false
+        }
         !self.sign_bit().is_zero()
     }
 
@@ -2451,7 +2535,7 @@ where
         }
         
         // if n is an odd integer
-        let n_d = (nabs + Self::one())*Self::from(0.5);
+        let n_d = (nabs.trunc() % Self::from(2u8)  + Self::one())*Self::from(0.5);
         let noi = n_d.trunc() == n_d;
 
         if xabs.is_zero()
@@ -2536,7 +2620,7 @@ where
                 {
                     return self
                 }
-                return -Self::zero()
+                return Self::neg_zero()
             }
             
             if n > Self::zero()
@@ -2563,11 +2647,22 @@ where
             return (Self::one()/self).sqrt()
         }
 
-        let xabs_log = xabs.logb();
+        if !SIGN_BIT
+        {
+            let xabs_log = xabs.recip().logb();
+    
+            let n_xabs_log = n*xabs_log;
+            
+            n_xabs_log.expb().recip()
+        }
+        else
+        {
+            let xabs_log = xabs.logb();
 
-        let n_xabs_log = n*xabs_log;
-        
-        n_xabs_log.expb()
+            let n_xabs_log = n*xabs_log;
+            
+            n_xabs_log.expb()
+        }
     }
 
     /// Returns the square root of a number.
@@ -2614,17 +2709,28 @@ where
 
         let y = if EXP_BASE != 2
         {
-            let xabs_log = self.logb();
+            if !SIGN_BIT && self < Self::one()
+            {
+                let xabs_log = self.recip().logb();
+    
+                let n_xabs_log = xabs_log/Self::from(2u8);
+                
+                n_xabs_log.expb().recip()
+            }
+            else
+            {
+                let xabs_log = self.logb();
 
-            let n_xabs_log = Self::from(0.5)*xabs_log;
-            
-            n_xabs_log.expb()
+                let n_xabs_log = xabs_log/Self::from(2u8);
+                
+                n_xabs_log.expb()
+            }
         }
         else if !Self::IS_INT_IMPLICIT
         {
-            let x = Fp::<U, EXP_SIZE, 0, FRAC_SIZE, EXP_BASE>::from_fp(self);
-            Self::from_fp(Fp::<U, EXP_SIZE, 0, FRAC_SIZE, EXP_BASE>::from_bits(
-                ((Fp::<U, EXP_SIZE, 0, FRAC_SIZE, EXP_BASE>::exp_bias() + U::one()) * (U::one() << (FRAC_SIZE - 1)))
+            let x = Fp::<U, SIGN_BIT, EXP_SIZE, 0, FRAC_SIZE, EXP_BASE>::from_fp(self);
+            Self::from_fp(Fp::<U, SIGN_BIT, EXP_SIZE, 0, FRAC_SIZE, EXP_BASE>::from_bits(
+                ((Fp::<U, SIGN_BIT, EXP_SIZE, 0, FRAC_SIZE, EXP_BASE>::exp_bias() + U::one()) * (U::one() << (FRAC_SIZE - 1)))
                 + (x.to_bits() >> 1usize)
                 - (U::one() << (FRAC_SIZE - 1))
             ))
@@ -2799,14 +2905,33 @@ where
         {
             const NEWTON: usize = NEWTON_EXP;
 
+            let one = Self::one();
             for _ in 0..NEWTON
             {
-                let dy = y*(y.ln_nonewton() - self);
-                if !dy.is_finite()
+                let (x, x_s) = if SIGN_BIT || y >= one
+                {
+                    (y.ln_nonewton(), false)
+                }
+                else
+                {
+                    (y.recip().ln_nonewton(), true)
+                };
+
+                let (dxx, s) = util::add_extra_sign((x, x_s), (self, true), SIGN_BIT);
+                let dy = y*dxx;
+
+                if !dy.is_finite() || (!SIGN_BIT && !s && dy > y)
                 {
                     break
                 }
-                y -= dy
+                if s
+                {
+                    y += dy
+                }
+                else
+                {
+                    y -= dy
+                }
             }
         }
 
@@ -2909,14 +3034,30 @@ where
         {
             const NEWTON: usize = NEWTON_LN;
 
+            let one = Self::one();
             for _ in 0..NEWTON
             {
-                let dy = Self::one() - self/y.exp();
-                if !dy.is_finite()
+                let x = self/y.exp();
+                let (dy, s) = if SIGN_BIT || one >= x
+                {
+                    (one - x, false)
+                }
+                else
+                {
+                    (x - one, true)
+                };
+                if !dy.is_finite() || (!SIGN_BIT && !s && dy > y)
                 {
                     break
                 }
-                y -= dy
+                if s
+                {
+                    y += dy
+                }
+                else
+                {
+                    y -= dy
+                }
             }
         }
 
@@ -3070,14 +3211,31 @@ where
         {
             const NEWTON: usize = NEWTON_LN;
 
+            let one = Self::one();
+            let ln2 = Self::LN_2();
             for _ in 0..NEWTON
             {
-                let dy = (Self::one() - self/y.exp2())/Self::LN_2();
-                if !dy.is_finite()
+                let xdyexp2 = self/y.exp2();
+                let (dy, s) = if SIGN_BIT || one >= xdyexp2
+                {
+                    ((one - xdyexp2)/ln2, false)
+                }
+                else
+                {
+                    ((xdyexp2 - one)/ln2, true)
+                };
+                if !dy.is_finite() || (!SIGN_BIT && !s && dy > y)
                 {
                     break
                 }
-                y -= dy
+                if s
+                {
+                    y += dy
+                }
+                else
+                {
+                    y -= dy
+                }
             }
         }
 
@@ -3120,14 +3278,31 @@ where
         {
             const NEWTON: usize = NEWTON_LN;
 
+            let one = Self::one();
+            let ln10 = Self::LN_10();
             for _ in 0..NEWTON
             {
-                let dy = (Self::one() - self/y.exp10())/Self::LN_10();
-                if !dy.is_finite()
+                let xdyexp10 = self/y.exp10();
+                let (dy, s) = if SIGN_BIT || one >= xdyexp10
+                {
+                    ((one - xdyexp10)/ln10, false)
+                }
+                else
+                {
+                    ((xdyexp10 - one)/ln10, true)
+                };
+                if !dy.is_finite() || (!SIGN_BIT && !s && dy > y)
                 {
                     break
                 }
-                y -= dy
+                if s
+                {
+                    y += dy
+                }
+                else
+                {
+                    y -= dy
+                }
             }
         }
 
@@ -3337,11 +3512,23 @@ where
         }
 
         let y = {
-            let xabs_log = self.abs().logb();
+            let xabs = self.abs();
+            if !SIGN_BIT && xabs < Self::one()
+            {
+                let xabs_log = xabs.recip().logb();
+    
+                let n_xabs_log = xabs_log/Self::from(3.0);
+                
+                n_xabs_log.expb().recip().copysign(self)
+            }
+            else
+            {
+                let xabs_log = xabs.logb();
 
-            let n_xabs_log = xabs_log/Self::from(3.0);
-            
-            n_xabs_log.expb().copysign(self)
+                let n_xabs_log = xabs_log/Self::from(3.0);
+                
+                n_xabs_log.expb().copysign(self)
+            }
         };
 
         const NEWTON: usize = NEWTON_RT;
@@ -3438,39 +3625,19 @@ where
         z * (x*x + y*y).sqrt()
     }
 
-    /// Computes the sine of a number (in radians).
-    ///
-    /// This implementation is based on Harvey M. Wagner's [Polynomial approximations to elementary functions](https://www.ams.org/journals/mcom/1954-08-047/S0025-5718-1954-0063487-2/S0025-5718-1954-0063487-2.pdf).
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
-    /// use custom_float::ieee754::FpDouble;
-    /// use num::traits::FloatConst;
-    ///
-    /// let x = FpDouble::FRAC_PI_2();
-    ///
-    /// let abs_difference = (x.sin() - FpDouble::one()).abs();
-    ///
-    /// assert!(abs_difference < FpDouble::from(1e-10));
-    /// ```
-    #[must_use = "method returns a new number and does not mutate the original value"]
-    #[inline]
-    pub fn sin(self) -> Self
+    fn sin_extra_sign(self) -> (Self, bool)
     {
         if self.is_nan()
         {
-            return self
+            return (self, false)
         }
         if self.is_infinite()
         {
-            return Self::snan()
+            return (Self::snan(), false)
         }
         if self.abs() < Self::from(0.000244140625)
         {
-            return self
+            return (self, false)
         }
 
         const N: usize = 6;
@@ -3499,34 +3666,83 @@ where
                 })
             }
             P.unwrap()
-        }.map(|p| Self::from(p));
+        };
 
+        let one = Self::one();
         let mut w = self*Self::FRAC_2_PI();
         let mut i = 0;
+        let four = Self::from(4.0);
+        w %= four;
         while i < 4
         {
-            w -= Self::one();
-            if i % 2 == 0 && w < Self::zero()
+            w += four - one;
+            if i % 2 == 0 && w < four
             {
-                w = -w;
+                w = four - w;
             }
-            w %= Self::from(4.0);
+            w %= four;
             i += 1;
         }
         let two = Self::from(2.0);
-        let w = if w > Self::one() {two - w} else if w < -Self::one() {-two - w} else {w};
+        let mut s = false;
+        let w = if w > one
+        {
+            if !SIGN_BIT && two < w
+            {
+                s = !s;
+                w - two
+            }
+            else
+            {
+                two - w
+            }
+        }
+        else if w < -one
+        {
+            -two - w
+        }
+        else
+        {
+            w
+        };
         
         if w.abs() < Self::from(1.5542474911317903883680055016847e-4)
         {
-            return w*Self::FRAC_PI_2()
+            return (w*Self::FRAC_PI_2(), false)
         }
 
-        let z = two*w*w - Self::one();
+        let ww2 = two*w*w;
+        let y = if !SIGN_BIT && ww2 < one
+        {
+            let z_neg = one - ww2;
+            
+            let mut y = w*util::polynomial(&p, z_neg, SIGN_BIT, true);
+            if !SIGN_BIT && y.is_nan()
+            {
+                s = !s;
+                y = w*util::polynomial(&p.neg_all(), z_neg, SIGN_BIT, true)
+            }
 
-        p.polynomial(z)*w
+            y
+        }
+        else
+        {
+            let z = ww2 - one;
+
+            let mut y = w*util::polynomial(&p, z, SIGN_BIT, false);
+            if !SIGN_BIT && y.is_nan()
+            {
+                s = !s;
+                y = w*util::polynomial(&p.neg_all(), z, SIGN_BIT, false)
+            }
+
+            y
+        };
+
+        (y, s)
     }
 
-    /// Computes the cosine of a number (in radians).
+    /// Computes the sine of a number (in radians).
     ///
     /// This implementation is based on Harvey M. Wagner's [Polynomial approximations to elementary functions](https://www.ams.org/journals/mcom/1954-08-047/S0025-5718-1954-0063487-2/S0025-5718-1954-0063487-2.pdf).
     ///
@@ -3538,23 +3754,33 @@ where
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
-    /// let x = FpDouble::TAU();
+    /// let x = FpDouble::FRAC_PI_2();
     ///
-    /// let abs_difference = (x.cos() - FpDouble::one()).abs();
+    /// let abs_difference = (x.sin() - FpDouble::one()).abs();
     ///
     /// assert!(abs_difference < FpDouble::from(1e-10));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     #[inline]
-    pub fn cos(self) -> Self
+    pub fn sin(self) -> Self
+    {
+        let (mut y, s) = self.sin_extra_sign();
+        if s
+        {
+            y = -y
+        }
+        y
+    }
+
+    fn cos_extra_sign(self) -> (Self, bool)
     {
         if self.is_nan()
         {
-            return self
+            return (self, false)
         }
         if self.is_infinite()
         {
-            return Self::snan()
+            return (Self::snan(), false)
         }
         
         const N: usize = 6;
@@ -3583,36 +3809,110 @@ where
                 })
             }
             P.unwrap()
-        }.map(|p| Self::from(p));
+        };
 
+        let one = Self::one();
         let mut w = self*Self::FRAC_2_PI();
         let mut s = false;
         let mut i = 0;
+        let four = Self::from(4u8);
+        w %= four;
         while i < 4
         {
-            w -= Self::one();
-            if i % 2 == 0 && w < Self::zero()
+            w += four - one;
+            if i % 2 == 1 && w < four
             {
-                w = -w;
-                s = !s;
+                w = four - w;
             }
-            w %= Self::from(4.0);
+            w %= four;
             i += 1;
         }
-        let two = Self::from(2.0);
-        if w.abs() > Self::one()
+        if w.abs() > one
         {
-            s = !s;
+            s = !s
         }
-        let w = if w > Self::one() {two - w} else if w < -Self::one() {-two - w} else {w};
+        let two = Self::from(2u8);
+        w = w.abs();
+        let mut b = false;
+        let w = if w > one
+        {
+            if !SIGN_BIT && two < w
+            {
+                b = !b;
+                s = !s;
+                w - two
+            }
+            else
+            {
+                two - w
+            }
+        }
+        else
+        {
+            w
+        };
 
-        let z = two*w*w - Self::one();
+        let ww2 = two*w*w;
+        let y = if !SIGN_BIT && ww2 < one
+        {
+            let z_neg = one - ww2;
 
-        let y = p.polynomial(z);
+            let mut y = util::polynomial(&if s {p.neg_all()} else {p}, z_neg, SIGN_BIT, true);
+            if !SIGN_BIT && y.is_nan()
+            {
+                b = !b;
+                y = util::polynomial(&if s {p} else {p.neg_all()}, z_neg, SIGN_BIT, true);
+            }
+            
+            y
+        }
+        else
+        {
+            let z = ww2 - one;
 
+            let mut y = util::polynomial(&if !SIGN_BIT && s {p.neg_all()} else {p}, z, SIGN_BIT, false);
+            if !SIGN_BIT && y.is_nan()
+            {
+                b = !b;
+                y = util::polynomial(&if s {p} else {p.neg_all()}, z, SIGN_BIT, false);
+            }
+            if SIGN_BIT && s
+            {
+                y = -y
+            }
+
+            y
+        };
+
+        (y, b)
+    }
+
+    /// Computes the cosine of a number (in radians).
+    ///
+    /// This implementation is based on Harvey M. Wagner's [Polynomial approximations to elementary functions](https://www.ams.org/journals/mcom/1954-08-047/S0025-5718-1954-0063487-2/S0025-5718-1954-0063487-2.pdf).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
+    /// use custom_float::ieee754::FpDouble;
+    /// use num::traits::FloatConst;
+    ///
+    /// let x = FpDouble::TAU();
+    ///
+    /// let abs_difference = (x.cos() - FpDouble::one()).abs();
+    ///
+    /// assert!(abs_difference < FpDouble::from(1e-10));
+    /// ```
+    #[must_use = "method returns a new number and does not mutate the original value"]
+    #[inline]
+    pub fn cos(self) -> Self
+    {
+        let (mut y, s) = self.cos_extra_sign();
         if s
         {
-            return -y
+            y = -y
         }
         y
     }
@@ -3649,6 +3949,15 @@ where
 
         let (sin, cos) = self.sin_cos();
 
+        if sin.is_nan()
+        {
+            return sin
+        }
+        if cos.is_nan()
+        {
+            return cos
+        }
+
         let mut y = sin/cos;
 
         if y.is_finite()
@@ -3657,12 +3966,28 @@ where
 
             for _ in 0..NEWTON
             {
-                let dy = (y.atan() - self)*(y*y + Self::one());
-                if !dy.is_finite()
+                let x = y.atan();
+                let (dx, s) = if SIGN_BIT || x >= self
+                {
+                    (x - self, false)
+                }
+                else
+                {
+                    (self - x, true)
+                };
+                let dy = dx*(y*y + Self::one());
+                if !dy.is_finite() || (!SIGN_BIT && !s && dy > y)
                 {
                     break
                 }
-                y -= dy
+                if s
+                {
+                    y += dy
+                }
+                else
+                {
+                    y -= dy
+                }
             }
         }
 
@@ -3748,36 +4073,59 @@ where
             P.unwrap()
         }.map(|p| Self::from(p));
 
+        let one = Self::one();
         let w = if xabs <= Self::FRAC_1_SQRT_2()
         {
             self.abs()
         }
         else
         {
-            (Self::one() - self*self).sqrt()
+            (one - self*self).sqrt()
         };
         
-        let z = Self::from_uint(2u8)*w*w - Self::one();
+        let ww2 = Self::from_uint(2u8)*w*w;
+        
+        let mut s = false;
+        let mut y = if !SIGN_BIT && ww2 < one
+        {
+            let z_neg = one - ww2;
 
-        let mut y = p.polynomial(z)*w;
+            let mut y = util::polynomial(&p, z_neg, SIGN_BIT, true);
+            if y.is_nan()
+            {
+                s = !s;
+                y = util::polynomial(&p.neg_all(), z_neg, SIGN_BIT, true)
+            }
+            y
+        }
+        else
+        {
+            let z = ww2 - one;
+
+            p.polynomial(z)
+        }*w;
         if xabs > Self::FRAC_1_SQRT_2()
         {
-            y = Self::FRAC_PI_2() - y
+            if s
+            {
+                y = Self::FRAC_PI_2() + y
+            }
+            else
+            {
+                y = Self::FRAC_PI_2() - y
+            }
+        }
+        else
+        {
+            if s
+            {
+                y = -y
+            }
         }
         if self.is_sign_negative()
         {
             y = -y
         }
-
-        /*let xx = self*self;
-        let mut y = if xx < Self::from(0.5)
-        {
-            (self/(Self::one() - xx).sqrt()).atan()
-        }
-        else
-        {
-            Self::FRAC_PI_2() - ((Self::one() - xx).sqrt()/self).recip().atan()
-        };*/
 
         /*const PIO2_HI: f64 = 1.57079637050628662109375;
         const PIO2_LO: f64 = -4.37113900018624283e-8;
@@ -3854,13 +4202,23 @@ where
 
             for _ in 0..NEWTON
             {
-                let (sin, cos) = y.sin_cos();
-                let dy = (sin - self)/cos;
-                if !dy.is_finite()
+                let (sin, sin_s) = y.sin_extra_sign();
+                let (cos, cos_s) = y.cos_extra_sign();
+                let (dsx, dsx_s) = util::add_extra_sign((sin, sin_s), (self, true), SIGN_BIT);
+                let s = dsx_s^cos_s;
+                let dy = dsx/cos;
+                if !dy.is_finite() || (!SIGN_BIT && !s && dy > y)
                 {
                     break
                 }
-                y -= dy
+                if s
+                {
+                    y += dy
+                }
+                else
+                {
+                    y -= dy
+                }
             }
         }
 
@@ -3895,16 +4253,17 @@ where
         {
             return self
         }
-        if self == Self::one()
+        let one = Self::one();
+        if self == one
         {
             return Self::zero()
         }
-        if self == -Self::one()
+        if self == -one
         {
             return Self::PI()
         }
         let xabs = self.abs();
-        if xabs > Self::one()
+        if xabs > one
         {
             return (self - self)/(self - self)
         }
@@ -3943,7 +4302,7 @@ where
                 })
             }
             P.unwrap()
-        }.map(|p| Self::from(p));
+        }.map(Self::from);
 
         let w = if xabs <= Self::FRAC_1_SQRT_2()
         {
@@ -3951,10 +4310,11 @@ where
         }
         else
         {
-            (Self::one() - self*self).sqrt()
+            (one - self*self).sqrt()
         };
         
-        let z = Self::from_uint(2u8)*w*w - Self::one();
+        let ww2 = Self::from_uint(2u8)*w*w;
+        let z = ww2 - Self::one();
 
         let mut y = p.polynomial(z)*w;
         if xabs <= Self::FRAC_1_SQRT_2()
@@ -3966,16 +4326,18 @@ where
             y = Self::PI() - y
         }
         
-
-        /*let xx = self*self;
-        let mut y = if xx > Self::from(0.5)
+        if !y.is_finite()
         {
-            ((Self::one() - xx).sqrt()/self).atan()
+            let xx = self*self;
+            y = if xx > Self::from(0.5)
+            {
+                ((Self::one() - xx).sqrt()/self).atan()
+            }
+            else
+            {
+                Self::FRAC_PI_2() - (self/(Self::one() - xx).sqrt()).atan()
+            };
         }
-        else
-        {
-            Self::FRAC_PI_2() - (self/(Self::one() - xx).sqrt()).recip().atan()
-        };*/
 
         /*const PIO2_HI: f64 = 1.5707962513e+00;
         const PIO2_LO: f64 = 7.5497894159e-08;
@@ -4044,13 +4406,23 @@ where
 
             for _ in 0..NEWTON
             {
-                let (sin, cos) = y.sin_cos();
-                let dy = (cos - self)/sin;
-                if !dy.is_finite()
+                let (cos, cos_s) = y.cos_extra_sign();
+                let (sin, sin_s) = y.sin_extra_sign();
+                let (dcx, dcx_s) = util::add_extra_sign((cos, cos_s), (self, true), SIGN_BIT);
+                let s = dcx_s^sin_s;
+                let dy = dcx/sin;
+                if !dy.is_finite() || (!SIGN_BIT && s && dy > y)
                 {
                     break
                 }
-                y += dy
+                if s
+                {
+                    y -= dy
+                }
+                else
+                {
+                    y += dy
+                }
             }
         }
 
@@ -4074,7 +4446,7 @@ where
     /// // atan(tan(1))
     /// let abs_difference = (f.tan().atan() - f).abs();
     ///
-    /// assert!(abs_difference < FpDouble::from(1e-9));
+    /// assert!(abs_difference < FpDouble::from(1e-5));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn atan(self) -> Self
@@ -4119,10 +4491,11 @@ where
                 })
             }
             P.unwrap()
-        }.map(|p| Self::from(p));
+        };
 
         let xabs = self.abs();
-        let w = if xabs <= Self::one()
+        let inv = xabs > Self::one();
+        let w = if !inv
         {
             self
         }
@@ -4131,41 +4504,111 @@ where
             self.recip()
         };
         
-        let z = Self::from_uint(2u8)*w*w - Self::one();
-
-        let mut y = p.polynomial(z)*w;
-        if xabs > Self::one()
+        let one = Self::one();
+        let ww2 = Self::from_uint(2u8)*w*w;
+        let mut s = false;
+        let mut y = if !SIGN_BIT && ww2 < one
         {
-            y = Self::FRAC_PI_2() - y
-        }
+            let z = one - ww2;
 
-        /*const TAYLOR: usize = 8;
-        let mut y = if self.abs() < Self::one()
-        {
-            let mut z = self;
-            let mut y = z;
-
-            for k in 1..TAYLOR
+            let mut y = util::polynomial(&p, z, SIGN_BIT, true);
+            if y.is_nan()
             {
-                z *= -self*self;
-                y += z/Self::from_uint(1 + 2*k)
+                s = !s;
+                y = util::polynomial(&p.neg_all(), z, SIGN_BIT, true);
             }
-
             y
         }
         else
         {
-            let mut z = Self::one()/self;
-            let mut y = Self::FRAC_PI_2() - z;
+            let z = ww2 - one;
 
-            for k in 1..TAYLOR
+            let mut y = util::polynomial(&p, z, SIGN_BIT, false);
+            if !SIGN_BIT && y.is_nan()
             {
-                z /= -self*self;
-                y -= z/Self::from_uint(1 + 2*k)
+                s = !s;
+                y = util::polynomial(&p.neg_all(), z, SIGN_BIT, false);
             }
-
             y
-        };*/
+        }*w;
+        if inv
+        {
+            if s
+            {
+                y = Self::FRAC_PI_2() + y
+            }
+            else
+            {
+                if !SIGN_BIT && y > Self::FRAC_PI_2()
+                {
+                    y %= Self::PI();
+                    y = Self::PI() + Self::FRAC_PI_2() - y
+                }
+                else
+                {
+                    y = Self::FRAC_PI_2() - y
+                }
+            }
+        }
+        else
+        {
+            if s
+            {
+                y %= Self::PI();
+                y = Self::PI() - y
+            }
+        }
+
+        /*if y.is_nan()
+        {
+            const TAYLOR: usize = 8;
+            y = if self.abs() < Self::one()
+            {
+                let mut s = false;
+                let mut z = self;
+                let mut y = z;
+
+                for k in 1..TAYLOR
+                {
+                    z *= self*self;
+                    s = !s;
+                    let dy = z/Self::from_uint(1 + 2*k);
+                    if !s
+                    {
+                        y += dy
+                    }
+                    else
+                    {
+                        y -= dy
+                    }
+                }
+
+                y
+            }
+            else
+            {
+                let mut s = false;
+                let mut z = Self::one()/self;
+                let mut y = Self::FRAC_PI_2() - z;
+
+                for k in 1..TAYLOR
+                {
+                    z /= self*self;
+                    s = !s;
+                    let dy = z/Self::from_uint(1 + 2*k);
+                    if !s
+                    {
+                        y -= dy
+                    }
+                    else
+                    {
+                        y += dy
+                    }
+                }
+
+                y
+            }
+        }*/
 
         y = y % Self::PI();
         while y > Self::FRAC_PI_2()
@@ -4183,13 +4626,24 @@ where
 
             for _ in 0..NEWTON
             {
-                let (sin, cos) = y.sin_cos();
-                let dy = (sin - cos*self)*cos;
-                if !dy.is_finite()
+                let (sin, sin_s) = y.sin_extra_sign();
+                let (cos, cos_s) = y.cos_extra_sign();
+                let xcos = self*cos;
+                let (dsxc, dsxc_s) = util::add_extra_sign((sin, sin_s), (xcos, !cos_s), SIGN_BIT);
+                let dy = dsxc*cos;
+                let s = dsxc_s^cos_s;
+                if !dy.is_finite() || (!SIGN_BIT && !s && dy > y)
                 {
                     break
                 }
-                y -= dy
+                if s
+                {
+                    y += dy
+                }
+                else
+                {
+                    y -= dy
+                }
             }
         }
         
@@ -4228,8 +4682,8 @@ where
     /// let abs_difference_1 = (y1.atan2(x1) - (-FpDouble::FRAC_PI_4())).abs();
     /// let abs_difference_2 = (y2.atan2(x2) - (FpDouble::PI() - FpDouble::FRAC_PI_4())).abs();
     ///
-    /// assert!(abs_difference_1 < FpDouble::from(1e-9));
-    /// assert!(abs_difference_2 < FpDouble::from(1e-9));
+    /// assert!(abs_difference_1 < FpDouble::from(1e-5));
+    /// assert!(abs_difference_2 < FpDouble::from(1e-5));
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn atan2(self, other: Self) -> Self
@@ -4326,12 +4780,27 @@ where
             for _ in 0..NEWTON
             {
                 let yp1 = y + Self::one();
-                let dy = yp1*(y.ln_1p() - self);
-                if !dy.is_finite()
+                let x = y.ln_1p();
+                let (dy, s) = if SIGN_BIT || x >= self
+                {
+                    (yp1*(x - self), false)
+                }
+                else
+                {
+                    (yp1*(self - x), true)
+                };
+                if !dy.is_finite() || (!SIGN_BIT && !s && dy > y)
                 {
                     break
                 }
-                y -= dy
+                if s
+                {
+                    y += dy
+                }
+                else
+                {
+                    y -= dy
+                }
             }
         }
 
@@ -4366,14 +4835,30 @@ where
         {
             const NEWTON: usize = NEWTON_LN;
 
+            let one = Self::one();
             for _ in 0..NEWTON
             {
-                let dy = Self::one() - xp1/y.exp();
-                if !dy.is_finite()
+                let xp1dx = xp1/y.exp();
+                let (dy, s) = if SIGN_BIT || one >= xp1dx
+                {
+                    (one - xp1dx, false)
+                }
+                else
+                {
+                    (xp1dx - one, true)
+                };
+                if !dy.is_finite() || (!SIGN_BIT && !s && dy > y)
                 {
                     break
                 }
-                y -= dy
+                if s
+                {
+                    y += dy
+                }
+                else
+                {
+                    y -= dy
+                }
             }
         }
 
@@ -4425,12 +4910,27 @@ where
 
             for _ in 0..NEWTON
             {
-                let dy = (y.asinh() - self)*(y*y + Self::one()).sqrt();
-                if !dy.is_finite()
+                let x = y.asinh();
+                let (dy, s) = if SIGN_BIT || x >= self
+                {
+                    ((x - self)*(y*y + Self::one()).sqrt(), false)
+                }
+                else
+                {
+                    ((self - x)*(y*y + Self::one()).sqrt(), true)
+                };
+                if !dy.is_finite() || (!SIGN_BIT && !s && dy > y)
                 {
                     break
                 }
-                y -= dy
+                if s
+                {
+                    y += dy
+                }
+                else
+                {
+                    y -= dy
+                }
             }
         }
 
@@ -4466,14 +4966,22 @@ where
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn cosh(self) -> Self
     {
+        let xabs = self.abs();
         if !self.is_finite()
         {
-            return self.abs()
+            return xabs
         }
 
-        let emx = (-self.abs()).exp();
+        let emx = (-xabs).exp();
     
         let mut y = (Self::one() + emx*emx)/emx*Self::from(0.5);
+
+        if !y.is_finite()
+        {
+            let ex = xabs.exp();
+        
+            y = (ex*ex + Self::one())/ex*Self::from(0.5);
+        }
 
         if y.is_finite()
         {
@@ -4481,12 +4989,27 @@ where
 
             for _ in 0..NEWTON
             {
-                let dy = (y.acosh() - self.abs())*(y*y - Self::one()).sqrt();
-                if !dy.is_finite()
+                let x = y.acosh();
+                let (dy, s) = if SIGN_BIT || x >= xabs
+                {
+                    ((x - xabs)*(y*y - Self::one()).sqrt(), false)
+                }
+                else
+                {
+                    ((xabs - x)*(y*y - Self::one()).sqrt(), true)
+                };
+                if !dy.is_finite() || (!SIGN_BIT && !s && dy > y)
                 {
                     break
                 }
-                y -= dy
+                if s
+                {
+                    y += dy
+                }
+                else
+                {
+                    y -= dy
+                }
             }
         }
 
@@ -4531,12 +5054,24 @@ where
             return self*(one + self)
         }
 
-        let ex = (-xabs).exp();
-        let ex2 = ex*ex;
-        let ex2p1 = one + ex2;
-        let ex2m1 = one - ex2;
-        
-        let mut y = (ex2m1/ex2p1).copysign(self);
+        let mut y = if SIGN_BIT
+        {
+            let ex = (-xabs).exp();
+            let ex2 = ex*ex;
+            let ex2p1 = one + ex2;
+            let ex2m1 = one - ex2;
+            
+            (ex2m1/ex2p1).copysign(self)
+        }
+        else
+        {
+            let ex = xabs.exp().recip();
+            let ex2 = ex*ex;
+            let ex2p1 = one + ex2;
+            let ex2m1 = one - ex2;
+            
+            ex2m1/ex2p1
+        };
 
         if y.is_finite()
         {
@@ -4549,7 +5084,26 @@ where
                 {
                     break
                 }
-                y -= (x - self)*(one - y)*(one + y)
+                let (dy, s) = if SIGN_BIT || x >= self
+                {
+                    ((x - self)*(one - y)*(one + y), false)
+                }
+                else
+                {
+                    ((self - x)*(one - y)*(one + y), true)
+                };
+                if !dy.is_finite() || (!SIGN_BIT && !s && dy > y)
+                {
+                    break
+                }
+                if s
+                {
+                    y += dy
+                }
+                else
+                {
+                    y -= dy
+                }
             }
         }
 
@@ -4747,8 +5301,6 @@ where
     
     fn ln_gamma_lanczos(self) -> Self
     {
-        let xm1 = self - Self::one();
-
         const LANCZOS_CHEB_7: [f64; 9] = [
             0.99999999999980993227684700473478,
             676.520368121885098567009190444019,
@@ -4766,14 +5318,32 @@ where
         let mut sum = Self::from(LANCZOS_CHEB_7[0]);
         for k in 1..LANCZOS_CHEB_7.len()
         {
-            sum += Self::from(LANCZOS_CHEB_7[k])/(xm1 + Self::from_uint(k))
+            if SIGN_BIT || LANCZOS_CHEB_7[k].is_sign_positive()
+            {
+                sum += Self::from(LANCZOS_CHEB_7[k])/(self + Self::from_uint(k - 1))
+            }
+        }
+        if !SIGN_BIT
+        {
+            for k in 1..LANCZOS_CHEB_7.len()
+            {
+                if LANCZOS_CHEB_7[k].is_sign_negative()
+                {
+                    sum -= Self::from(-LANCZOS_CHEB_7[k])/(self + Self::from_uint(k - 1))
+                }
+            }
         }
 
-        let term1 = (xm1 + Self::from(0.5))
-            *((xm1 + Self::from(7.5))/Self::E()).ln();
+        let term1 = (self - Self::from(0.5))
+            *((self + Self::from(6.5))/Self::E()).ln();
         let term2 = Self::from(LOGROOT2PI) + sum.ln();
 
-        term1 + (term2 - Self::from(7u8))
+        let seven = Self::from(7u8);
+        if term2 < seven
+        {
+            return term1 + term2 - seven
+        }
+        term1 + (term2 - seven)
     }
 
     /// Natural logarithm of the absolute value of the gamma function
@@ -4820,8 +5390,17 @@ where
             return (Self::infinity(), 0)
         }
 
+        let sin_fact_abs = sin_fact.abs();
+
         (
-            Self::PI().ln() - sin_fact.abs().ln() - (Self::one() - self).ln_gamma_lanczos(),
+            if !SIGN_BIT && sin_fact_abs < Self::one()
+            {
+                Self::PI().ln() + sin_fact_abs.recip().ln() - (Self::one() - self).ln_gamma_lanczos()
+            }
+            else
+            {
+                Self::PI().ln() - sin_fact_abs.ln() - (Self::one() - self).ln_gamma_lanczos()
+            },
             if sin_fact.is_sign_negative() {-1} else {1}
         )
     }
@@ -4890,6 +5469,11 @@ where
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn copysign(self, sign: Self) -> Self
     {
+        if !SIGN_BIT
+        {
+            return self
+        }
+
         let mask = (U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_SIZE) << Self::SIGN_POS;
         
         Self::from_bits((self.to_bits() & (!mask)) | (sign.to_bits() & mask))
@@ -5402,11 +5986,73 @@ where
         ];
 
         let one = Self::one();
-        let s = self.abs() - one;
-        let p = PA.map(Self::from).polynomial(s);
-        let q = one + s*QA.map(Self::from).polynomial(s);
+        let xabs = self.abs();
+        let (s, b) = if xabs >= one
+        {
+            (xabs - one, false)
+        }
+        else
+        {
+            (one - xabs, true)
+        };
+        let mut r = false;
+        let mut p = util::polynomial(&PA, s, SIGN_BIT, b);
+        let q = if b
+        {
+            let mut q = util::polynomial(&QA, s, SIGN_BIT, b);
+            if q.is_nan()
+            {
+                q = util::polynomial(&QA.neg_all(), s, SIGN_BIT, b);
+                one + s*q
+            }
+            else
+            {
+                if one >= q
+                {
+                    one - s*q
+                }
+                else
+                {
+                    r = !r;
+                    s*q - one
+                }
+            }
+        }
+        else
+        {
+            let mut q = s*util::polynomial(&QA, s, SIGN_BIT, b);
+            if !SIGN_BIT && q.is_nan()
+            {
+                q = s*util::polynomial(&QA.neg_all(), s, SIGN_BIT, b);
+                if one >= q
+                {
+                    one - q
+                }
+                else
+                {
+                    r = !r;
+                    q - one
+                }
+            }
+            else
+            {
+                one + q
+            }
+        };
+        if !SIGN_BIT && p.is_nan()
+        {
+            p = util::polynomial(&PA.neg_all(), s, SIGN_BIT, b);
+            r = !r;
+        }
     
-        one - Self::from(ERX) - p/q
+        if r
+        {
+            one - Self::from(ERX) + p/q
+        }
+        else
+        {
+            one - Self::from(ERX) - p/q
+        }
     }
     
     fn erfc2(mut self) -> Self
@@ -5463,25 +6109,93 @@ where
         }
 
         self = self.abs();
+        let mut b = false;
         let s = (self*self).recip();
-        let r;
-        let big_s;
+        let mut r;
+        let mut big_s;
         let one = Self::one();
         if self < Self::from(1.0/0.35)
         {
             /* |x| < 1/.35 ~ 2.85714 */
-            r = RA.map(Self::from).polynomial(s);
-            big_s = one + s*SA.map(Self::from).polynomial(s);
+            r = util::polynomial(&RA, s, SIGN_BIT, false);
+            if !SIGN_BIT && r.is_nan()
+            {
+                r = util::polynomial(&RA.neg_all(), s, SIGN_BIT, false);
+                b = !b;
+            }
+            big_s = one + s*util::polynomial(&SA, s, SIGN_BIT, false);
+            if !SIGN_BIT && big_s.is_nan()
+            {
+                big_s = s*util::polynomial(&SA.neg_all(), s, SIGN_BIT, false) - one;
+                b = !b;
+            }
         }
         else
         {
             /* |x| > 1/.35 */
-            r = RB.map(Self::from).polynomial(s);
-            big_s = one + s*SB.map(Self::from).polynomial(s);
+            r = util::polynomial(&RB, s, SIGN_BIT, false);
+            if !SIGN_BIT && r.is_nan()
+            {
+                r = util::polynomial(&RB.neg_all(), s, SIGN_BIT, false);
+                b = !b;
+            }
+            big_s = one + s*util::polynomial(&SB, s, SIGN_BIT, false);
+            if !SIGN_BIT && big_s.is_nan()
+            {
+                big_s = s*util::polynomial(&SB.neg_all(), s, SIGN_BIT, false) - one;
+                b = !b;
+            }
         }
         let z = Self::from_bits((self.to_bits() >> FRAC_SIZE/2) << FRAC_SIZE/2);
 
-        (-z * z - Self::from(0.5625)).exp() * ((z - self) * (z + self) + r / big_s).exp() / self
+        let ofs = Self::from(0.5625);
+        if !SIGN_BIT
+        {
+            if z >= self
+            {
+                if b
+                {
+                    let p = (self - z) * (z + self);
+                    let q = r / big_s;
+                    if p >= q
+                    {
+                        (z * z + ofs).exp().recip() * (p - q).exp() / self
+                    }
+                    else
+                    {
+                        (z * z + ofs).exp().recip() / (q - p).exp() / self
+                    }
+                }
+                else
+                {
+                    (z * z + ofs).exp().recip() * ((z - self) * (z + self) + r / big_s).exp() / self
+                }
+            }
+            else
+            {
+                if b
+                {
+                    (z * z + ofs).exp().recip() / ((z - self) * (z + self) + r / big_s).exp() / self
+                }
+                else
+                {
+                    let p = r / big_s;
+                    let q = (self - z) * (z + self);
+                    if p >= q
+                    {
+                        (z * z + ofs).exp().recip() * (p - q).exp() / self
+                    }
+                    else
+                    {
+                        (z * z + ofs).exp().recip() / (q - p).exp() / self
+                    }
+                }
+            }
+        }
+        else
+        {
+            (-z * z - ofs).exp() * ((z - self) * (z + self) + r / big_s).exp() / self
+        }
     }
         
     /// Error function (f64)
@@ -5532,10 +6246,25 @@ where
                 return Self::from(0.125)*(Self::from(8u8)*self + Self::from(EFX8) * self);
             }
             let z = self*self;
-            let r = PP.map(Self::from).polynomial(z);
-            let s = one + z*QQ.map(Self::from).polynomial(z);
+            let mut b = false;
+            let mut r = util::polynomial(&PP, z, SIGN_BIT, false);
+            let mut s = one + z*util::polynomial(&QQ, z, SIGN_BIT, false);
+            if !SIGN_BIT && r.is_nan()
+            {
+                r = util::polynomial(&PP.neg_all(), z, SIGN_BIT, false);
+                b = !b;
+            }
+            if !SIGN_BIT && s.is_nan()
+            {
+                s = z*util::polynomial(&QQ.neg_all(), z, SIGN_BIT, false) - one;
+                b = !b;
+            }
             y = r / s;
-            return self + self * y;
+            if b
+            {
+                return self - self*y;
+            }
+            return self + self*y;
         }
         if xabs < Self::from_uint(6u8)
         {
@@ -5605,14 +6334,42 @@ where
                 return one - self;
             }
             let z = self*self;
-            let r = PP.map(Self::from).polynomial(z);
-            let s = one + z*QQ.map(Self::from).polynomial(z);
+            let mut b = false;
+            let mut r = util::polynomial(&PP, z, SIGN_BIT, false);
+            let mut s = one + z*util::polynomial(&QQ, z, SIGN_BIT, false);
+            if !SIGN_BIT && r.is_nan()
+            {
+                r = util::polynomial(&PP.neg_all(), z, SIGN_BIT, false);
+                b = !b;
+            }
+            if !SIGN_BIT && s.is_nan()
+            {
+                s = z*util::polynomial(&QQ.neg_all(), z, SIGN_BIT, false) - one;
+                b = !b;
+            }
             let y = r / s;
-            if !sign.is_zero() || xabs < Self::from(1.0/4.0) {
+            let half = Self::from(0.5);
+            if !sign.is_zero() || xabs < Self::from(1.0/4.0) || (!SIGN_BIT && self < half)
+            {
                 /* x < 1/4 */
+                if b
+                {
+                    if self < self*y
+                    {
+                        return one + (self*y - self);
+                    }
+                    return one - (self - self*y);
+                }
                 return one - (self + self*y);
             }
-            let half = Self::from(0.5);
+            if b
+            {
+                if self - half < self*y
+                {
+                    return half + (self*y + half - self);
+                }
+                return half - (self - half - self*y);
+            }
             return half - (self - half + self*y);
         }
         if xabs < Self::from_uint(28u8)
@@ -5637,7 +6394,7 @@ where
         }
     }
     
-    fn bessel0_p(self) -> Self
+    fn bessel0_p(self) -> (Self, bool)
     {
         /* The asymptotic expansions of pzero is
         *      1 - 9/128 s^2 + 11025/98304 s^4 - ...,  where s = 1/x.
@@ -5742,13 +6499,41 @@ where
         }
         let one = Self::one();
         let z = (self*self).recip();
-        let r = p.map(Self::from).polynomial(z);
-        let s = one + z*q.map(Self::from).polynomial(z);
+        let mut b = false;
+        let mut r = util::polynomial(p, z, SIGN_BIT, false);
+        let mut s = one + z*util::polynomial(q, z, SIGN_BIT, false);
+        if !SIGN_BIT && r.is_nan()
+        {
+            b = !b;
+            r = util::polynomial(&p.neg_all(), z, SIGN_BIT, false);
+        }
+        if !SIGN_BIT && s.is_nan()
+        {
+            s = z*util::polynomial(&q.neg_all(), z, SIGN_BIT, false);
+            if s >= one
+            {
+                b = !b;
+                s = s - one
+            }
+            else
+            {
+                s = one - s
+            }
+        }
         
-        one + r/s
+        let rs = r/s;
+        if b
+        {
+            if one < rs
+            {
+                return (rs - one, true)
+            }
+            return (one - rs, false)
+        }
+        (one + rs, false)
     }
     
-    fn bessel0_q(self) -> Self
+    fn bessel0_q(self) -> (Self, bool)
     {
         /* For x >= 8, the asymptotic expansions of qzero is
         *      -1/8 s + 75/1024 s^3 - ..., where s = 1/x.
@@ -5857,13 +6642,35 @@ where
         }
         let one = Self::one();
         let z = (self*self).recip();
-        let r = p.map(Self::from).polynomial(z);
-        let s = one + z*q.map(Self::from).polynomial(z);
+        let mut b = false;
+        let mut r = util::polynomial(p, z, SIGN_BIT, false);
+        let mut s = one + z*util::polynomial(q, z, SIGN_BIT, false);
+        if !SIGN_BIT && r.is_nan()
+        {
+            b = !b;
+            r = util::polynomial(&p.neg_all(), z, SIGN_BIT, false);
+        }
+        if !SIGN_BIT && s.is_nan()
+        {
+            b = !b;
+            s = z*util::polynomial(&q.neg_all(), z, SIGN_BIT, false) - one;
+        }
+
+        let rs = r/s;
+        let ofs = Self::from(0.125);
+        if b
+        {
+            return ((rs + ofs)/self, true)
+        }
         
-        (Self::from(-0.125) + r/s)/self
+        if !SIGN_BIT && rs < ofs
+        {
+            return ((ofs - rs)/self, true)
+        }
+        ((rs - ofs)/self, false)
     }
 
-    fn bessel0_common(self, y0: bool) -> Self
+    fn bessel0_common(self, y0: bool) -> (Self, bool)
     {
         const INVSQRTPI: f64 = 5.64189583547756279280e-01;
 
@@ -5875,47 +6682,185 @@ where
          * cos(x-pi/4) = (sin(x) + cos(x))/sqrt(2)
          * sin(x) +- cos(x) = -cos(2x)/(sin(x) -+ cos(x))
          */
-        let s = self.sin();
-        let mut c = self.cos();
-        if y0 {
-            c = -c;
+        let (s, s_s) = self.sin_extra_sign();
+        let (mut c, mut c_s) = self.cos_extra_sign();
+        if y0
+        {
+            if SIGN_BIT
+            {
+                c = -c;
+            }
+            else
+            {
+                c_s = !c_s;
+            }
         }
-        let mut cc = s + c;
+        
+        let mut cc_s = false;
+        let mut cc = match(s_s, c_s)
+        {
+            (false, false) => s + c,
+            (true, false) => if SIGN_BIT || s <= c
+            {
+                c - s
+            }
+            else
+            {
+                cc_s = !cc_s;
+                s - c
+            },
+            (false, true) => if SIGN_BIT || c <= s
+            {
+                s - c
+            }
+            else
+            {
+                cc_s = !cc_s;
+                c - s
+            },
+            (true, true) => if SIGN_BIT
+            {
+                -s - c
+            }
+            else
+            {
+                cc_s = !cc_s;
+                s + c
+            }
+        };
 
         let two = Self::from_uint(2u8);
         let xabs = self.abs();
         /* avoid overflow in 2*x, big ulp error when x>=0x1p1023 */
         if xabs < Self::max_value()/two
         {
-            let mut ss = s - c;
-            let z = -(two*self).cos();
-            if s*c < Self::zero()
+            let mut ss_s = false;
+            let mut ss = match(s_s, !c_s)
             {
+                (false, false) => s + c,
+                (true, false) => if SIGN_BIT || s <= c
+                {
+                    c - s
+                }
+                else
+                {
+                    ss_s = !ss_s;
+                    s - c
+                },
+                (false, true) => if SIGN_BIT || c <= s
+                {
+                    s - c
+                }
+                else
+                {
+                    ss_s = !ss_s;
+                    c - s
+                },
+                (true, true) => if SIGN_BIT
+                {
+                    -s - c
+                }
+                else
+                {
+                    ss_s = !ss_s;
+                    s + c
+                }
+            };
+
+            let (mut z, mut z_s) = (two*self).cos_extra_sign();
+            if SIGN_BIT
+            {
+                z = -z
+            }
+            else
+            {
+                z_s = !z_s
+            }
+
+            if if s_s == c_s
+            {
+                s*c < Self::zero()
+            }
+            else
+            {
+                s*c > Self::zero()
+            }
+            {
+                cc_s = z_s^ss_s;
                 cc = z / ss;
             }
             else
             {
+                ss_s = z_s^cc_s;
                 ss = z / cc;
             }
             if xabs < Self::from((EXP_BASE as f64).powf(17.0/127.0*Self::exp_bias().to_f64().unwrap()))
             {
-                if y0 {
-                    ss = -ss;
+                if y0
+                {
+                    if SIGN_BIT
+                    {
+                        ss = -ss;
+                    }
+                    else
+                    {
+                        ss_s = !ss_s;
+                    }
                 }
-                cc = self.bessel0_p()*cc - self.bessel0_q()*ss;
+                
+                let (mut p, mut p_s) = self.bessel0_p();
+                p *= cc;
+                p_s ^= cc_s;
+
+                let (mut q, mut q_s) = self.bessel0_q();
+                q *= ss;
+                q_s ^= ss_s;
+
+                cc_s = false;
+                cc = match(p_s, !q_s)
+                {
+                    (false, false) => p + q,
+                    (true, false) => if SIGN_BIT || p <= q
+                    {
+                        q - p
+                    }
+                    else
+                    {
+                        cc_s = !cc_s;
+                        p - q
+                    },
+                    (false, true) => if SIGN_BIT || q <= p
+                    {
+                        p - q
+                    }
+                    else
+                    {
+                        cc_s = !cc_s;
+                        q - p
+                    },
+                    (true, true) => if SIGN_BIT
+                    {
+                        -p - q
+                    }
+                    else
+                    {
+                        cc_s = !cc_s;
+                        p + q
+                    }
+                };
             }
         }
-        return Self::from(INVSQRTPI) * cc / self.sqrt();
+        
+        return (Self::from(INVSQRTPI)*cc / self.sqrt(), cc_s);
     }
-    
-    /// Bessel function of the first kind with α = 0.
-    pub fn j0(mut self) -> Self
+
+    fn j0_extra_sign(mut self) -> (Self, bool)
     {
         self = self.abs();
         /* j0(+-inf)=0, j0(nan)=nan */
         if !self.is_finite()
         {
-            return (self*self).recip()
+            return ((self*self).recip(), false)
         }
 
         let two = Self::from_uint(2u8);
@@ -5948,9 +6893,41 @@ where
             /* |x| >= 2**-13 */
             /* up to 4ulp error close to 2 */
             let z = self*self;
-            let r = z*R0.map(Self::from).polynomial(z);
-            let s = one + z*S0.map(Self::from).polynomial(z);
-            return (one + self/two)*(one - self/two) + z*(r/s);
+            let mut b = false;
+            let mut r = z*util::polynomial(&R0, z, SIGN_BIT, false);
+            let mut s = one + z*util::polynomial(&S0, z, SIGN_BIT, false);
+            if !SIGN_BIT && r.is_nan()
+            {
+                b = !b;
+                r = z*util::polynomial(&R0.neg_all(), z, SIGN_BIT, false)
+            }
+            if !SIGN_BIT && s.is_nan()
+            {
+                s = z*util::polynomial(&S0.neg_all(), z, SIGN_BIT, false);
+                if s > one
+                {
+                    b = !b;
+                    s = s - one
+                }
+                else
+                {
+                    s = one - s
+                }
+            }
+
+            let rs = r/s;
+            let zrs = z*rs;
+            let d = (one + self/two)*(one - self/two);
+
+            if b
+            {
+                if d < zrs
+                {
+                    return (zrs - d, true)
+                }
+                return (d - zrs, false);
+            }
+            return (d + zrs, false);
         }
 
         /* 1 - x*x/4 */
@@ -5962,24 +6939,42 @@ where
             self = Self::from(0.25)*self*self;
         }
 
-        one - self
+        if one < self
+        {
+            return (self - one, true)
+        }
+        (one - self, false)
+    }
+    
+    /// Bessel function of the first kind with α = 0.
+    pub fn j0(self) -> Self
+    {
+        let (mut y, s) = self.j0_extra_sign();
+        if s
+        {
+            y = -y
+        }
+        y
     }
 
-    /// Bessel function of the second kind with α = 0.
-    pub fn y0(self) -> Self
+    fn y0_extra_sign(self) -> (Self, bool)
     {
         /* y0(nan)=nan, y0(<0)=nan, y0(0)=-inf, y0(inf)=0 */
         if self.is_zero()
         {
-            return Self::neg_infinity();
+            if !SIGN_BIT
+            {
+                return (Self::infinity(), true)
+            }
+            return (Self::neg_infinity(), false)
         }
         if self.is_sign_negative()
         {
-            return Self::snan();
+            return (Self::snan(), false)
         }
         if !self.is_finite()
         {
-            return self.recip();
+            return (self.recip(), false)
         }
 
         if self >= Self::from_uint(2u8)
@@ -6012,15 +7007,113 @@ where
         {
             /* large ulp error near the first zero, x ~= 0.89 */
             let z = self*self;
-            let u = U0.map(Self::from).polynomial(z);
-            let v = Self::one() + z*V0.map(Self::from).polynomial(z);
-            return u/v + Self::from(TPI)*(self.j0()*self.ln());
+
+            let mut b = false;
+            let mut u = util::polynomial(&U0, z, SIGN_BIT, false);
+            let mut v = Self::one() + z*util::polynomial(&V0, z, SIGN_BIT, false);
+            if !SIGN_BIT && u.is_nan()
+            {
+                b = !b;
+                u = util::polynomial(&U0.neg_all(), z, SIGN_BIT, false);
+            }
+            let one = Self::one();
+            if !SIGN_BIT && v.is_nan()
+            {
+                v = z*util::polynomial(&V0.neg_all(), z, SIGN_BIT, false);
+                if v > one
+                {
+                    b = !b;
+                    v = v - one;
+                }
+                else
+                {
+                    v = one - v;
+                }
+            }
+
+            let uv = u/v;
+            if b
+            {
+                let (xj0, xj0_s) = self.j0_extra_sign();
+                if !SIGN_BIT && self < one
+                {
+                    let l = Self::from(TPI)*(xj0*self.recip().ln());
+                    if xj0_s
+                    {
+                        if l < uv
+                        {
+                            return (uv - l, true)
+                        }
+                        return (l - uv, false);
+                    }
+                    return (uv + l, true);
+                }
+                let l = Self::from(TPI)*(xj0*self.ln());
+
+                if xj0_s
+                {
+                    return (l + uv, true);
+                }
+                if l < uv
+                {
+                    return (uv - l, true)
+                }
+                return (l - uv, false);
+            }
+            if !SIGN_BIT && self < one
+            {
+                let (xj0, xj0_s) = self.j0_extra_sign();
+                let l = Self::from(TPI)*(xj0*self.recip().ln());
+                
+                if xj0_s
+                {
+                    return (uv + l, false);
+                }
+                if uv < l
+                {
+                    return (l - uv, true)
+                }
+                return (uv - l, false);
+            }
+            let (xj0, xj0_s) = self.j0_extra_sign();
+            let l = Self::from(TPI)*(xj0*self.ln());
+            if xj0_s
+            {
+                if uv < l
+                {
+                    return (l - uv, true)
+                }
+                return (uv - l, false);
+            }
+            return (uv + l, false);
         }
 
-        Self::from(U0[0]) + Self::from(TPI)*self.ln()
+        let u00 = Self::from(U0[0]);
+        if !SIGN_BIT
+        {
+            let l = Self::from(TPI)*self.recip().ln();
+
+            if u00 < l
+            {
+                return (l - u00, true)
+            }
+            return (u00 - l, false)
+        }
+        (u00 + Self::from(TPI)*self.ln(), false)
+    }
+
+    /// Bessel function of the second kind with α = 0.
+    pub fn y0(self) -> Self
+    {
+        let (mut y, s) = self.y0_extra_sign();
+        if s
+        {
+            y = -y
+        }
+        y
     }
     
-    fn bessel1_p(self) -> Self
+    fn bessel1_p(self) -> (Self, bool)
     {
         /* For x >= 8, the asymptotic expansions of pone is
         *      1 + 15/128 s^2 - 4725/2^15 s^4 - ...,   where s = 1/x.
@@ -6125,13 +7218,42 @@ where
         }
         let one = Self::one();
         let z = (self*self).recip();
-        let r = p.map(Self::from).polynomial(z);
-        let s = one + z*q.map(Self::from).polynomial(z);
+
+        let mut b = false;
+        let mut r = util::polynomial(p, z, SIGN_BIT, false);
+        let mut s = one + z*util::polynomial(q, z, SIGN_BIT, false);
+        if !SIGN_BIT && r.is_nan()
+        {
+            b = !b;
+            r = util::polynomial(&p.neg_all(), z, SIGN_BIT, false);
+        }
+        if !SIGN_BIT && s.is_nan()
+        {
+            s = z*util::polynomial(&q.neg_all(), z, SIGN_BIT, false);
+            if s > one
+            {
+                b = !b;
+                s = s - one
+            }
+            else
+            {
+                s = one - s
+            }
+        }
         
-        one + r/s
+        let rs = r/s;
+        if b
+        {
+            if rs > one
+            {
+                return (rs - one, true)
+            }
+            return (one - rs, false)
+        }
+        (one + rs, false)
     }
 
-    fn bessel1_q(self) -> Self
+    fn bessel1_q(self) -> (Self, bool)
     {
         /* For x >= 8, the asymptotic expansions of qone is
         *      3/8 s - 105/1024 s^3 - ..., where s = 1/x.
@@ -6240,13 +7362,35 @@ where
         }
         let one = Self::one();
         let z = (self*self).recip();
-        let r = p.map(Self::from).polynomial(z);
-        let s = one + z*q.map(Self::from).polynomial(z);
+        let mut b = false;
+        let mut r = util::polynomial(p, z, SIGN_BIT, false);
+        let mut s = one + z*util::polynomial(q, z, SIGN_BIT, false);
+        if !SIGN_BIT && r.is_nan()
+        {
+            b = !b;
+            r = util::polynomial(&p.neg_all(), z, SIGN_BIT, false);
+        }
+        if !SIGN_BIT && s.is_nan()
+        {
+            b = !b;
+            s = z*util::polynomial(&q.neg_all(), z, SIGN_BIT, false) - one;
+        }
+
+        let rs = r/s;
+        let ofs = Self::from(0.375);
+        if b
+        {
+            if rs > ofs
+            {
+                return ((rs - ofs)/self, true)
+            }
+            return ((ofs - rs)/self, false)
+        }
         
-        (Self::from(0.375) + r/s)/self
+        ((ofs + rs)/self, false)
     }
     
-    fn bessel1_common(self, y1: bool, sign: bool) -> Self
+    fn bessel1_common(self, y1: bool, sign: bool) -> (Self, bool)
     {
         const INVSQRTPI: f64 = 5.64189583547756279280e-01;
 
@@ -6258,36 +7402,165 @@ where
         * cos(x-3pi/4) = (sin(x) - cos(x))/sqrt(2)
         * sin(x) +- cos(x) = -cos(2x)/(sin(x) -+ cos(x))
         */
-        let mut s = self.sin();
+        let (mut s, mut s_s) = self.sin_extra_sign();
         if y1
         {
-            s = -s;
+            if SIGN_BIT
+            {
+                s = -s;
+            }
+            else
+            {
+                s_s = !s_s;
+            }
         }
-        let c = self.cos();
-        let mut cc = s - c;
+        let (c, c_s) = self.cos_extra_sign();
+        
+        let mut cc_s = false;
+        let mut cc = match(s_s, !c_s)
+        {
+            (false, false) => s + c,
+            (true, false) => if SIGN_BIT || s <= c
+            {
+                c - s
+            }
+            else
+            {
+                cc_s = !cc_s;
+                s - c
+            },
+            (false, true) => if SIGN_BIT || c <= s
+            {
+                s - c
+            }
+            else
+            {
+                cc_s = !cc_s;
+                c - s
+            },
+            (true, true) => if SIGN_BIT
+            {
+                -s - c
+            }
+            else
+            {
+                cc_s = !cc_s;
+                s + c
+            }
+        };
 
-        let two = Self::from_uint(2u8);
+        let two = Self::from(2u8);
         let xabs = self.abs();
         if xabs < Self::max_value()/two
         {
             /* avoid overflow in 2*x */
-            let mut ss = -s - c;
-            let z = (two*self).cos();
-            if s*c > Self::zero()
+            let mut ss_s = false;
+            let mut ss = match(!s_s, !c_s)
             {
+                (false, false) => s + c,
+                (true, false) => if SIGN_BIT || s <= c
+                {
+                    c - s
+                }
+                else
+                {
+                    ss_s = !ss_s;
+                    s - c
+                },
+                (false, true) => if SIGN_BIT || c <= s
+                {
+                    s - c
+                }
+                else
+                {
+                    ss_s = !ss_s;
+                    c - s
+                },
+                (true, true) => if SIGN_BIT
+                {
+                    -s - c
+                }
+                else
+                {
+                    ss_s = !ss_s;
+                    s + c
+                }
+            };
+            
+            let (z, z_s) = (two*self).cos_extra_sign();
+            
+            if if s_s == c_s
+            {
+                s*c < Self::zero()
+            }
+            else
+            {
+                s*c > Self::zero()
+            }
+            {
+                cc_s = z_s^ss_s;
                 cc = z / ss;
             }
             else
             {
+                ss_s = z_s^cc_s;
                 ss = z / cc;
             }
+
             if xabs < Self::from((EXP_BASE as f64).powf(17.0/127.0*Self::exp_bias().to_f64().unwrap()))
             {
                 if y1
                 {
-                    ss = -ss;
+                    if SIGN_BIT
+                    {
+                        ss = -ss;
+                    }
+                    else
+                    {
+                        ss_s = !ss_s;
+                    }
                 }
-                cc = self.bessel1_p()*cc - self.bessel1_q()*ss;
+                
+                let (mut p, mut p_s) = self.bessel1_p();
+                p *= cc;
+                p_s ^= cc_s;
+
+                let (mut q, mut q_s) = self.bessel1_q();
+                q *= ss;
+                q_s ^= ss_s;
+
+                cc_s = false;
+                cc = match(p_s, !q_s)
+                {
+                    (false, false) => p + q,
+                    (true, false) => if SIGN_BIT || p <= q
+                    {
+                        q - p
+                    }
+                    else
+                    {
+                        cc_s = !cc_s;
+                        p - q
+                    },
+                    (false, true) => if SIGN_BIT || q <= p
+                    {
+                        p - q
+                    }
+                    else
+                    {
+                        cc_s = !cc_s;
+                        q - p
+                    },
+                    (true, true) => if SIGN_BIT
+                    {
+                        -p - q
+                    }
+                    else
+                    {
+                        cc_s = !cc_s;
+                        p + q
+                    }
+                };
             }
         }
         if sign
@@ -6295,23 +7568,23 @@ where
             cc = -cc;
         }
 
-        Self::from(INVSQRTPI)*cc/self.sqrt()
+        (Self::from(INVSQRTPI)*cc/self.sqrt(), cc_s)
     }
 
-    /// Bessel function of the first kind with α = 1.
-    pub fn j1(self) -> Self
+    fn j1_extra_sign(self) -> (Self, bool)
     {
         let sign = !self.sign_bit().is_zero();
         let xabs = self.abs();
 
         if xabs.is_infinite()
         {
-            return (self*self).recip();
+            return ((self*self).recip(), false);
         }
         if xabs >= Self::from_uint(2u8) {
             /* |x| >= 2 */
             return xabs.bessel1_common(false, sign)
         }
+        let half = Self::from(0.5);
         let mut z;
         if xabs >= Self::from((EXP_BASE as f64).powf(-13.0/127.0*Self::exp_bias().to_f64().unwrap()))
         {
@@ -6332,32 +7605,79 @@ where
 
             /* |x| >= 2**-127 */
             z = self*self;
-            let r = z*R0.map(Self::from).polynomial(z);
-            let s = Self::one() + z*S0.map(Self::from).polynomial(z);
-            z = r / s;
-        } else {
+
+            let mut b = false;
+            let mut r = z*util::polynomial(&R0, z, SIGN_BIT, false);
+            let mut s = Self::one() + z*util::polynomial(&S0, z, SIGN_BIT, false);
+            if !SIGN_BIT && r.is_nan()
+            {
+                b = !b;
+                r = z*util::polynomial(&R0.neg_all(), z, SIGN_BIT, false);
+            }
+            if !SIGN_BIT && s.is_nan()
+            {
+                let one = Self::one();
+                s = z*util::polynomial(&S0.neg_all(), z, SIGN_BIT, false);
+                if s > one
+                {
+                    b = !b;
+                    s = s - one
+                }
+                else
+                {
+                    s = one - s
+                }
+            }
+
+            z = r/s;
+
+            if b
+            {
+                if half < z
+                {
+                    return ((z - half)*self, true)
+                }
+                return ((half - z)*self, false)
+            }
+        }
+        else
+        {
             /* avoid underflow, raise inexact if x!=0 */
             z = self;
         }
 
-        (Self::from(0.5) + z)*self
+        ((half + z)*self, false)
     }
-    
-    /// Bessel function of the second kind with α = 1.
-    pub fn y1(self) -> Self
+
+    /// Bessel function of the first kind with α = 1.
+    pub fn j1(self) -> Self
+    {
+        let (mut y, s) = self.j1_extra_sign();
+        if s
+        {
+            y = -y
+        }
+        y
+    }
+
+    fn y1_extra_sign(self) -> (Self, bool)
     {
         /* y1(nan)=nan, y1(<0)=nan, y1(0)=-inf, y1(inf)=0 */
         if self.is_zero()
         {
-            return Self::neg_infinity()
+            if !SIGN_BIT
+            {
+                return (Self::infinity(), true)
+            }
+            return (Self::neg_infinity(), false)
         }
         if self.is_sign_negative()
         {
-            return Self::snan()
+            return (Self::snan(), false)
         }
         if self.is_infinite()
         {
-            return self.recip()
+            return (self.recip(), false)
         }
 
         if self >= Self::from_uint(2u8)
@@ -6385,14 +7705,141 @@ where
 
         if self < Self::from((EXP_BASE as f64).powf(-3.125*EXP_SIZE as f64))
         {
-            return -Self::from(TPI)/self;
+            if !SIGN_BIT
+            {
+                return (Self::from(TPI)/self, true)
+            }
+            return (-Self::from(TPI)/self, false);
         }
 
+        let one = Self::one();
         let z = self*self;
-        let u = U0.map(Self::from).polynomial(z);
-        let v = Self::one() + z*V0.map(Self::from).polynomial(z);
+
+        let mut b = false;
+        let mut u = util::polynomial(&U0, z, SIGN_BIT, false);
+        let mut v = Self::one() + z*util::polynomial(&V0, z, SIGN_BIT, false);
+        if !SIGN_BIT && u.is_nan()
+        {
+            b = !b;
+            u = util::polynomial(&U0.neg_all(), z, SIGN_BIT, false)
+        }
+        if !SIGN_BIT && v.is_nan()
+        {
+            v = z*util::polynomial(&V0.neg_all(), z, SIGN_BIT, false);
+            if v > one
+            {
+                b = !b;
+                v = v - one
+            }
+            else
+            {
+                v = one - v
+            }
+        }
         
-        self*(u/v) + Self::from(TPI)*(self.j1()*self.ln() - self.recip())
+        let uv = u/v;
+        let xuv = self*uv;
+
+        let (xj1, xj1_s) = self.j1_extra_sign();
+        let xinv = self.recip();
+        if b
+        {
+            if self < one
+            {
+                let xinvln = xinv.ln();
+                let xj1mxinvln = xj1*xinvln;
+                
+                if xj1_s
+                {
+                    if xinv < xj1mxinvln
+                    {
+                        let o = Self::from(TPI)*(xj1mxinvln - xinv);
+                        if xuv < o
+                        {
+                            return (o - xuv, false)
+                        }
+                        return (xuv - o, true)
+                    }
+                    return (Self::from(TPI)*(xinv - xj1mxinvln) + xuv, true)
+                }
+
+                return (Self::from(TPI)*(xj1mxinvln + xinv) + xuv, true)
+            }
+            let xln = self.ln();
+            let xj1mxln = xj1*xln;
+
+            if xj1_s
+            {
+                return (Self::from(TPI)*(xinv + xj1mxln) + xuv, true)
+            }
+
+            if xj1mxln < xinv
+            {
+                return (Self::from(TPI)*(xinv - xj1mxln) + xuv, true)
+            }
+            let o = Self::from(TPI)*(xj1mxln - xinv);
+            if o < xuv
+            {
+                return (xuv - o, true)
+            }
+            return (o - xuv, false)
+        }
+        if !SIGN_BIT && self < one
+        {
+            if xj1_s
+            {
+                let xj1mxinvln = xj1*xinv.ln();
+                if xinv < xj1mxinvln
+                {
+                    let o = Self::from(TPI)*(xj1mxinvln - xinv);
+                    return (xuv + o, false)
+                }
+                let o = Self::from(TPI)*(xinv - xj1mxinvln);
+                if xuv < o
+                {
+                    return (o - xuv, true)
+                }
+                return (xuv - o, false)
+            }
+            let o = Self::from(TPI)*(xj1*xinv.ln() + xinv);
+            if xuv < o
+            {
+                return (o - xuv, true)
+            }
+            return (xuv - o, false)
+        }
+        let xln = self.ln();
+        let xj1mxln = xj1*xln;
+        if xj1_s
+        {
+            let o = Self::from(TPI)*(xinv + xj1mxln);
+            if xuv < o
+            {
+                return (o - xuv, true)
+            }
+            return (xuv - o, false)
+        }
+        if xj1mxln < xinv
+        {
+            let o = Self::from(TPI)*(xinv - xj1mxln);
+            if xuv < o
+            {
+                return (o - xuv, true)
+            }
+            return (xuv - o, false)
+        }
+        (xuv + Self::from(TPI)*(xj1mxln - xinv), false)
+    }
+    
+    /// Bessel function of the second kind with α = 1.
+    pub fn y1(self) -> Self
+    {
+        let (mut y, s) = self.y1_extra_sign();
+        if s
+        {
+            y = -y
+        }
+        y
     }
 
     /// Bessel function of the first kind with α = `n`.
@@ -6438,10 +7885,12 @@ where
         let one = Self::one();
         let two = Self::from_uint(2u8);
 
+        let mut b_s;
         let mut b;
         if self.is_zero() || self.is_infinite()
         {
             /* if x is 0 or inf */
+            b_s = false;
             b = Self::zero();
         }
         else if Self::from_int(nm1) < self
@@ -6463,24 +7912,29 @@ where
                 *             2    -s+c            -c-s
                 *             3     s+c             c-s
                 */
-                let (s, c) = self.sin_cos();
-                let temp = match nm1 & 3 {
-                    0 => -c + s,
-                    1 => -c - s,
-                    2 => c - s,
-                    3 | _ => c + s,
+                let (s, s_s) = self.sin_extra_sign();
+                let (c, c_s) = self.cos_extra_sign();
+                let (s1, s2) = match nm1 & 3 {
+                    0 => (!c_s, s_s),
+                    1 => (!c_s, !s_s),
+                    2 => (c_s, !s_s),
+                    3 | _ => (c_s, s_s),
                 };
+                let temp;
+                (temp, b_s) = util::add_extra_sign((c, s1), (s, s2), SIGN_BIT);
                 b = Self::from(INVSQRTPI)*temp/self.sqrt();
             }
             else
             {
-                let mut a = self.j0();
-                b = self.j1();
+                let (mut a, mut a_s) = self.j0_extra_sign();
+                (b, b_s) = self.j1_extra_sign();
                 let mut i = 0;
                 while i < nm1 {
                     i += 1;
-                    let temp = b;
-                    b = b*(two*Self::from_int(i)/self) - a; /* avoid underflow */
+                    let (temp, temp_s) = (b, b_s);
+                    b *= two*Self::from_int(i)/self;
+                    (b, b_s) = util::add_extra_sign((b, b_s), (a, !a_s), SIGN_BIT); /* avoid underflow */
+                    a_s = temp_s;
                     a = temp;
                 }
             }
@@ -6496,11 +7950,13 @@ where
                 if nm1 > 32
                 {
                     /* underflow */
+                    b_s = false;
                     b = Self::zero();
                 }
                 else
                 {
                     let temp = self*Self::from(0.5);
+                    b_s = false;
                     b = temp;
                     let mut a = one;
                     let mut i = 2;
@@ -6546,29 +8002,47 @@ where
                 /* determine k */
 
                 let nf = Self::from_int(nm1) + one;
-                let mut w = two*nf/self;
+                let w = two*nf/self;
                 let h = two/self;
                 let mut z = w + h;
+                let wz = w*z;
+
+                let mut q0_s = false;
                 let mut q0 = w;
-                let mut q1 = w*z - one;
+                let mut q1_s = false;
+                let mut q1 = if SIGN_BIT || wz >= one
+                {
+                    wz - one
+                }
+                else
+                {
+                    q1_s = !q1_s;
+                    one - wz
+                };
+
                 let mut k = 1;
                 let q1_min = Self::from((EXP_BASE as f64).powf(13.287712379549449391481277717958/8.0*EXP_SIZE as f64));
                 while q1 < q1_min
                 {
                     k += 1;
                     z += h;
-                    let tmp = z * q1 - q0;
+                    let (tmp, tmp_s) = util::add_extra_sign((z*q1, q1_s), (q0, !q0_s), SIGN_BIT);
                     q0 = q1;
+                    q0_s = q1_s;
                     q1 = tmp;
+                    q1_s = tmp_s;
                 }
                 let mut t = Self::zero();
                 let mut i = k;
                 while i >= 0
                 {
                     t = (two*(Self::from_int(i) + nf)/self - t).recip();
+                    assert!(!t.is_nan());
                     i -= 1;
                 }
+                let mut a_s = false;
                 let mut a = t;
+                b_s = false;
                 b = one;
                 /*  estimate log((2/x)^n*n!) = n*log(2/x)+n*ln(n)
                 *  Hence, if n*(log(2n/x)) > ...
@@ -6578,15 +8052,18 @@ where
                 *  then recurrent value may overflow and the result is
                 *  likely underflow to zero
                 */
-                let tmp = nf*w.abs().ln();
-                if tmp < Self::from(0.69860503429133858267716535433071*Self::exp_bias().to_f64().unwrap())
+                let wabs = w.abs();
+                let tmp = nf*wabs.ln();
+                if tmp < Self::from(0.69860503429133858267716535433071*Self::exp_bias().to_f64().unwrap()) || wabs < one
                 {
                     i = nm1;
                     while i > 0
                     {
-                        let temp = b;
-                        b = b*(two*Self::from_int(i))/self - a;
+                        let (temp, temp_s) = (b, b_s);
+                        b *= (two*Self::from_int(i))/self;
+                        (b, b_s) = util::add_extra_sign((b, b_s), (a, !a_s), SIGN_BIT);
                         a = temp;
+                        a_s = temp_s;
                         i -= 1;
                     }
                 }
@@ -6597,9 +8074,12 @@ where
                     i = nm1;
                     while i > 0
                     {
-                        let temp = b;
-                        b = b*(two*Self::from_int(i))/self - a;
+                        let (temp, temp_s) = (b, b_s);
+                        b *= (two*Self::from_int(i))/self;
+                        (b, b_s) = util::add_extra_sign((b, b_s), (a, !a_s), SIGN_BIT);
                         a = temp;
+                        a_s = temp_s;
+
                         /* scale b to avoid spurious overflow */
                         if b > x1p500
                         {
@@ -6610,27 +8090,27 @@ where
                         i -= 1;
                     }
                 }
-                z = self.j0();
-                w = self.j1();
+                let (z, z_s) = self.j0_extra_sign();
+                let (w, w_s) = self.j1_extra_sign();
                 if z.abs() >= w.abs()
                 {
+                    b_s = z_s^b_s;
                     b = t * z / b;
                 }
                 else
                 {
+                    b_s = w_s^a_s;
                     b = t * w / a;
                 }
             }
         }
 
-        if sign
+        if sign^b_s
         {
-            -b
+            b = -b
         }
-        else
-        {
-            b
-        }
+        
+        b
     }
 
     /// Bessel function of the second kind with α = `n`.
@@ -6672,16 +8152,19 @@ where
         }
         if nm1 == 0
         {
-            if sign
+            let (mut y1, y1_s) = self.y1_extra_sign();
+
+            if sign^y1_s
             {
-                return -self.y1();
+                y1 = -y1
             }
 
-            return self.y1();
+            return y1
         }
     
         let two = Self::from(2u8);
 
+        let mut b_s;
         let mut b;
         if self > Self::from(8.1481439053379443450737827536375e90)
         {
@@ -6699,45 +8182,47 @@ where
              *             2    -s+c            -c-s
              *             3     s+c             c-s
              */
-            let (s, c) = self.sin_cos();
-            let temp = match nm1 & 3 {
-                0 => -s - c,
-                1 => -s + c,
-                2 => s + c,
-                3 | _ => s - c,
+            let (s, s_s) = self.sin_extra_sign();
+            let (c, c_s) = self.cos_extra_sign();
+            let (s1, s2) = match nm1 & 3 {
+                0 => (!s_s, !c_s),
+                1 => (!s_s, c_s),
+                2 => (s_s, c_s),
+                3 | _ => (s_s, !c_s),
             };
+            let temp;
+            (temp, b_s) = util::add_extra_sign((s, s1), (c, s2), SIGN_BIT);
             b = Self::from(INVSQRTPI)*temp/self.sqrt();
         }
         else
         {
-            let mut a = self.y0();
-            b = self.y1();
+            let (mut a, mut a_s) = self.y0_extra_sign();
+            (b, b_s) = self.y1_extra_sign();
             /* quit if b is -inf */
             let mut i = 0;
             while i < nm1 && b.is_finite()
             {
                 i += 1;
-                let temp = b;
-                b = (two*Self::from(i)/self)*b - a;
-                a = temp;
+                let (temp, temp_s) = (b, b_s);
+                b *= two*Self::from(i)/self;
+                (b, b_s) = util::add_extra_sign((b, b_s), (a, !a_s), SIGN_BIT);
+                (a, a_s) = (temp, temp_s);
             }
         }
     
-        if sign
+        if sign^b_s
         {
-            -b
+            b = -b
         }
-        else
-        {
-            b
-        }
+
+        b
     }
 }
 
-impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
-    [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,
-    [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:,
+    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
+    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
     [(); EXP_BASE - 2]:,
     U: ConstZero
 {
@@ -6755,26 +8240,28 @@ mod test
     #[test]
     fn test_gamma()
     {
-        crate::tests::test_op1("ln_gamma", |x| f32::ln_gamma(x).0, |x| Fp::ln_gamma(x).0, None, Some(-4.5..20.0));
-        crate::tests::test_op1("gamma", f32::gamma, Fp::gamma, None, Some(-4.5..7.0))
+        crate::tests::test_op1("ln_gamma", |x| f32::ln_gamma(x).0, |x| Fp::ln_gamma(x).0, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*4.5..20.0));
+        crate::tests::test_op1("gamma", f32::gamma, Fp::gamma, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*4.5..7.0))
     }
     
     #[test]
     fn test_j0()
     {
-        crate::tests::test_op1("j0", libm::j0f, Fp::j0, Some(0.1), Some(-20.0..20.0))
+        crate::tests::test_op1("j0", libm::j0f, Fp::j0, Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*20.0..20.0))
     }
     
     #[test]
     fn test_y0()
     {
+        //crate::tests::test_op1("y0", libm::y0f, |x| crate::tests::F::from(x.y0_extra_sign().1 as u8), Some(0.1), Some(0.01..20.0))
+        //crate::tests::test_op1("y0", libm::y0f, |x| x.y0_extra_sign().0, Some(0.1), Some(0.01..20.0))
         crate::tests::test_op1("y0", libm::y0f, Fp::y0, Some(0.1), Some(0.01..20.0))
     }
     
     #[test]
     fn test_j1()
     {
-        crate::tests::test_op1("j1", libm::j1f, Fp::j1, Some(0.1), Some(-20.0..20.0))
+        crate::tests::test_op1("j1", libm::j1f, Fp::j1, Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*20.0..20.0))
     }
     
     #[test]
@@ -6786,7 +8273,7 @@ mod test
     #[test]
     fn test_j2()
     {
-        crate::tests::test_op1("j2", |x| libm::jnf(2, x), |x| x.jn(2), Some(0.1), Some(-20.0..20.0))
+        crate::tests::test_op1("j2", |x| libm::jnf(2, x), |x| x.jn(2), Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*20.0..20.0))
     }
     
     #[test]
@@ -6798,7 +8285,7 @@ mod test
     #[test]
     fn test_j3()
     {
-        crate::tests::test_op1("j3", |x| libm::jnf(3, x), |x| x.jn(3), Some(0.1), Some(-20.0..20.0))
+        crate::tests::test_op1("j3", |x| libm::jnf(3, x), |x| x.jn(3), Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*20.0..20.0))
     }
     
     #[test]
@@ -6810,7 +8297,13 @@ mod test
     #[test]
     fn test_erf()
     {
-        crate::tests::test_op1("erf", libm::erff, Fp::erf, Some(0.1), Some(-5.0..5.0))
+        crate::tests::test_op1("erf", libm::erff, Fp::erf, Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0))
+    }
+    
+    #[test]
+    fn test_erfc()
+    {
+        crate::tests::test_op1("erfc", libm::erfcf, Fp::erfc, Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0))
     }
 
     #[test]

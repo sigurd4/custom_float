@@ -25,13 +25,13 @@ pub fn plot_curves<const N: usize, const M: usize>(
     mut y: [[T; N]; M]
 ) -> Result<(), Box<dyn std::error::Error>>
 {
-    y.map_assign(|y| y.map(|y| y.clamp(-CLAMP, CLAMP)));
-
-    let x_min = x.into_iter().flatten().reduce(T::min).unwrap();
-    let x_max = x.into_iter().flatten().reduce(T::max).unwrap();
+    let x_min = x.into_iter().flatten().filter(|x| x.is_finite()).reduce(T::min).unwrap();
+    let x_max = x.into_iter().flatten().filter(|x| x.is_finite()).reduce(T::max).unwrap();
     
-    let y_min = y.into_iter().flatten().reduce(T::min).unwrap();
-    let y_max = y.into_iter().flatten().reduce(T::max).unwrap();
+    let y_min = y.into_iter().flatten().filter(|x| x.is_finite()).reduce(T::min).unwrap();
+    let y_max = y.into_iter().flatten().filter(|x| x.is_finite()).reduce(T::max).unwrap();
+    
+    y.map_assign(|y| y.map(|y| y.clamp(y_min, y_max)));
     
     let area = BitMapBackend::new(plot_path, PLOT_RES).into_drawing_area();
     

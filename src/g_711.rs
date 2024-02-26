@@ -1,3 +1,4 @@
 use crate::Fp;
 
-pub type FpG711 = Fp<u8, 3, 0, 4, 2>;
+/// G.711 8-bit minifloat
+pub type FpG711 = Fp<u8, true, 3, 0, 4, 2>;

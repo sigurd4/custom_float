@@ -4,10 +4,10 @@ use num_traits::{float::FloatCore, Float};
 
 use crate::{util, Fp, UInt};
 
-impl<U: UInt, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Float for Fp<U, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Float for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
-    [(); util::bitsize_of::<U>() - EXP_SIZE - INT_SIZE - FRAC_SIZE - 1]:,
-    [(); util::bitsize_of::<U>() - EXP_SIZE - 0 - FRAC_SIZE - 1]:,
+    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
+    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
     [(); EXP_BASE - 2]:
 {
     #[inline]
@@ -384,19 +384,19 @@ mod test
     #[test]
     fn test_exp2()
     {
-        crate::tests::test_op1("exp2", Float::exp2, Float::exp2, None, Some(-5.0..5.0));
+        crate::tests::test_op1("exp2", Float::exp2, Float::exp2, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0));
     }
 
     #[test]
     fn test_exp()
     {
-        crate::tests::test_op1("exp", Float::exp, Float::exp, None, Some(-5.0..5.0));
+        crate::tests::test_op1("exp", Float::exp, Float::exp, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0));
     }
 
     #[test]
     fn test_exp_m1()
     {
-        crate::tests::test_op1("exp_m1", Float::exp_m1, Float::exp_m1, None, Some(-5.0..5.0));
+        crate::tests::test_op1("exp_m1", Float::exp_m1, Float::exp_m1, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0));
     }
 
     #[test]
@@ -420,31 +420,31 @@ mod test
     #[test]
     fn test_ln_1p()
     {
-        crate::tests::test_op1("ln_1p", Float::ln_1p, Float::ln_1p, None, Some(-0.5..5.0));
+        crate::tests::test_op1("ln_1p", Float::ln_1p, Float::ln_1p, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*0.5..5.0));
     }
 
     #[test]
     fn test_sinh()
     {
-        crate::tests::test_op1("sinh", Float::sinh, Float::sinh, None, Some(-5.0..5.0));
+        crate::tests::test_op1("sinh", Float::sinh, Float::sinh, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0));
     }
 
     #[test]
     fn test_cosh()
     {
-        crate::tests::test_op1("cosh", Float::cosh, Float::cosh, None, Some(-5.0..5.0));
+        crate::tests::test_op1("cosh", Float::cosh, Float::cosh, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0));
     }
 
     #[test]
     fn test_tanh()
     {
-        crate::tests::test_op1("tanh", Float::tanh, Float::tanh, None, Some(-5.0..5.0));
+        crate::tests::test_op1("tanh", Float::tanh, Float::tanh, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0));
     }
 
     #[test]
     fn test_asinh()
     {
-        crate::tests::test_op1("asinh", Float::asinh, Float::asinh, None, Some(-5.0..5.0));
+        crate::tests::test_op1("asinh", Float::asinh, Float::asinh, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0));
     }
 
     #[test]
@@ -456,7 +456,7 @@ mod test
     #[test]
     fn test_atanh()
     {
-        crate::tests::test_op1("atanh", Float::atanh, Float::atanh, None, Some(-0.99..0.99));
+        crate::tests::test_op1("atanh", Float::atanh, Float::atanh, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*0.99..0.99));
     }
 
     #[test]
@@ -468,38 +468,39 @@ mod test
     #[test]
     fn test_sin()
     {
-        crate::tests::test_op1("sin", Float::sin, Float::sin, None, Some(-5.0..5.0));
+        crate::tests::test_op1("sin", Float::sin, Float::sin, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..10.0));
     }
     
     #[test]
     fn test_cos()
     {
-        crate::tests::test_op1("cos", Float::cos, Float::cos, None, Some(-5.0..5.0));
+        crate::tests::test_op1("cos", Float::cos, Float::cos, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..10.0));
     }
     
     #[test]
     fn test_tan()
     {
-        crate::tests::test_op1("tan", Float::tan, Float::tan, None, Some(-1.5..1.5));
+        crate::tests::test_op1("tan", Float::tan, Float::tan, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*1.5..10.0));
     }
     
     #[test]
     fn test_asin()
     {
-        crate::tests::test_op1("asin", Float::asin, Float::asin, None, Some(-1.0..1.0));
+        crate::tests::test_op1("asin", Float::asin, Float::asin, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*1.0..1.0));
     }
     
     #[test]
     fn test_acos()
     {
-        crate::tests::test_op1("acos", Float::acos, Float::acos, None, Some(-1.0..1.0));
+        //println!("{}", crate::tests::F::from(0.5).acos());
+        crate::tests::test_op1("acos", Float::acos, Float::acos, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*1.0..1.0));
     }
     
     #[test]
     fn test_atan()
     {
         crate::tests::test_op2("atan", |a, b| Float::atan(a/b), |a, b| Float::atan(a/b), Some(0.01));
-        crate::tests::test_op1("atan", Float::atan, Float::atan, Some(0.01), Some(-5.0..5.0));
+        crate::tests::test_op1("atan", Float::atan, Float::atan, Some(0.01), Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0));
     }
 
     #[test]
@@ -511,11 +512,11 @@ mod test
     #[test]
     fn test_round()
     {
-        crate::tests::test_op1("round", Float::round, Float::round, None, Some(-5.0..5.0));
-        crate::tests::test_op1("ceil", Float::ceil, Float::ceil, None, Some(-5.0..5.0));
-        crate::tests::test_op1("floor", Float::floor, Float::floor, None, Some(-5.0..5.0));
-        crate::tests::test_op1("trunc", Float::trunc, Float::trunc, None, Some(-5.0..5.0));
-        crate::tests::test_op1("round_ties_even", f32::round_ties_even, Fp::round_ties_even, None, Some(-5.0..5.0));
+        crate::tests::test_op1("round", Float::round, Float::round, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0));
+        crate::tests::test_op1("ceil", Float::ceil, Float::ceil, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0));
+        crate::tests::test_op1("floor", Float::floor, Float::floor, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0));
+        crate::tests::test_op1("trunc", Float::trunc, Float::trunc, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0));
+        crate::tests::test_op1("round_ties_even", f32::round_ties_even, Fp::round_ties_even, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0));
     }
 
     #[test]
@@ -527,6 +528,6 @@ mod test
     #[test]
     fn test_cbrt()
     {
-        crate::tests::test_op1("cbrt", Float::cbrt, Float::cbrt, Some(0.001), Some(-5.0..5.0));
+        crate::tests::test_op1("cbrt", Float::cbrt, Float::cbrt, Some(0.001), Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0));
     }
 }

@@ -1,14 +1,94 @@
 #![allow(unused)]
 
 use core::ops::{Add, Div, Rem, Shl, Shr};
+use std::ops::{AddAssign, MulAssign};
 
-use num_traits::{NumCast, One, Zero};
+use array_math::ArrayMath;
+use num_traits::{NumCast, One, Zero, Float};
 
 use crate::{Int, UInt};
 
 pub const fn bitsize_of<T>() -> usize
 {
     core::mem::size_of::<T>()*8
+}
+
+#[inline]
+pub fn add_extra_sign<T>(a: (T, bool), b: (T, bool), may_be_neg: bool) -> (T, bool)
+where
+    T: Float
+{
+    let (a, a_s) = a;
+    let (b, b_s) = b;
+    let mut s = false;
+    let y = match (a_s, b_s)
+    {
+        (false, false) => a + b,
+        (true, false) => if may_be_neg || a <= b
+        {
+            b - a
+        }
+        else
+        {
+            s = !s;
+            a - b
+        },
+        (false, true) => if may_be_neg || b <= a
+        {
+            a - b
+        }
+        else
+        {
+            s = !s;
+            b - a
+        },
+        (true, true) => if may_be_neg
+        {
+            -a - b
+        }
+        else
+        {
+            s = !s;
+            a + b
+        }
+    };
+
+    (y, s)
+}
+
+#[inline]
+pub fn polynomial<T, F, const N: usize>(p: &[T; N], z: F, may_be_neg: bool, z_neg: bool) -> F
+where
+    T: Float,
+    F: Float + From<T> + AddAssign + MulAssign
+{
+    if may_be_neg
+    {
+        return p.map(<F as From<_>>::from).polynomial(if z_neg {-z} else {z})
+    }
+    let mut y = F::zero();
+    let mut zn = F::one();
+    for n in 0..N
+    {
+        if may_be_neg || p[n].is_sign_positive() ^ (z_neg && (n % 2 != 0))
+        {
+            y = y + <F as From<_>>::from(p[n].abs())*zn;
+        }
+        zn = zn*z;
+    }
+    if !may_be_neg
+    {
+        let mut zn = F::one();
+        for n in 0..N
+        {
+            if p[n].is_sign_negative() ^ (z_neg && (n % 2 != 0))
+            {
+                y = y - <F as From<_>>::from(p[n].abs())*zn;
+            }
+            zn = zn*z;
+        }
+    }
+    y
 }
 
 /// Returns (2^`digits_bin`).ilog(base)
