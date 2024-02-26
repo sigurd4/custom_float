@@ -14,7 +14,7 @@ This crate adds a custom floating point number type, `Fp<U, SIGN_BIT, EXP_SIZE, 
 
 `EXP_BASE` is the base of the exponent.
 
-The total bit size of `U` must be greater or equal to `EXP_SIZE` + `INT_SIZE` + `FRAC_SIZE` + 1 to contain the entire number.
+The total bit size of `U` must be greater or equal to `SIGN_BIT` + `EXP_SIZE` + `INT_SIZE` + `FRAC_SIZE` to contain the entire number.
 
 The bit layout is as follows:
 ```txt
