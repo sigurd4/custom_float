@@ -17,6 +17,8 @@
 //! This crate adds a custom floating point number type, `Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>`, where the bit size of the exponent and mantissa can be set separately.
 //! 
 //! `U` is the underlying unsigned integer type which is used to represent the number.
+//!
+//! `SIGN_BIT` is wether or not the number has a sign bit.
 //! 
 //! `EXP_SIZE` is the size of the exponent in bits.
 //! 
@@ -30,8 +32,8 @@
 //!
 //! The bit layout is as follows:
 //! ```txt
-//! No data: | Sign: | Exponent:  | Integer:   | Fractional: |
-//! <  ..  > | < 1 > | <EXP_SIZE> | <INT_SIZE> | <FRAC_SIZE> |
+//! No data: | Sign:      | Exponent:  | Integer:   | Fractional: |
+//! <  ..  > | <SIGN_BIT> | <EXP_SIZE> | <INT_SIZE> | <FRAC_SIZE> |
 //! ```
 //! 
 //! The value of a real floating-point number is the following:
