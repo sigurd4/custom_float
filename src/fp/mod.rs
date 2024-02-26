@@ -34,6 +34,8 @@ const NEWTON_TRIG: usize = if NO_NEWTON {0} else {3};
 /// A custom floating point type, where the bit size of the exponent and mantissa can be set separately.
 /// 
 /// `U` is the underlying unsigned integer type which is used to represent the number.
+///
+/// `SIGN_BIT` is wether or not the number has a sign bit.
 /// 
 /// `EXP_SIZE` is the size of the exponent in bits.
 /// 
@@ -43,12 +45,12 @@ const NEWTON_TRIG: usize = if NO_NEWTON {0} else {3};
 /// 
 /// `EXP_BASE` is the base of the exponent.
 /// 
-/// The total bit size of `U` must be greater or equal to `EXP_SIZE` + `INT_SIZE` + `FRAC_SIZE` + 1 to contain the entire number.
+/// The total bit size of `U` must be greater or equal to `SIGN_BIT` + `EXP_SIZE` + `INT_SIZE` + `FRAC_SIZE` to contain the entire number.
 ///
 /// The bit layout is as follows:
 /// ```txt
-/// No data: | Sign: | Exponent:  | Integer:   | Fractional: |
-/// <  ..  > | < 1 > | <EXP_SIZE> | <INT_SIZE> | <FRAC_SIZE> |
+/// No data: | Sign:      | Exponent:  | Integer:   | Fractional: |
+/// <  ..  > | <SIGN_BIT> | <EXP_SIZE> | <INT_SIZE> | <FRAC_SIZE> |
 /// ```
 /// 
 /// The value of a real floating-point number is the following:
