@@ -1,9 +1,7 @@
 #![allow(unused)]
 
-use core::ops::{Add, Div, Rem, Shl, Shr};
-use std::ops::{AddAssign, MulAssign};
+use core::ops::{Add, Div, Rem, Shl, Shr, AddAssign, MulAssign};
 
-use array_math::ArrayMath;
 use num_traits::{NumCast, One, Zero, Float};
 
 use crate::{Int, UInt};
@@ -62,15 +60,15 @@ where
     T: Float,
     F: Float + From<T> + AddAssign + MulAssign
 {
-    if may_be_neg
-    {
-        return p.map(<F as From<_>>::from).polynomial(if z_neg {-z} else {z})
-    }
     let mut y = F::zero();
     let mut zn = F::one();
     for n in 0..N
     {
-        if may_be_neg || p[n].is_sign_positive() ^ (z_neg && (n % 2 != 0))
+        if may_be_neg
+        {
+            y = y + <F as From<_>>::from(p[n])*zn;
+        }
+        else if p[n].is_sign_positive() ^ (z_neg && (n % 2 != 0))
         {
             y = y + <F as From<_>>::from(p[n].abs())*zn;
         }
@@ -89,6 +87,77 @@ where
         }
     }
     y
+}
+
+pub fn chebychev_approximation<T, const N: usize>(coeffs: [T; N]) -> [T; N]
+where
+    T: Float + AddAssign
+{
+    let t = (0..N).map(
+        |n| chebyshev_polynomial::<T, N>(1, n).unwrap()
+    );
+    t.zip(coeffs)
+        .map(|(t, c)| t.map(|tn| c*tn))
+        .reduce(|a, b| unsafe {
+            a.into_iter()
+                .zip(b)
+                .map(|(a, b)| a + b)
+                .next_chunk()
+                .unwrap_unchecked()
+        }).unwrap_or_else(|| [T::zero(); N])
+}
+
+pub fn chebyshev_polynomial<T, const N: usize>(kind: usize, order: usize) -> Option<[T; N]>
+where
+    T: Float + AddAssign
+{
+    if order > N
+    {
+        return None
+    }
+
+    let two = T::one() + T::one();
+    let mut t_prev = [T::zero(); N];
+    t_prev[0] = T::one();
+    if order == 0
+    {
+        return Some(t_prev)
+    }
+    
+    let mut kind_c = T::zero();
+    let mut k = 0;
+    while k < kind
+    {
+        kind_c += T::one();
+        k += 1;
+    }
+
+    let mut t: [T; N] = core::array::from_fn(|i| if i == 1 {kind_c} else {T::zero()});
+
+    let mut k = 1;
+    while k < order
+    {
+        let mut t_prev_iter = t_prev.into_iter();
+        let mut t_iter = t.into_iter();
+        let mut first = true;
+        
+        let t_next = core::array::from_fn(|_| if first
+            {
+                first = false;
+                -t_prev_iter.next().unwrap()
+            }
+            else
+            {
+                two * t_iter.next().unwrap() - t_prev_iter.next().unwrap()
+            }
+        );
+
+        t_prev = t;
+        t = t_next;
+        k += 1;
+    }
+
+    Some(t)
 }
 
 /// Returns (2^`digits_bin`).ilog(base)

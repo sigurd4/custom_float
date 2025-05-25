@@ -1,4 +1,4 @@
-# Custom Float
+# custom_float
 
 This crate adds a custom floating point number type, `Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>`, where the bit size of the exponent and mantissa can be set separately.
 

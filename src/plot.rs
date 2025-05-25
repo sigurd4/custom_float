@@ -1,6 +1,5 @@
 #![allow(unused)]
 
-use array_math::{ArrayOps, ArrayNdOps};
 use plotters::{prelude::*, element::PointCollection, coord::ranged3d::{ProjectionMatrixBuilder, ProjectionMatrix}};
 
 type T = f32;
@@ -31,7 +30,11 @@ pub fn plot_curves<const N: usize, const M: usize>(
     let y_min = y.into_iter().flatten().filter(|x| x.is_finite()).reduce(T::min).unwrap();
     let y_max = y.into_iter().flatten().filter(|x| x.is_finite()).reduce(T::max).unwrap();
     
-    y.map_assign(|y| y.map(|y| y.clamp(y_min, y_max)));
+    for y in y.iter_mut()
+        .flatten()
+    {
+        *y = y.clamp(y_min, y_max)
+    }
     
     let area = BitMapBackend::new(plot_path, PLOT_RES).into_drawing_area();
     
@@ -48,11 +51,14 @@ pub fn plot_curves<const N: usize, const M: usize>(
         .set_all_tick_mark_size(0.1)
         .draw()?;
     
-    for (i, (x, y)) in x.zip(y).enumerate()
+    for (i, (x, y)) in x.into_iter()
+        .zip(y)
+        .enumerate()
     {
         let color = Palette99::pick(i);
         chart.draw_series(LineSeries::new(
-                x.zip(y),
+                x.into_iter()
+                    .zip(y),
                 &color
             ))?
         .label(format!("{}", i))
@@ -80,11 +86,11 @@ pub fn plot_curve_2d<const NX: usize, const NY: usize>(
 
     let area = SVGBackend::new(plot_path, PLOT_RES).into_drawing_area();
     
-    let x_min = x.reduce(T::min).unwrap();
-    let x_max = x.reduce(T::max).unwrap();
+    let x_min = x.into_iter().reduce(T::min).unwrap();
+    let x_max = x.into_iter().reduce(T::max).unwrap();
     
-    let y_min = y.reduce(T::min).unwrap();
-    let y_max = y.reduce(T::max).unwrap();
+    let y_min = y.into_iter().reduce(T::min).unwrap();
+    let y_max = y.into_iter().reduce(T::max).unwrap();
 
     let f_ref = &f;
     let f_values: Vec<T> = y.into_iter().flat_map(|y| x.into_iter().map(move |x| f_ref(x, y))).collect();
@@ -142,8 +148,18 @@ pub fn plot_parametric_curve_2d<const NU: usize, const NV: usize>(
 
     let ([x_min, y_min, z_min], [x_max, y_max, z_max]) = f_values.into_iter()
         .map(|f| (f, f))
-        .reduce(|a, b| (a.0.zip(b.0).map(|(a, b)| a.min(b)), a.1.zip(b.1).map(|(a, b)| a.max(b))))
-        .unwrap();
+        .reduce(|a, b| (
+            a.0.into_iter()
+                .zip(b.0)
+                .map(|(a, b)| a.min(b))
+                .next_chunk()
+                .unwrap(),
+            a.1.into_iter()
+                .zip(b.1)
+                .map(|(a, b)| a.max(b))
+                .next_chunk()
+                .unwrap()
+        )).unwrap();
 
     area.fill(&WHITE)?;
 
@@ -286,7 +302,18 @@ pub fn plot_parametric_curve_2d_rad<const NU: usize, const NV: usize>(
 
     let ([_r_min, theta_min, z_min], [r_max, theta_max, z_max]) = f_values.into_iter()
         .map(|f| (f, f))
-        .reduce(|a, b| (a.0.zip(b.0).map(|(a, b)| a.min(b)), a.1.zip(b.1).map(|(a, b)| a.max(b))))
+        .reduce(|a, b| (
+            a.0.into_iter()
+                .zip(b.0)
+                .map(|(a, b)| a.min(b))
+                .next_chunk()
+                .unwrap(),
+            a.1.into_iter()
+                .zip(b.1)
+                .map(|(a, b)| a.max(b))
+                .next_chunk()
+                .unwrap()
+        ))
         .unwrap();
 
     area.fill(&WHITE)?;

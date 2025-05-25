@@ -1,16 +1,11 @@
+#![cfg_attr(not(test), no_std)]
 #![allow(incomplete_features)]
-
-//#![cfg_attr(not(test), no_std)]
-
 #![feature(const_trait_impl)]
 #![feature(generic_const_exprs)]
 #![feature(trait_alias)]
-#![feature(const_fn_floating_point_arithmetic)]
+#![feature(iter_next_chunk)]
 #![feature(portable_simd)]
-#![feature(associated_type_bounds)]
-#![feature(round_ties_even)]
 #![feature(float_gamma)]
-#![feature(lazy_cell)]
 
 //! # Custom Float
 //! 
@@ -106,7 +101,6 @@ mod tests
 
     use std::{ops::{Range, RangeBounds}, time::{Instant, SystemTime}};
 
-    use array_math::{ArrayMath, ArrayOps};
     use linspace::LinspaceArray;
     use num::Complex;
     use num_traits::{Float, One, ToPrimitive, Zero};
@@ -125,11 +119,11 @@ mod tests
 
         println!("{:?}", x);
 
-        let mut y = [Complex::zero(); 5];
-        x.real_fft(&mut y);
-        x.real_ifft(&y);
+        //let mut y = [Complex::zero(); 5];
+        //x.real_fft(&mut y);
+        //x.real_ifft(&y);
 
-        println!("{:?}", x);
+        //println!("{:?}", x);
     }
 
     pub fn ttable<F: Float>() -> Vec<F>
@@ -264,7 +258,11 @@ mod tests
 
         let y = x.map(func);
 
-        let e = y_approx.sub_each(y);
+        let e = y_approx.into_iter()
+            .zip(y)
+            .map(|(y_approx, y)| y_approx - y)
+            .next_chunk()
+            .unwrap();
 
         let plot_title: &str = &format!("{fn_name}(x) error");
         let plot_path: &str = &format!("{PLOT_TARGET}/error/{fn_name}_error.png");

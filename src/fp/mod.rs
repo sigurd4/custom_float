@@ -1,7 +1,7 @@
 use core::cmp::Ordering;
 use core::num::FpCategory;
+use core::ops::Neg;
 
-use array_math::{ArrayMath, ArrayOps};
 use num_traits::{ConstZero, FloatConst, FromBytes, ToBytes};
 use num_traits::NumCast;
 
@@ -3653,21 +3653,9 @@ where
         ];
 
         static mut P: Option<[f64; N]> = None;
-        let p = unsafe {
-            if P.is_none()
-            {
-                P = Some({
-                    let t: [[f64; N]; N] = ArrayOps::fill(
-                        |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
-                    );
-                    let p: [f64; N] = t.zip(C)
-                        .map2(|(t, c)| t.map2(|tn| c*tn))
-                        .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
-                        .unwrap_or_default();
-                    p
-                })
-            }
-            P.unwrap()
+        let mut p = unsafe {
+            #[allow(static_mut_refs)]
+            *P.get_or_insert_with(|| util::chebychev_approximation(C))
         };
 
         let one = Self::one();
@@ -3721,8 +3709,12 @@ where
             let mut y = w*util::polynomial(&p, z_neg, SIGN_BIT, true);
             if !SIGN_BIT && y.is_nan()
             {
+                for p in p.iter_mut()
+                {
+                    *p = -*p
+                }
                 s = !s;
-                y = w*util::polynomial(&p.neg_all(), z_neg, SIGN_BIT, true)
+                y = w*util::polynomial(&p, z_neg, SIGN_BIT, true)
             }
 
             y
@@ -3734,8 +3726,12 @@ where
             let mut y = w*util::polynomial(&p, z, SIGN_BIT, false);
             if !SIGN_BIT && y.is_nan()
             {
+                for p in p.iter_mut()
+                {
+                    *p = -*p
+                }
                 s = !s;
-                y = w*util::polynomial(&p.neg_all(), z, SIGN_BIT, false)
+                y = w*util::polynomial(&p, z, SIGN_BIT, false)
             }
 
             y
@@ -3797,20 +3793,8 @@ where
 
         static mut P: Option<[f64; N]> = None;
         let p = unsafe {
-            if P.is_none()
-            {
-                P = Some({
-                    let t: [[f64; N]; N] = ArrayOps::fill(
-                        |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
-                    );
-                    let p: [f64; N] = t.zip(C)
-                        .map2(|(t, c)| t.map2(|tn| c*tn))
-                        .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
-                        .unwrap_or_default();
-                    p
-                })
-            }
-            P.unwrap()
+            #[allow(static_mut_refs)]
+            *P.get_or_insert_with(|| util::chebychev_approximation(C))
         };
 
         let one = Self::one();
@@ -3854,16 +3838,18 @@ where
             w
         };
 
+        let p_neg = p.map(Neg::neg);
+
         let ww2 = two*w*w;
         let y = if !SIGN_BIT && ww2 < one
         {
             let z_neg = one - ww2;
 
-            let mut y = util::polynomial(&if s {p.neg_all()} else {p}, z_neg, SIGN_BIT, true);
+            let mut y = util::polynomial(&if s {p_neg} else {p}, z_neg, SIGN_BIT, true);
             if !SIGN_BIT && y.is_nan()
             {
                 b = !b;
-                y = util::polynomial(&if s {p} else {p.neg_all()}, z_neg, SIGN_BIT, true);
+                y = util::polynomial(&if s {p} else {p_neg}, z_neg, SIGN_BIT, true);
             }
             
             y
@@ -3872,11 +3858,11 @@ where
         {
             let z = ww2 - one;
 
-            let mut y = util::polynomial(&if !SIGN_BIT && s {p.neg_all()} else {p}, z, SIGN_BIT, false);
+            let mut y = util::polynomial(&if !SIGN_BIT && s {p_neg} else {p}, z, SIGN_BIT, false);
             if !SIGN_BIT && y.is_nan()
             {
                 b = !b;
-                y = util::polynomial(&if s {p} else {p.neg_all()}, z, SIGN_BIT, false);
+                y = util::polynomial(&if s {p} else {p_neg}, z, SIGN_BIT, false);
             }
             if SIGN_BIT && s
             {
@@ -4059,21 +4045,9 @@ where
 
         static mut P: Option<[f64; N]> = None;
         let p = unsafe {
-            if P.is_none()
-            {
-                P = Some({
-                    let t: [[f64; N]; N] = ArrayOps::fill(
-                        |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
-                    );
-                    let p: [f64; N] = t.zip(C)
-                        .map2(|(t, c)| t.map2(|tn| c*tn))
-                        .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
-                        .unwrap_or_default();
-                    p
-                })
-            }
-            P.unwrap()
-        }.map(|p| Self::from(p));
+            #[allow(static_mut_refs)]
+            P.get_or_insert_with(|| util::chebychev_approximation(C))
+        };
 
         let one = Self::one();
         let w = if xabs <= Self::FRAC_1_SQRT_2()
@@ -4096,7 +4070,7 @@ where
             if y.is_nan()
             {
                 s = !s;
-                y = util::polynomial(&p.neg_all(), z_neg, SIGN_BIT, true)
+                y = util::polynomial(&p.map(Neg::neg), z_neg, SIGN_BIT, true)
             }
             y
         }
@@ -4104,7 +4078,7 @@ where
         {
             let z = ww2 - one;
 
-            p.polynomial(z)
+            util::polynomial(&p, z, SIGN_BIT, false)
         }*w;
         if xabs > Self::FRAC_1_SQRT_2()
         {
@@ -4290,20 +4264,8 @@ where
 
         static mut P: Option<[f64; N]> = None;
         let p = unsafe {
-            if P.is_none()
-            {
-                P = Some({
-                    let t: [[f64; N]; N] = ArrayOps::fill(
-                        |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
-                    );
-                    let p: [f64; N] = t.zip(C)
-                        .map2(|(t, c)| t.map2(|tn| c*tn))
-                        .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
-                        .unwrap_or_default();
-                    p
-                })
-            }
-            P.unwrap()
+            #[allow(static_mut_refs)]
+            P.get_or_insert_with(|| util::chebychev_approximation(C))
         }.map(Self::from);
 
         let w = if xabs <= Self::FRAC_1_SQRT_2()
@@ -4318,7 +4280,7 @@ where
         let ww2 = Self::from_uint(2u8)*w*w;
         let z = ww2 - Self::one();
 
-        let mut y = p.polynomial(z)*w;
+        let mut y = util::polynomial(&p, z, true, false)*w;
         if xabs <= Self::FRAC_1_SQRT_2()
         {
             y = Self::FRAC_PI_2() - y
@@ -4479,20 +4441,8 @@ where
 
         static mut P: Option<[f64; N]> = None;
         let p = unsafe {
-            if P.is_none()
-            {
-                P = Some({
-                    let t: [[f64; N]; N] = ArrayOps::fill(
-                        |n| <[_; N]>::chebyshev_polynomial(1, n).unwrap()
-                    );
-                    let p: [f64; N] = t.zip(C)
-                        .map2(|(t, c)| t.map2(|tn| c*tn))
-                        .reduce(|a, b| a.zip(b).map2(|(a, b)| a + b))
-                        .unwrap_or_default();
-                    p
-                })
-            }
-            P.unwrap()
+            #[allow(static_mut_refs)]
+            P.get_or_insert_with(|| util::chebychev_approximation(C))
         };
 
         let xabs = self.abs();
@@ -4517,7 +4467,7 @@ where
             if y.is_nan()
             {
                 s = !s;
-                y = util::polynomial(&p.neg_all(), z, SIGN_BIT, true);
+                y = util::polynomial(&p.map(Neg::neg), z, SIGN_BIT, true);
             }
             y
         }
@@ -4529,7 +4479,7 @@ where
             if !SIGN_BIT && y.is_nan()
             {
                 s = !s;
-                y = util::polynomial(&p.neg_all(), z, SIGN_BIT, false);
+                y = util::polynomial(&p.map(Neg::neg), z, SIGN_BIT, false);
             }
             y
         }*w;
@@ -6004,7 +5954,7 @@ where
             let mut q = util::polynomial(&QA, s, SIGN_BIT, b);
             if q.is_nan()
             {
-                q = util::polynomial(&QA.neg_all(), s, SIGN_BIT, b);
+                q = util::polynomial(&QA.map(Neg::neg), s, SIGN_BIT, b);
                 one + s*q
             }
             else
@@ -6025,7 +5975,7 @@ where
             let mut q = s*util::polynomial(&QA, s, SIGN_BIT, b);
             if !SIGN_BIT && q.is_nan()
             {
-                q = s*util::polynomial(&QA.neg_all(), s, SIGN_BIT, b);
+                q = s*util::polynomial(&QA.map(Neg::neg), s, SIGN_BIT, b);
                 if one >= q
                 {
                     one - q
@@ -6043,7 +5993,7 @@ where
         };
         if !SIGN_BIT && p.is_nan()
         {
-            p = util::polynomial(&PA.neg_all(), s, SIGN_BIT, b);
+            p = util::polynomial(&PA.map(Neg::neg), s, SIGN_BIT, b);
             r = !r;
         }
     
@@ -6122,13 +6072,13 @@ where
             r = util::polynomial(&RA, s, SIGN_BIT, false);
             if !SIGN_BIT && r.is_nan()
             {
-                r = util::polynomial(&RA.neg_all(), s, SIGN_BIT, false);
+                r = util::polynomial(&RA.map(Neg::neg), s, SIGN_BIT, false);
                 b = !b;
             }
             big_s = one + s*util::polynomial(&SA, s, SIGN_BIT, false);
             if !SIGN_BIT && big_s.is_nan()
             {
-                big_s = s*util::polynomial(&SA.neg_all(), s, SIGN_BIT, false) - one;
+                big_s = s*util::polynomial(&SA.map(Neg::neg), s, SIGN_BIT, false) - one;
                 b = !b;
             }
         }
@@ -6138,13 +6088,13 @@ where
             r = util::polynomial(&RB, s, SIGN_BIT, false);
             if !SIGN_BIT && r.is_nan()
             {
-                r = util::polynomial(&RB.neg_all(), s, SIGN_BIT, false);
+                r = util::polynomial(&RB.map(Neg::neg), s, SIGN_BIT, false);
                 b = !b;
             }
             big_s = one + s*util::polynomial(&SB, s, SIGN_BIT, false);
             if !SIGN_BIT && big_s.is_nan()
             {
-                big_s = s*util::polynomial(&SB.neg_all(), s, SIGN_BIT, false) - one;
+                big_s = s*util::polynomial(&SB.map(Neg::neg), s, SIGN_BIT, false) - one;
                 b = !b;
             }
         }
@@ -6253,12 +6203,12 @@ where
             let mut s = one + z*util::polynomial(&QQ, z, SIGN_BIT, false);
             if !SIGN_BIT && r.is_nan()
             {
-                r = util::polynomial(&PP.neg_all(), z, SIGN_BIT, false);
+                r = util::polynomial(&PP.map(Neg::neg), z, SIGN_BIT, false);
                 b = !b;
             }
             if !SIGN_BIT && s.is_nan()
             {
-                s = z*util::polynomial(&QQ.neg_all(), z, SIGN_BIT, false) - one;
+                s = z*util::polynomial(&QQ.map(Neg::neg), z, SIGN_BIT, false) - one;
                 b = !b;
             }
             y = r / s;
@@ -6341,12 +6291,12 @@ where
             let mut s = one + z*util::polynomial(&QQ, z, SIGN_BIT, false);
             if !SIGN_BIT && r.is_nan()
             {
-                r = util::polynomial(&PP.neg_all(), z, SIGN_BIT, false);
+                r = util::polynomial(&PP.map(Neg::neg), z, SIGN_BIT, false);
                 b = !b;
             }
             if !SIGN_BIT && s.is_nan()
             {
-                s = z*util::polynomial(&QQ.neg_all(), z, SIGN_BIT, false) - one;
+                s = z*util::polynomial(&QQ.map(Neg::neg), z, SIGN_BIT, false) - one;
                 b = !b;
             }
             let y = r / s;
@@ -6507,11 +6457,11 @@ where
         if !SIGN_BIT && r.is_nan()
         {
             b = !b;
-            r = util::polynomial(&p.neg_all(), z, SIGN_BIT, false);
+            r = util::polynomial(&p.map(Neg::neg), z, SIGN_BIT, false);
         }
         if !SIGN_BIT && s.is_nan()
         {
-            s = z*util::polynomial(&q.neg_all(), z, SIGN_BIT, false);
+            s = z*util::polynomial(&q.map(Neg::neg), z, SIGN_BIT, false);
             if s >= one
             {
                 b = !b;
@@ -6650,12 +6600,12 @@ where
         if !SIGN_BIT && r.is_nan()
         {
             b = !b;
-            r = util::polynomial(&p.neg_all(), z, SIGN_BIT, false);
+            r = util::polynomial(&p.map(Neg::neg), z, SIGN_BIT, false);
         }
         if !SIGN_BIT && s.is_nan()
         {
             b = !b;
-            s = z*util::polynomial(&q.neg_all(), z, SIGN_BIT, false) - one;
+            s = z*util::polynomial(&q.map(Neg::neg), z, SIGN_BIT, false) - one;
         }
 
         let rs = r/s;
@@ -6901,11 +6851,11 @@ where
             if !SIGN_BIT && r.is_nan()
             {
                 b = !b;
-                r = z*util::polynomial(&R0.neg_all(), z, SIGN_BIT, false)
+                r = z*util::polynomial(&R0.map(Neg::neg), z, SIGN_BIT, false)
             }
             if !SIGN_BIT && s.is_nan()
             {
-                s = z*util::polynomial(&S0.neg_all(), z, SIGN_BIT, false);
+                s = z*util::polynomial(&S0.map(Neg::neg), z, SIGN_BIT, false);
                 if s > one
                 {
                     b = !b;
@@ -7016,12 +6966,12 @@ where
             if !SIGN_BIT && u.is_nan()
             {
                 b = !b;
-                u = util::polynomial(&U0.neg_all(), z, SIGN_BIT, false);
+                u = util::polynomial(&U0.map(Neg::neg), z, SIGN_BIT, false);
             }
             let one = Self::one();
             if !SIGN_BIT && v.is_nan()
             {
-                v = z*util::polynomial(&V0.neg_all(), z, SIGN_BIT, false);
+                v = z*util::polynomial(&V0.map(Neg::neg), z, SIGN_BIT, false);
                 if v > one
                 {
                     b = !b;
@@ -7227,11 +7177,11 @@ where
         if !SIGN_BIT && r.is_nan()
         {
             b = !b;
-            r = util::polynomial(&p.neg_all(), z, SIGN_BIT, false);
+            r = util::polynomial(&p.map(Neg::neg), z, SIGN_BIT, false);
         }
         if !SIGN_BIT && s.is_nan()
         {
-            s = z*util::polynomial(&q.neg_all(), z, SIGN_BIT, false);
+            s = z*util::polynomial(&q.map(Neg::neg), z, SIGN_BIT, false);
             if s > one
             {
                 b = !b;
@@ -7370,12 +7320,12 @@ where
         if !SIGN_BIT && r.is_nan()
         {
             b = !b;
-            r = util::polynomial(&p.neg_all(), z, SIGN_BIT, false);
+            r = util::polynomial(&p.map(Neg::neg), z, SIGN_BIT, false);
         }
         if !SIGN_BIT && s.is_nan()
         {
             b = !b;
-            s = z*util::polynomial(&q.neg_all(), z, SIGN_BIT, false) - one;
+            s = z*util::polynomial(&q.map(Neg::neg), z, SIGN_BIT, false) - one;
         }
 
         let rs = r/s;
@@ -7614,12 +7564,12 @@ where
             if !SIGN_BIT && r.is_nan()
             {
                 b = !b;
-                r = z*util::polynomial(&R0.neg_all(), z, SIGN_BIT, false);
+                r = z*util::polynomial(&R0.map(Neg::neg), z, SIGN_BIT, false);
             }
             if !SIGN_BIT && s.is_nan()
             {
                 let one = Self::one();
-                s = z*util::polynomial(&S0.neg_all(), z, SIGN_BIT, false);
+                s = z*util::polynomial(&S0.map(Neg::neg), z, SIGN_BIT, false);
                 if s > one
                 {
                     b = !b;
@@ -7723,11 +7673,11 @@ where
         if !SIGN_BIT && u.is_nan()
         {
             b = !b;
-            u = util::polynomial(&U0.neg_all(), z, SIGN_BIT, false)
+            u = util::polynomial(&U0.map(Neg::neg), z, SIGN_BIT, false)
         }
         if !SIGN_BIT && v.is_nan()
         {
-            v = z*util::polynomial(&V0.neg_all(), z, SIGN_BIT, false);
+            v = z*util::polynomial(&V0.map(Neg::neg), z, SIGN_BIT, false);
             if v > one
             {
                 b = !b;
