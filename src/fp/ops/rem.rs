@@ -37,7 +37,7 @@ where
         {
             frac_b = frac_b + (fb.int_bits() << Self::INT_POS)
         }
-        let mut divisor = Self::from_bits((expo_a << Self::EXP_POS) + frac_b);
+        let mut divisor = Self::from_bits(Self::shift_exp(expo_a) + Self::shift_frac(frac_b));
         while divisor < dividend.divb()
         {
             divisor = divisor.mulb();

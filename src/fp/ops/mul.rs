@@ -20,25 +20,17 @@ where
         {
             return Self::qnan()
         }
+
+        let s = self.is_sign_negative()^rhs.is_sign_negative();
         
-        if self.is_one()
+        if self.abs().is_one()
         {
-            return rhs
+            return rhs.with_sign(s)
         }
-        if (-self).is_one()
+        if rhs.abs().is_one()
         {
-            return -rhs
+            return self.with_sign(s)
         }
-        if rhs.is_one()
-        {
-            return self
-        }
-        if (-rhs).is_one()
-        {
-            return -self
-        }
-    
-        let s = !(self.sign_bit()^rhs.sign_bit()).is_zero();
 
         if self.is_zero() || rhs.is_zero()
         {
@@ -52,25 +44,8 @@ where
         let mut e0: U = self.exp_bits();
         let mut e1: U = rhs.exp_bits();
 
-        let mut f0: U = self.frac_bits();
-        let mut f1: U = rhs.frac_bits();
-
-        if !e0.is_zero() || !Self::IS_INT_IMPLICIT
-        {
-            f0 = f0 + (self.int_bits() << FRAC_SIZE);
-        }
-        else
-        {
-            f0 = f0 << 1usize;
-        }
-        if !e1.is_zero() || !Self::IS_INT_IMPLICIT
-        {
-            f1 = f1 + (rhs.int_bits() << FRAC_SIZE);
-        }
-        else
-        {
-            f1 = f1 << 1usize;
-        }
+        let mut f0: U = self.mantissa_bits();
+        let mut f1: U = rhs.mantissa_bits();
 
         let base = U::from(EXP_BASE).unwrap();
         let bias = Self::exp_bias() + U::one();
@@ -172,37 +147,8 @@ where
             None => return if s {Self::neg_infinity()} else {Self::infinity()}
         };
 
-        while e > U::zero() && f <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
-        {
-            e = e - U::one();
-            f = f*base;
-        }
-        while f >= U::one() << Self::MANTISSA_OP_SIZE
-        {
-            e = e + U::one();
-            f = util::rounding_div(f, base);
-        }
-
-        let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
-
-        if e.is_zero() && Self::IS_INT_IMPLICIT // subnormal
-        {
-            Fp::from_bits(s_bit + util::rounding_div_2(f))
-        }
-        else
-        {
-            if Self::IS_INT_IMPLICIT
-            {
-                f = f - (U::one() << FRAC_SIZE);
-            }
-
-            if e >= (U::one() << EXP_SIZE) - U::one()
-            {
-                return if s {Self::neg_infinity()} else {Self::infinity()}
-            }
-
-            Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
-        }
+        Self::carry_exp_mantissa(&mut e, &mut f);
+        Self::from_sign_exp_mantissa(s, e, f)
     }
 }
 impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> MulAssign for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>

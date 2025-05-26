@@ -46,30 +46,40 @@ macro_rules! impl_as_primitive_int {
 
 impl_as_primitive_int!(i8, i16, i32, isize, i64, i128/*, I256*/);
 
-impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> AsPrimitive<f32> for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
-where
-    U: 'static,
-    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
-    [(); EXP_BASE - 2]:
-{
-    #[inline]
-    fn as_(self) -> f32
-    {
-        Into::<f32>::into(self)
-    }
+macro_rules! impl_as_primitive_float {
+    ($($f:ty),*) => {
+        $(
+            impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> AsPrimitive<$f> for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+            where
+                U: 'static,
+                [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
+                [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
+                [(); EXP_BASE - 2]:
+            {
+                #[inline]
+                fn as_(self) -> $f
+                {
+                    Into::<$f>::into(self)
+                }
+            }
+        )*
+    };
 }
+impl_as_primitive_float!(f16, f32, f64, f128);
 
-impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> AsPrimitive<f64> for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+impl<T: UInt, U: UInt, const S: bool, const SIGN_BIT: bool, const E: usize, const EXP_SIZE: usize, const I: usize, const INT_SIZE: usize, const F: usize, const FRAC_SIZE: usize, const B: usize, const EXP_BASE: usize> AsPrimitive<Fp<T, S, E, I, F, B>> for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
+    T: 'static,
+    [(); util::bitsize_of::<T>() - S as usize - E - I - F]:,
+    [(); util::bitsize_of::<T>() - S as usize - E - 0 - F]:,
+    [(); B - 2]:,
     U: 'static,
     [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
     [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
     [(); EXP_BASE - 2]:
 {
-    #[inline]
-    fn as_(self) -> f64
+    fn as_(self) -> Fp<T, S, E, I, F, B>
     {
-        Into::<f64>::into(self)
+        Fp::from_fp(self)
     }
 }

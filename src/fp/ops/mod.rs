@@ -5,8 +5,10 @@ moddef::moddef!(
         add,
         div,
         euclid,
+        inv,
         mul_add,
         mul,
+        neg,
         pow,
         rem,
         sub

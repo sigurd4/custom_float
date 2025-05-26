@@ -2,8 +2,6 @@ use core::ops::{Div, DivAssign};
 
 use crate::fp::{UInt, Fp, util};
 
-use num_traits::Inv;
-
 impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Div<Self> for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
     [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
@@ -23,7 +21,7 @@ where
             return Self::qnan()
         }
     
-        let s = !(self.sign_bit()^rhs.sign_bit()).is_zero();
+        let s = self.is_sign_negative()^rhs.is_sign_negative();
 
         if self.is_infinite() || rhs.is_zero()
         {
@@ -34,41 +32,20 @@ where
             return if s {Self::neg_zero()} else {Self::zero()}
         }
         
-        if rhs.is_one()
+        if rhs.abs().is_one()
         {
-            return self
-        }
-        if (-rhs).is_one()
-        {
-            return -self
+            return self.with_sign(s)
         }
 
         let mut e0: U = self.exp_bits();
         let mut e1: U = rhs.exp_bits();
 
-        let mut f0: U = self.frac_bits();
-        let mut f1: U = rhs.frac_bits();
+        let mut f0: U = self.mantissa_bits();
+        let mut f1: U = rhs.mantissa_bits();
 
         if e0 == e1 && f0 == f1
         {
             return if s {-Self::one()} else {Self::one()}
-        }
-
-        if !e0.is_zero() || !Self::IS_INT_IMPLICIT
-        {
-            f0 = f0 + (self.int_bits() << FRAC_SIZE);
-        }
-        else
-        {
-            f0 = f0 << 1usize;
-        }
-        if !e1.is_zero() || !Self::IS_INT_IMPLICIT
-        {
-            f1 = f1 + (rhs.int_bits() << FRAC_SIZE);
-        }
-        else
-        {
-            f1 = f1 << 1usize;
         }
 
         let base = U::from(EXP_BASE).unwrap();
@@ -124,7 +101,7 @@ where
             {
                 return if s {Self::neg_infinity()} else {Self::infinity()}
             }
-            let f = f0 / f1;
+            let f = util::rounding_div(f0, f1);
             if !f0.is_zero() && f.leading_zeros() as usize >= Self::BASE_PADDING
             {
                 if f0.leading_zeros() as usize > Self::BASE_PADDING
@@ -206,37 +183,8 @@ where
             None => return if s {Self::neg_zero()} else {Self::zero()}
         };
 
-        while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
-        {
-            e = e - U::one();
-            f = f*base;
-        }
-        while e < U::one() << EXP_SIZE && f >= U::one() << Self::MANTISSA_OP_SIZE
-        {
-            e = e + U::one();
-            f = util::rounding_div(f, base);
-        }
-
-        let s_bit = if s {U::one() << Self::SIGN_POS} else {U::zero()};
-
-        if e.is_zero() && Self::IS_INT_IMPLICIT // subnormal
-        {
-            Fp::from_bits(s_bit + util::rounding_div_2(f))
-        }
-        else
-        {
-            if Self::IS_INT_IMPLICIT
-            {
-                f = f - (U::one() << FRAC_SIZE);
-            }
-            
-            if e >= (U::one() << EXP_SIZE) - U::one()
-            {
-                return if s {Self::neg_infinity()} else {Self::infinity()}
-            }
-
-            Fp::from_bits(s_bit + f + (e << Self::EXP_POS))
-        }
+        Self::carry_exp_mantissa(&mut e, &mut f);
+        Self::from_sign_exp_mantissa(s, e, f)
     }
 }
 impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> DivAssign for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
@@ -252,25 +200,21 @@ where
     }
 }
 
-impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Inv for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
-where
-    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
-    [(); EXP_BASE - 2]:
-{
-    type Output = Self;
-
-    #[inline]
-    fn inv(self) -> Self::Output
-    {
-        self.recip()
-    }
-}
-
 #[cfg(test)]
 mod test
 {
     use std::ops::Div;
+
+    use crate::tests::F;
+
+    #[test]
+    fn test_div_once()
+    {
+        let a = F::from(-2.2e0f32);
+        let b = F::from(3.333333e0f32);
+        let c = a / b;
+        println!("{a} / {b} = {c}");
+    }
 
     #[test]
     fn test_div()

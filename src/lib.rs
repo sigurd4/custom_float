@@ -6,6 +6,11 @@
 #![feature(iter_next_chunk)]
 #![feature(portable_simd)]
 #![feature(float_gamma)]
+#![feature(let_chains)]
+#![feature(specialization)]
+#![feature(f16)]
+#![feature(f128)]
+#![feature(generic_arg_infer)]
 
 //! # Custom Float
 //! 
@@ -68,7 +73,7 @@
 
 use core::fmt::Debug;
 
-use num_traits::{CheckedNeg, CheckedShl, CheckedShr, PrimInt, Signed, Unsigned};
+use num_traits::{Bounded, CheckedNeg, CheckedShl, CheckedShr, PrimInt, Signed, Unsigned};
 
 moddef::moddef!(
     pub mod {
@@ -91,8 +96,8 @@ moddef::moddef!(
     }
 );
 
-pub trait UInt = Unsigned + PrimInt + CheckedShl + CheckedShr + Debug;
-pub trait Int = Signed + PrimInt + CheckedShl + CheckedShr + CheckedNeg;
+pub trait UInt = Unsigned + Bounded + PrimInt + CheckedShl + CheckedShr + Debug;
+pub trait Int = Signed + Bounded + PrimInt + CheckedShl + CheckedShr + CheckedNeg;
 
 #[cfg(test)]
 mod tests
@@ -365,6 +370,27 @@ mod tests
             let f = F::from_uint(n);
             assert_eq!(f.to_uint_wrapping::<u8>(), n);
             assert_eq!(f.to_uint(), Some(n));
+        }
+    }
+
+    #[test]
+    fn test_show_all()
+    {
+        type X = Fp<u8, false, 8, 0, 0, 3>;
+
+        let mut x: X = X::from(0);
+
+        let mut x_prev = x;
+        while x.is_finite()
+        {
+            println!("{}", x);
+            x = x.next_up();
+            if x.is_finite()
+            {
+                assert_ne!(x, x_prev);
+                assert!(x > x_prev);
+                x_prev = x;
+            }
         }
     }
 }
