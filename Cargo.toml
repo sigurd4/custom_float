@@ -11,12 +11,10 @@ keywords = ["float", "number", "custom", "ieee754"]
 
 [features]
 default = []
-ethnum = ["dep:ethnum"]
 
 [dependencies]
 moddef = "0.2.6"
 num-traits = "0.2.19"
-ethnum = {version = "1.5.2", optional = true}
 
 [dev-dependencies]
 num = "0.4.3"

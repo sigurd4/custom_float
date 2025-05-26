@@ -1,8 +1,5 @@
 //IEEE754
 
-#[cfg(feature = "ethnum")]
-use ethnum::U256;
-
 use crate::Fp;
 
 /// Half-precision floating-point format, known as binary16, FP16 or float16
@@ -17,9 +14,8 @@ pub type FpDouble = Fp<u64, true, 11, 0, 52, 2>;
 /// Quadruple-precision floating-point format, known as binary128, FP128 or float128
 pub type FpQuadruple = Fp<u128, true, 15, 0, 112, 2>;
 
-/// Octuple-precision floating-point format, known as binary256, FP256 or float256
-#[cfg(feature = "ethnum")]
-pub type FpOctuple = Fp<U256, true, 19, 0, 236, 2>;
+// /// Octuple-precision floating-point format, known as binary256, FP256 or float256
+//pub type FpOctuple = Fp<u256, true, 19, 0, 236, 2>;
 
 /// Decimal single-precision floating-point format, known as decimal32
 pub type DecSingle = Fp<u32, true, 11, 7, 13, 10>;
