@@ -1395,6 +1395,8 @@ where
     /// # Examples
     ///
     /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let nan = FpSingle::nan();
@@ -1413,6 +1415,8 @@ where
     /// # Examples
     ///
     /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let qnan = FpSingle::qnan();
@@ -1432,6 +1436,8 @@ where
     /// # Examples
     ///
     /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let snan = FpSingle::snan();
@@ -1455,6 +1461,8 @@ where
     /// # Examples
     ///
     /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let snan = FpSingle::snan();
@@ -1479,6 +1487,8 @@ where
     /// # Examples
     ///
     /// ```
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let infinity = FpSingle::infinity();
