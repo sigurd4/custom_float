@@ -130,6 +130,24 @@ where
             false => U::max_value()
         }
     }
+    #[inline]
+    fn max_frac_bits() -> U
+    {
+        match FRAC_SIZE < util::bitsize_of::<U>()
+        {
+            true => (U::one() << FRAC_SIZE) - U::one(),
+            false => U::max_value()
+        }
+    }
+    #[inline]
+    fn max_mantissa_bits() -> U
+    {
+        match Self::MANTISSA_DIGITS < util::bitsize_of::<U>()
+        {
+            true => (U::one() << Self::MANTISSA_DIGITS) - U::one(),
+            false => U::max_value()
+        }
+    }
 
     fn shift_sign(s: U) -> U
     {
@@ -175,7 +193,20 @@ where
         {
             f + (self.int_bits() << Self::INT_POS)
         }
-    } 
+    }
+
+    fn mantissa_bits_abnormal(&self) -> U
+    {
+        let f = self.frac_bits();
+        if self.is_subnormal()
+        {
+            f
+        }
+        else
+        {
+            f + (self.int_bits() << Self::INT_POS)
+        }
+    }
 
     fn unexplicit_int(mantissa: &mut U)
     {
@@ -416,7 +447,7 @@ where
 
         let df = FRAC_SIZE as isize - F as isize;
 
-        let base1 = V::from(B).unwrap();
+        let base1 = V::from(B);
 
         let mut f = loop
         {
@@ -439,7 +470,14 @@ where
                 Some(f) => break f,
                 None => {
                     e1 = e1 + V::one();
-                    f = util::rounding_div(f, base1)
+                    f = if let Some(base1) = base1
+                    {
+                        util::rounding_div(f, base1)
+                    }
+                    else
+                    {
+                        V::zero()
+                    }
                 }
             }
         };
@@ -447,40 +485,70 @@ where
         let bias1 = Fp::<V, S, E, I, F, B>::exp_bias();
         let bias2 = Self::exp_bias();
 
-        let base1 = U::from(B).unwrap();
-        let base2 = U::from(EXP_BASE).unwrap();
+        let base1 = U::from(B);
+        let base2 = U::from(EXP_BASE);
 
         let mut e = bias2;
-        while e1 > bias1
+        if let Some(base1) = base1
         {
-            e1 = e1 - V::one();
-            while f.leading_zeros() as usize <= Fp::<V, S, E, I, F, B>::BASE_PADDING
+            while e1 > bias1
             {
-                e = e + U::one();
-                f = util::rounding_div(f, base2);
+                e1 = e1 - V::one();
+                while f.leading_zeros() as usize <= Fp::<V, S, E, I, F, B>::BASE_PADDING
+                {
+                    e = e + U::one();
+                    f = if let Some(base2) = base2
+                    {
+                        util::rounding_div(f, base2)
+                    }
+                    else
+                    {
+                        U::zero()
+                    }
+                }
+                f = f*base1
             }
-            f = f*base1
         }
         while e1 < bias1
         {
             e1 = e1 + V::one();
-            while e > U::zero() && f.leading_zeros() as usize > Self::BASE_PADDING
+            if let Some(base2) = base2
+            {
+                while e > U::zero() && f.leading_zeros() as usize > Self::BASE_PADDING
+                {
+                    e = e - U::one();
+                    f = f*base2;
+                }
+            }
+            f = if let Some(base1) = base1
+            {
+                util::rounding_div(f, base1)
+            }
+            else
+            {
+                U::zero()
+            }
+        }
+
+        if let Some(base2) = base2
+        {
+            while e > U::zero() && (f >> (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)).is_zero()
             {
                 e = e - U::one();
                 f = f*base2;
             }
-            f = util::rounding_div(f, base1)
-        }
-
-        while e > U::zero() && (f >> (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)).is_zero()
-        {
-            e = e - U::one();
-            f = f*base2;
         }
         while e <= Self::max_exponent_bits() && !(f >> Self::MANTISSA_OP_SIZE).is_zero()
         {
             e = e + U::one();
-            f = util::rounding_div(f, base2);
+            f = if let Some(base2) = base2
+            {
+                util::rounding_div(f, base2)
+            }
+            else
+            {
+                U::zero()
+            }
         }
 
         Self::from_sign_exp_mantissa(s, e, f)
@@ -1577,7 +1645,7 @@ where
     #[inline]
     pub fn max_value() -> Self
     {
-        Self::from_bits(Self::shift_exp(U::max_value() >> util::bitsize_of::<U>() - EXP_SIZE) - U::one())
+        Self::from_bits(Self::shift_exp(Self::max_exponent_bits()) - U::one())
     }
 
     /// Returns `true` if this value is NaN.
@@ -1654,7 +1722,7 @@ where
     #[inline]
     pub fn is_finite(self) -> bool
     {
-        self.exp_bits() != (U::max_value() >> util::bitsize_of::<U>() - EXP_SIZE)
+        self.exp_bits() != Self::max_exponent_bits()
     }
 
     /// Returns `true` if the number is neither zero, infinite,
@@ -2155,75 +2223,7 @@ where
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn next_up(self) -> Self
     {
-        if self.is_nan()
-        {
-            return self
-        }
-        if self.is_infinite()
-        {
-            if self.is_sign_negative()
-            {
-                return Self::min_value()
-            }
-            return self
-        }
-
-        if self.is_zero()
-        {
-            return Self::from_bits(U::one())
-        }
-
-        let s = self.is_sign_negative();
-        let mut e = self.exp_bits();
-
-        if Self::MANTISSA_DIGITS == 0
-        {
-            e = e + U::one();
-            Self::from_bits(Self::shift_exp(e))
-        }
-        else
-        {
-            let mut f = self.frac_bits();
-            
-            let is_subnormal = self.is_subnormal();
-            
-            if !is_subnormal //normal
-            {
-                f = f + Self::shift_int(self.int_bits());
-            }
-
-            let base = U::from(EXP_BASE).unwrap();
-            if !s
-            {
-                f = f + U::one();
-                while f > U::one() << Self::MANTISSA_OP_SIZE
-                {
-                    e = e + U::one();
-                    f = util::rounding_div(f, base);
-                }
-            }
-            else
-            {
-                while e > U::zero() && f <= U::one() << (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)
-                {
-                    e = e - U::one();
-                    f = f*base;
-                }
-                f = f - U::one();
-            }
-
-            if f.is_zero()
-            {
-                return if s {-Self::zero()} else {Self::zero()}
-            }
-        
-            if is_subnormal //subnormal
-            {
-                f = f << 1usize
-            }
-
-            Self::from_sign_exp_mantissa(s, e, f)
-        }
+        self.next(false)
     }
     
     /// Returns the greatest number less than `self`.
@@ -2260,70 +2260,179 @@ where
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn next_down(self) -> Self
     {
+        self.next(true)
+    }
+
+    fn next(self, sign: bool) -> Self
+    {
         if self.is_nan()
         {
             return self
         }
+
+        let mut s = self.is_sign_negative();
+
         if self.is_infinite()
         {
-            if self.is_sign_positive()
+            if s ^ sign
             {
-                return Self::max_value()
+                return Self::max_value().with_sign(!sign)
             }
             return self
         }
 
-        if self.is_zero()
-        {
-            return Self::from_bits(Self::shift_sign(U::one()) + U::one())
-        }
-
-        let s = self.is_sign_negative();
         let mut e = self.exp_bits();
 
         if Self::MANTISSA_DIGITS == 0
         {
-            e = e - U::one();
-            Self::from_bits(Self::shift_exp(e))
-        }
-        else
-        {
-            let mut f = self.frac_bits();
-            
-            let is_subnormal = !(!e.is_zero() || !Self::IS_INT_IMPLICIT);
-            
-            if !is_subnormal //normal
+            if s ^ sign
             {
-                f = f + Self::shift_int(self.int_bits());
-            }
-
-            let base = U::from(EXP_BASE).unwrap();
-
-            if s
-            {
-                f = f + U::one();
-                while f > U::one() << Self::MANTISSA_OP_SIZE
+                if e.is_zero()
                 {
-                    e = e + U::one();
-                    f = util::rounding_div(f, base);
+                    return -self
+                }
+                else
+                {
+                    e = e - U::one()
                 }
             }
             else
             {
-                while e > U::zero() && f <= U::one() << (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)
-                {
-                    e = e - U::one();
-                    f = f*base;
-                }
-                f = f - U::one();
-            }
-            
-            if is_subnormal //subnormal
+                e = e + U::one()
+            };
+            let s_bits = if s {Self::shift_sign(U::one())} else {U::zero()};
+            Self::from_bits(s_bits + Self::shift_exp(e))
+        }
+        else
+        {
+            if Self::IS_INT_IMPLICIT
             {
-                f = f << 1usize
-            }
+                let mut f = self.frac_bits();
 
-            Self::from_sign_exp_mantissa(s, e, f)
+                if s ^ sign
+                {
+                    if f.is_zero()
+                    {
+                        if e.is_zero()
+                        {
+                            s = !s;
+                        }
+                        else
+                        {
+                            e = e - U::one();
+                            f = Self::max_frac_bits()
+                        }
+                    }
+                    else
+                    {
+                        f = f - U::one()
+                    }
+                }
+                else
+                {
+                    if f == Self::max_frac_bits()
+                    {
+                        e = e + U::one();
+                        f = U::zero()
+                    }
+                    else
+                    {
+                        f = f + U::one()
+                    }
+                }
+
+                let s_bits = if s {Self::shift_sign(U::one())} else {U::zero()};
+                Self::from_bits(s_bits + Self::shift_exp(e) + Self::shift_frac(f))
+            }
+            else
+            {
+                let mut f = self.mantissa_bits_abnormal();
+
+                let base = U::from(EXP_BASE);
+
+                if s ^ sign
+                {
+                    if f.is_zero()
+                    {
+                        s = !s;
+                        e = U::zero()
+                    }
+                    else
+                    {
+                        if let Some(base) = base && let Some(mut ff) = f.checked_mul(&base)
+                        {
+                            let mut o = U::one();
+                            while !e.is_zero() && let oo = ff.saturating_sub(Self::max_mantissa_bits()) && oo < base
+                            {
+                                o = oo.max(U::one());
+                                e = e - U::one();
+                                f = ff;
+                                if let Some(fff) = f.checked_mul(&base)
+                                {
+                                    ff = fff
+                                }
+                                else
+                                {
+                                    break
+                                }
+                            }
+                            f = f - o
+                        }
+                        else if !e.is_zero() && f == U::one()
+                        {
+                            e = e - U::one();
+                            f = Self::max_mantissa_bits()
+                        }
+                        else
+                        {
+                            f = f - U::one()
+                        }
+                    }
+                }
+                else
+                {
+                    if let Some(base) = base && let Some(mut ff) = f.checked_mul(&base)
+                    {
+                        while !e.is_zero() && ff <= Self::max_mantissa_bits()
+                        {
+                            e = e - U::one();
+                            f = ff;
+                            if let Some(fff) = f.checked_mul(&base)
+                            {
+                                ff = fff
+                            }
+                            else
+                            {
+                                break
+                            }
+                        }
+                    }
+                    if f == Self::max_mantissa_bits()
+                    {
+                        e = e + U::one();
+                        if e == Self::max_exponent_bits()
+                        {
+                            let s_bits = if s {Self::shift_sign(U::one())} else {U::zero()};
+                            return Self::from_bits(s_bits + Self::shift_exp(e))
+                        }
+                        if let Some(base) = base
+                        {
+                            f = f/base + U::one();
+                        }
+                        else
+                        {
+                            f = U::one()
+                        }
+                    }
+                    else
+                    {
+                        f = f + U::one()
+                    }
+                }
+
+                let s_bits = if s {Self::shift_sign(U::one())} else {U::zero()};
+                Self::from_bits(s_bits + Self::shift_exp(e) + Self::shift_frac(f))
+            }
         }
     }
     
@@ -8266,7 +8375,7 @@ mod test
 {
     #![allow(unused)]
 
-    use crate::{ieee754::{FpDouble, FpHalf}, tests::F, Fp};
+    use crate::{g_711::FpG711, ieee754::{FpDouble, FpHalf}, tests::F, Fp};
 
     #[test]
     fn test_gamma()
@@ -8350,26 +8459,50 @@ mod test
     #[test]
     fn test_next_up_down()
     {
-        type F = FpHalf;
+        type F = Fp<u8, true, 3, 1, 3, {usize::MAX}>;
 
-        let mut x = F::min_value();
+        let mut x = F::neg_infinity();
 
-        while x < F::max_value()
+        loop
         {
             let y = x.next_up();
-            assert_ne!(x, y);
+            if !y.is_zero()
+            {
+                if x == y
+                {
+                    let y = x.next_up();
+                }
+                assert_ne!(x, y);
+            }
             assert_eq!(-(-x).next_down(), y);
+            if !(x == y.next_down())
+            {
+                let yy = x.next_up();
+                let xx = y.next_down();
+                println!("{x} ^ {yy} v {xx}")
+            }
             assert_eq!(x, y.next_down());
             x = y;
+            if !x.is_finite()
+            {
+                break
+            }
         }
 
-        while x > F::min_value()
+        loop
         {
             let y = x.next_down();
-            assert_ne!(x, y);
+            if !y.is_zero()
+            {
+                assert_ne!(x, y);
+            }
             assert_eq!(-(-x).next_up(), y);
             assert_eq!(x, y.next_up());
             x = y;
+            if !x.is_finite()
+            {
+                break
+            }
         }
     }
 }

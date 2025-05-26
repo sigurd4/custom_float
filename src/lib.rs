@@ -376,9 +376,9 @@ mod tests
     #[test]
     fn test_show_all()
     {
-        type X = Fp<u8, false, 8, 0, 0, 3>;
+        type F = Fp<u8, true, 3, 0, 4, 16>;
 
-        let mut x: X = X::from(0);
+        let mut x: F = F::from(0);
 
         let mut x_prev = x;
         while x.is_finite()
@@ -387,10 +387,61 @@ mod tests
             x = x.next_up();
             if x.is_finite()
             {
-                assert_ne!(x, x_prev);
+                if !x.is_zero()
+                {
+                    assert_ne!(x, x_prev);
+                }
                 assert!(x > x_prev);
                 assert_eq!(x_prev, x.next_down());
                 x_prev = x;
+            }
+        }
+    }
+
+    #[test]
+    fn test_next_up_down_unsigned()
+    {
+        type F = Fp<u8, false, 3, 1, 3, {usize::MAX}>;
+
+        let mut x = F::zero();
+
+        loop
+        {
+            let y = x.next_up();
+            if !y.is_zero()
+            {
+                if x == y
+                {
+                    let y = x.next_up();
+                }
+                assert_ne!(x, y);
+            }
+            if !(x == y.next_down())
+            {
+                let yy = x.next_up();
+                let xx = y.next_down();
+                println!("{x} ^ {yy} v {xx}")
+            }
+            assert_eq!(x, y.next_down());
+            x = y;
+            if !x.is_finite()
+            {
+                break
+            }
+        }
+
+        loop
+        {
+            let y = x.next_down();
+            if !y.is_zero()
+            {
+                assert_ne!(x, y);
+            }
+            assert_eq!(x, y.next_up());
+            x = y;
+            if !x.is_zero()
+            {
+                break
             }
         }
     }
