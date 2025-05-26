@@ -5994,7 +5994,6 @@ where
             1.36370839120290507362e-02, /* 0x3F8BEDC2, 0x6B51DD1C */
             1.19844998467991074170e-02 /* 0x3F888B54, 0x5735151D */
         ];
-
         let one = Self::one();
         let xabs = self.abs();
         let (s, b) = if xabs >= one
@@ -6007,24 +6006,29 @@ where
         };
         let mut r = false;
         let mut p = util::polynomial(&PA, s, SIGN_BIT, b);
+        if !SIGN_BIT && p.is_nan()
+        {
+            p = util::polynomial(&PA.map(Neg::neg), s, SIGN_BIT, b);
+            r = !r;
+        }
         let q = if b
         {
-            let mut q = util::polynomial(&QA, s, SIGN_BIT, b);
-            if q.is_nan()
+            let mut q = s*util::polynomial(&QA, s, SIGN_BIT, b);
+            if !SIGN_BIT && q.is_nan()
             {
-                q = util::polynomial(&QA.map(Neg::neg), s, SIGN_BIT, b);
-                one + s*q
+                q = s*util::polynomial(&QA.map(Neg::neg), s, SIGN_BIT, b);
+                one + q
             }
             else
             {
-                if one >= q
+                if SIGN_BIT || one >= q
                 {
-                    one - s*q
+                    one - q
                 }
                 else
                 {
                     r = !r;
-                    s*q - one
+                    q - one
                 }
             }
         }
@@ -6049,11 +6053,6 @@ where
                 one + q
             }
         };
-        if !SIGN_BIT && p.is_nan()
-        {
-            p = util::polynomial(&PA.map(Neg::neg), s, SIGN_BIT, b);
-            r = !r;
-        }
     
         if r
         {
@@ -6323,7 +6322,7 @@ where
             -3.96022827877536812320e-06 /* 0xBED09C43, 0x42A26120 */
         ];
 
-        let sign = self.sign_bit();
+        let sign = self.is_sign_negative();
         if self.is_nan()
         {
             return self
@@ -6331,7 +6330,7 @@ where
         let two = Self::from_uint(2u8);
         if self.is_infinite()
         {
-            return if !sign.is_zero() {two} else {Self::zero()}
+            return if sign {two} else {Self::zero()}
         }
         let xabs = self.abs();
         let one = Self::one();
@@ -6359,7 +6358,7 @@ where
             }
             let y = r / s;
             let half = Self::from(0.5);
-            if !sign.is_zero() || xabs < Self::from(1.0/4.0) || (!SIGN_BIT && self < half)
+            if sign || xabs < Self::from(1.0/4.0) || (!SIGN_BIT && self < half)
             {
                 /* x < 1/4 */
                 if b
@@ -6385,7 +6384,7 @@ where
         if xabs < Self::from_uint(28u8)
         {
             /* 0.84375 <= |x| < 28 */
-            if !sign.is_zero()
+            if sign
             {
                 return two - self.erfc2();
             }
@@ -6394,7 +6393,7 @@ where
         }
 
         let x1p_1022 = Self::from(f64::from_bits(0x0010000000000000));
-        if !sign.is_zero()
+        if sign
         {
             two - x1p_1022
         }
@@ -8245,7 +8244,7 @@ mod test
 {
     #![allow(unused)]
 
-    use crate::{ieee754::{FpDouble, FpHalf}, Fp};
+    use crate::{ieee754::{FpDouble, FpHalf}, tests::F, Fp};
 
     #[test]
     fn test_gamma()
@@ -8308,6 +8307,16 @@ mod test
     fn test_erf()
     {
         crate::tests::test_op1("erf", libm::erff, Fp::erf, Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0))
+    }
+
+    #[test]
+    fn test_erfc_once()
+    {
+        let x = F::from(0.9);
+
+        let y = x.erfc();
+
+        println!("{y}")
     }
     
     #[test]

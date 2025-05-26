@@ -55,11 +55,15 @@ where
 }
 
 #[inline]
-pub fn polynomial<T, F, const N: usize>(p: &[T; N], z: F, may_be_neg: bool, z_neg: bool) -> F
+pub fn polynomial<T, F, const N: usize>(p: &[T; N], mut z: F, may_be_neg: bool, z_neg: bool) -> F
 where
     T: Float,
     F: Float + From<T> + AddAssign + MulAssign
 {
+    if z_neg && may_be_neg
+    {
+        z = -z;
+    }
     let mut y = F::zero();
     let mut zn = F::one();
     for n in 0..N
