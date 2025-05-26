@@ -2175,42 +2175,55 @@ where
 
         let s = self.is_sign_negative();
         let mut e = self.exp_bits();
-        let mut f = self.frac_bits();
-        
-        let is_subnormal = !(!e.is_zero() || !Self::IS_INT_IMPLICIT);
-        
-        if !is_subnormal //normal
-        {
-            f = f + Self::shift_int(self.int_bits());
-        }
 
-        let base = U::from(EXP_BASE).unwrap();
-
-        if !s
+        if Self::MANTISSA_DIGITS == 0
         {
-            f = f + U::one();
-            while f > U::one() << Self::MANTISSA_OP_SIZE
-            {
-                e = e + U::one();
-                f = util::rounding_div(f, base);
-            }
+            e = e + U::one();
+            Self::from_bits(Self::shift_exp(e))
         }
         else
         {
-            while e > U::zero() && f <= U::one() << (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)
+            let mut f = self.frac_bits();
+            
+            let is_subnormal = self.is_subnormal();
+            
+            if !is_subnormal //normal
             {
-                e = e - U::one();
-                f = f*base;
+                f = f + Self::shift_int(self.int_bits());
             }
-            f = f - U::one();
-        }
-        
-        if is_subnormal //subnormal
-        {
-            f = f << 1usize
-        }
 
-        Self::from_sign_exp_mantissa(s, e, f)
+            let base = U::from(EXP_BASE).unwrap();
+            if !s
+            {
+                f = f + U::one();
+                while f > U::one() << Self::MANTISSA_OP_SIZE
+                {
+                    e = e + U::one();
+                    f = util::rounding_div(f, base);
+                }
+            }
+            else
+            {
+                while e > U::zero() && f <= U::one() << (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)
+                {
+                    e = e - U::one();
+                    f = f*base;
+                }
+                f = f - U::one();
+            }
+
+            if f.is_zero()
+            {
+                return if s {-Self::zero()} else {Self::zero()}
+            }
+        
+            if is_subnormal //subnormal
+            {
+                f = f << 1usize
+            }
+
+            Self::from_sign_exp_mantissa(s, e, f)
+        }
     }
     
     /// Returns the greatest number less than `self`.
@@ -2267,42 +2280,51 @@ where
 
         let s = self.is_sign_negative();
         let mut e = self.exp_bits();
-        let mut f = self.frac_bits();
-        
-        let is_subnormal = !(!e.is_zero() || !Self::IS_INT_IMPLICIT);
-        
-        if !is_subnormal //normal
-        {
-            f = f + Self::shift_int(self.int_bits());
-        }
 
-        let base = U::from(EXP_BASE).unwrap();
-
-        if s
+        if Self::MANTISSA_DIGITS == 0
         {
-            f = f + U::one();
-            while f > U::one() << Self::MANTISSA_OP_SIZE
-            {
-                e = e + U::one();
-                f = util::rounding_div(f, base);
-            }
+            e = e - U::one();
+            Self::from_bits(Self::shift_exp(e))
         }
         else
         {
-            while e > U::zero() && f <= U::one() << (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)
+            let mut f = self.frac_bits();
+            
+            let is_subnormal = !(!e.is_zero() || !Self::IS_INT_IMPLICIT);
+            
+            if !is_subnormal //normal
             {
-                e = e - U::one();
-                f = f*base;
+                f = f + Self::shift_int(self.int_bits());
             }
-            f = f - U::one();
-        }
-        
-        if is_subnormal //subnormal
-        {
-            f = f << 1usize
-        }
 
-        Self::from_sign_exp_mantissa(s, e, f)
+            let base = U::from(EXP_BASE).unwrap();
+
+            if s
+            {
+                f = f + U::one();
+                while f > U::one() << Self::MANTISSA_OP_SIZE
+                {
+                    e = e + U::one();
+                    f = util::rounding_div(f, base);
+                }
+            }
+            else
+            {
+                while e > U::zero() && f <= U::one() << (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)
+                {
+                    e = e - U::one();
+                    f = f*base;
+                }
+                f = f - U::one();
+            }
+            
+            if is_subnormal //subnormal
+            {
+                f = f << 1usize
+            }
+
+            Self::from_sign_exp_mantissa(s, e, f)
+        }
     }
     
     /// Returns the maximum of the two numbers, propagating NaN.

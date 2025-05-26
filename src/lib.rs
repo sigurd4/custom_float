@@ -389,6 +389,7 @@ mod tests
             {
                 assert_ne!(x, x_prev);
                 assert!(x > x_prev);
+                assert_eq!(x_prev, x.next_down());
                 x_prev = x;
             }
         }
