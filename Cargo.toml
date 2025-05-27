@@ -6,6 +6,8 @@ license = "MIT"
 description = "Custom floating-point types"
 repository = "https://github.com/sigurd4/custom_float"
 keywords = ["float", "number", "custom", "ieee754"]
+categories = ["algorithms", "compression", "embedded", "encoding", "mathematics", "no-std::no-alloc", "science"]
+exclude = ["plots"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

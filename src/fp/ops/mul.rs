@@ -151,7 +151,7 @@ where
                     None => return if s {Self::neg_infinity()} else {Self::infinity()}
                 };
         
-                Self::carry_exp_mantissa(&mut e, &mut f);
+                Self::normalize_mantissa(&mut e, &mut f, None);
                 Self::from_sign_exp_mantissa(s, e, f)
             }
         )
@@ -177,6 +177,6 @@ mod test
     #[test]
     fn test_mul()
     {
-        crate::tests::test_op2("mul", Mul::mul, Mul::mul, Some(0.00001))
+        crate::tests::test_op2("mul", Mul::mul, Mul::mul, None)
     }
 }

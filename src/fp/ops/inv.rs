@@ -24,6 +24,6 @@ mod test
     #[test]
     fn test_inv()
     {
-        crate::tests::test_op1("inv", Inv::inv, Inv::inv, Some(0.00001), Some(0.1..10.0))
+        crate::tests::test_op1("inv", Inv::inv, Inv::inv, None, Some(0.1..10.0))
     }
 }

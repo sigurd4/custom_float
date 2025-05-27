@@ -76,8 +76,6 @@
 //! assert_eq!(two + two, four);
 //! ```
 
-use core::fmt::Debug;
-
 use num_traits::{Bounded, CheckedNeg, CheckedShl, CheckedShr, PrimInt, Signed, Unsigned};
 
 moddef::moddef!(
@@ -101,8 +99,9 @@ moddef::moddef!(
     }
 );
 
-pub trait UInt = Unsigned + Bounded + PrimInt + CheckedShl + CheckedShr + Debug;
-pub trait Int = Signed + Bounded + PrimInt + CheckedShl + CheckedShr + CheckedNeg;
+pub trait AnyInt = Bounded + PrimInt + CheckedShl + CheckedShr;
+pub trait UInt = Unsigned + AnyInt + core::fmt::Debug + core::fmt::Binary;
+pub trait Int = Signed + AnyInt + CheckedNeg;
 
 #[cfg(test)]
 mod tests
@@ -130,14 +129,14 @@ mod tests
         plot, Fp
     };
 
-    pub type F = FpQuadruple;
+    pub type F = FpDouble;
 
     #[test]
     fn it_works()
     {
         let mut x = [0.0; 8].map(|x| F::from(x));
         x[0] = F::one() + F::one() + F::one();
-        x[1] = F::one() + F::one();
+        x[1] = F::one() + F::from(0.5);
         x[2] = F::one();
 
         println!("{:?}", x);
@@ -147,6 +146,30 @@ mod tests
         //x.real_ifft(&y);
 
         //println!("{:?}", x);
+    }
+
+    #[test]
+    fn test_dec()
+    {
+        let x = 1e-1;
+        let d = DecDouble::from(x);
+
+        println!("{:e}", d);
+
+        let e = d.exp_bits() as i64 - DecDouble::exp_bias() as i64;
+        let i = d.int_bits();
+        let f = d.frac_bits();
+
+        let y = (i as f64 + f as f64/2.0f64.powi(DecDouble::FRAC_SIZE as i32))*10.0f64.powi(e as i32);
+        println!("{:e}", y);
+
+        let x = x.into();
+
+        assert!(FpDouble::from(y).approx_eq(x));
+
+        let y = FpDouble::from_fp(d);
+
+        assert!(y.approx_eq(x));
     }
 
     pub fn ttable<F: Float>() -> Vec<F>

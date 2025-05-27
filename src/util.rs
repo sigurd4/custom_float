@@ -2,9 +2,9 @@
 
 use core::ops::{Add, Div, Rem, Shl, Shr, AddAssign, MulAssign};
 
-use num_traits::{NumCast, One, Zero, Float};
+use num_traits::{CheckedShl, Float, NumCast, One, Zero};
 
-use crate::{ieee754::{FpDouble, FpHalf, FpQuadruple, FpSingle}, Fp, Int, UInt};
+use crate::{ieee754::{FpDouble, FpHalf, FpQuadruple, FpSingle}, AnyInt, Fp, Int, UInt};
 
 pub(crate) trait Conversion//: Float
 {
@@ -126,6 +126,33 @@ where
             None => false
         }
     }
+}
+
+trait AnyIntSpec: AnyInt
+{
+    const IS_SIGNED: bool;
+}
+impl<T> AnyIntSpec for T
+where
+    T: AnyInt
+{
+    default const IS_SIGNED: bool = true;
+}
+impl<T> AnyIntSpec for T
+where
+    T: UInt
+{
+    const IS_SIGNED: bool = false;
+}
+
+pub const fn is_signed<T: AnyInt>() -> bool
+{
+    <T as AnyIntSpec>::IS_SIGNED
+}
+
+pub fn utilized_size_of<T: AnyInt>(x: &T) -> usize
+{
+    bitsize_of::<T>() - x.leading_zeros() as usize + is_signed::<T>() as usize
 }
 
 pub const fn bitsize_of<T>() -> usize
@@ -314,9 +341,37 @@ pub fn count_digits_in_base(digits_bin: usize, base: usize) -> usize
     y
 }
 
-pub fn rounding_div_pow<T, I: UInt>(mut x: T, rhs: T, mut pow: I) -> T
+trait RoundingDivPowSpec<I: UInt>: Div<Output = Self> + Rem<Output = Self> + Shl<u32, Output = Self> + Add<Output = Self> + PartialOrd + One + Copy
+{
+    fn _rounding_div_pow(x: Self, rhs: Self, pow: I) -> Self;
+}
+impl<T, I: UInt> RoundingDivPowSpec<I> for T
 where
-    T: Div<T, Output = T> + Rem<T, Output = T> + Shl<usize, Output = T> + Add<T, Output = T> + PartialOrd + One + Copy
+    Self: Div<Output = Self> + Rem<Output = Self> + Shl<u32, Output = Self> + Add<Output = Self> + PartialOrd + One + Copy
+{
+    default fn _rounding_div_pow(x: Self, rhs: Self, pow: I) -> Self
+    {
+        rounding_div_pow_naive(x, rhs, pow)
+    }
+}
+impl<T, I: UInt> RoundingDivPowSpec<I> for T
+where
+    Self: Div<Output = Self> + Rem<Output = Self> + Shl<u32, Output = Self> + Shr<u32, Output = Self> + Add<Output = Self> + PartialOrd + One + Copy
+    + NumCast + CheckedShl
+{
+    fn _rounding_div_pow(x: Self, rhs: Self, pow: I) -> Self
+    {
+        if T::from(2usize) == Some(rhs) && let Some(pow) = pow.to_u32() && let Some(rhs) = rhs.checked_shl(pow)
+        {
+            return rounding_div_2_pow(x, pow)
+        }
+        rounding_div_pow_naive(x, rhs, pow)
+    }
+}
+
+fn rounding_div_pow_naive<T, I: UInt>(mut x: T, rhs: T, mut pow: I) -> T
+where
+    T: Div<T, Output = T> + Rem<T, Output = T> + Shl<u32, Output = T> + Add<T, Output = T> + PartialOrd + One + Copy
 {
     while pow > I::zero()
     {
@@ -326,9 +381,16 @@ where
     x
 }
 
+pub fn rounding_div_pow<T, I: UInt>(mut x: T, rhs: T, mut pow: I) -> T
+where
+    T: Div<T, Output = T> + Rem<T, Output = T> + Shl<u32, Output = T> + Add<T, Output = T> + PartialOrd + One + Copy
+{
+    T::_rounding_div_pow(x, rhs, pow)
+}
+
 pub fn rounding_div<T>(x: T, rhs: T) -> T
 where
-    T: Div<T, Output = T> + Rem<T, Output = T> + Shl<usize, Output = T> + Add<T, Output = T> + PartialOrd + One + Copy
+    T: Div<T, Output = T> + Rem<T, Output = T> + Shl<u32, Output = T> + Add<T, Output = T> + PartialOrd + One + Copy
 {
     if (x % rhs) << 1 > rhs
     {
@@ -342,7 +404,7 @@ where
 
 pub fn ceil_div<T>(x: T, rhs: T) -> T
 where
-    T: Div<T, Output = T> + Rem<T, Output = T> + Shl<usize, Output = T> + Add<T, Output = T> + PartialOrd + One + Copy + Zero
+    T: Div<T, Output = T> + Rem<T, Output = T> + Shl<u32, Output = T> + Add<T, Output = T> + PartialOrd + One + Copy + Zero
 {
     if (x % rhs) > T::zero()
     {
@@ -354,18 +416,33 @@ where
     }
 }
 
+pub fn rounding_div_2_pow<T, I: UInt>(x: T, pow: I) -> T
+where
+    T: Shr<u32, Output = T> + Rem<T, Output = T> + Shl<u32, Output = T> + Add<T, Output = T> + NumCast + PartialOrd + One + Copy + Shr<I, Output = T> + Shl<I, Output = T>
+{
+    let two = T::one() << pow;
+    if (x % two) << 1 > two
+    {
+        (x >> pow) + T::one()
+    }
+    else
+    {
+        x >> pow
+    }
+}
+
 pub fn rounding_div_2<T>(x: T) -> T
 where
-    T: Shr<usize, Output = T> + Rem<T, Output = T> + Shl<usize, Output = T> + Add<T, Output = T> + NumCast + PartialOrd + One + Copy
+    T: Shr<u32, Output = T> + Rem<T, Output = T> + Shl<u32, Output = T> + Add<T, Output = T> + NumCast + PartialOrd + One + Copy
 {
     let two = T::from(2).unwrap();
     if (x % two) << 1 > two
     {
-        (x >> 1usize) + T::one()
+        (x >> 1) + T::one()
     }
     else
     {
-        x >> 1usize
+        x >> 1
     }
 }
 

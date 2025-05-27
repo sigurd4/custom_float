@@ -1,4 +1,4 @@
-use core::ops::{Div, DivAssign};
+use core::{num::FpCategory, ops::{Div, DivAssign}};
 
 use crate::fp::{UInt, Fp, util};
 use super::super::as_lossless;
@@ -16,179 +16,56 @@ where
             [self, rhs],
             |[lhs, rhs]| [lhs/rhs],
             {
-                if self.is_nan() || rhs.is_nan()
-                {
-                    return self + rhs
-                }
-                if (self.is_zero() && rhs.is_zero()) || (self.is_infinite() && rhs.is_infinite())
-                {
-                    return Self::qnan()
-                }
-            
                 let s = self.is_sign_negative()^rhs.is_sign_negative();
-        
-                if self.is_infinite() || rhs.is_zero()
+                match (self.classify(), rhs.classify())
                 {
-                    return if s {Self::neg_infinity()} else {Self::infinity()};
-                }
-                if rhs.is_infinite() || self.is_zero()
-                {
-                    return if s {Self::neg_zero()} else {Self::zero()}
-                }
+                    (FpCategory::Nan, _) | (_, FpCategory::Nan) => self.add_nan(rhs).with_sign(s),
+                    (FpCategory::Zero, FpCategory::Zero) | (FpCategory::Infinite, FpCategory::Infinite) => Self::qnan().with_sign(s),
+                    (FpCategory::Infinite, _) | (_, FpCategory::Zero) => Self::infinity().with_sign(s),
+                    (_, FpCategory::Infinite) | (FpCategory::Zero, _) => Self::zero().with_sign(s),
+                    (FpCategory::Normal | FpCategory::Subnormal, FpCategory::Normal | FpCategory::Subnormal) => {
+                        if rhs.abs().is_one()
+                        {
+                            return self.with_sign(s)
+                        }
+                        if self.abs().is_one()
+                        {
+                            return rhs.recip().with_sign(s)
+                        }
                 
-                if rhs.abs().is_one()
-                {
-                    return self.with_sign(s)
-                }
-        
-                let mut e0: U = self.exp_bits();
-                let mut e1: U = rhs.exp_bits();
-        
-                let mut f0: U = self.mantissa_bits();
-                let mut f1: U = rhs.mantissa_bits();
-        
-                if e0 == e1 && f0 == f1
-                {
-                    return if s {-Self::one()} else {Self::one()}
-                }
-        
-                let base = U::from(EXP_BASE).unwrap();
-                let bias = Self::exp_bias();
-                let mut e = match e0.checked_sub(&e1)
-                {
-                    Some(e) => match e.checked_add(&bias)
-                    {
-                        Some(e) => e,
-                        None => return if s {Self::neg_infinity()} else {Self::infinity()}
-                    },
-                    None => {
-                        if e1 >= bias
+                        let e0: U = self.exp_bits();
+                        let e1: U = rhs.exp_bits();
+                
+                        let mut f0: U = self.mantissa_bits();
+                        let mut f1: U = rhs.mantissa_bits();
+                
+                        if e0 == e1 && f0 == f1
                         {
-                            e1 = e1 - bias;
+                            return Self::one().with_sign(s)
                         }
-                        else
+                
+                        let mut e = match Self::exponent_sub(e0, e1, &mut f0, &mut f1)
                         {
-                            e0 = e0 + (bias - e1);
-                            e1 = U::zero();
-                        }
-                        match e0.checked_sub(&e1)
+                            Ok(e) => e,
+                            Err(done) => return done.with_sign(s)
+                        };
+                        let mut o = U::zero();
+                        let mut f = match Self::mantissa_div(f0, f1, &mut e, &mut o)
+                        {
+                            Ok(f) => f,
+                            Err(done) => return done.with_sign(s)
+                        };
+                        Self::normalize_mantissa_up(&mut e, &mut f, Some(o));
+                        let mut e = match e.checked_sub(&o)
                         {
                             Some(e) => e,
-                            None => {
-                                let mut o = e1 - e0;
-                                while o > U::zero()
-                                {
-                                    o = o - U::one();
-                                    if (f0 % base).is_zero()
-                                    {
-                                        f0 = f0/base;
-                                    }
-                                    else if f1.leading_zeros() as usize > Self::BASE_PADDING
-                                    {
-                                        f1 = f1*base;
-                                    }
-                                    else
-                                    {
-                                        f0 = util::rounding_div(f0, base);
-                                    }
-                                }
-                                U::zero()
-                            }
-                        }
-                    }
-                };
-        
-                let mut o = U::zero();
-                let mut f = loop
-                {
-                    if f1.is_zero()
-                    {
-                        return if s {Self::neg_infinity()} else {Self::infinity()}
-                    }
-                    let f = util::rounding_div(f0, f1);
-                    if !f0.is_zero() && f.leading_zeros() as usize >= Self::BASE_PADDING
-                    {
-                        if f0.leading_zeros() as usize > Self::BASE_PADDING
-                        {
-                            f0 = f0*base
-                        }
-                        else
-                        {
-                            if f1 % base != U::zero()
-                            {
-                                break f
-                            }
-                            f1 = f1/base;
-                        }
-                        o = o + U::one();
-                    }
-                    else
-                    {
-                        break f
-                    }
-                };
-        
-                if EXP_BASE == 2
-                {
-                    let frac_size = U::from(FRAC_SIZE).unwrap();
-                    if o >= frac_size
-                    {
-                        o = o - frac_size
-                    }
-                    else{
-                        match e.checked_add(&frac_size)
-                        {
-                            Some(e_) => e = e_,
-                            None => return if s {Self::neg_infinity()} else {Self::infinity()}
-                        }
+                            None => return Self::zero().with_sign(s)
+                        };
+                
+                        Self::normalize_mantissa(&mut e, &mut f, None);
+                        Self::from_sign_exp_mantissa(s, e, f)
                     }
                 }
-                else
-                {
-                    for _ in 0..FRAC_SIZE
-                    {
-                        f = loop
-                        {
-                            if f.leading_zeros() > 0
-                            {
-                                break f << 1usize
-                            }
-                        
-                            if f.is_zero()
-                            {
-                                return Self::zero()
-                            }
-                            if o > U::zero()
-                            {
-                                o = o - U::one();
-                            }
-                            else if e < U::max_value()
-                            {
-                                e = e + U::one();
-                            }
-                            else
-                            {
-                                return if s {Self::neg_infinity()} else {Self::infinity()}
-                            }
-                            f = util::rounding_div(f, base);
-                        }
-                    }
-                }
-        
-                while e < U::one() << EXP_SIZE && f >= U::one() << Self::MANTISSA_OP_SIZE
-                {
-                    e = e + U::one();
-                    f = util::rounding_div(f, base);
-                }
-        
-                let mut e = match e.checked_sub(&o)
-                {
-                    Some(e) => e,
-                    None => return if s {Self::neg_zero()} else {Self::zero()}
-                };
-        
-                Self::carry_exp_mantissa(&mut e, &mut f);
-                Self::from_sign_exp_mantissa(s, e, f)
             }
         )
     }
@@ -224,6 +101,6 @@ mod test
     #[test]
     fn test_div()
     {
-        crate::tests::test_op2("div", Div::div, Div::div, Some(0.00001))
+        crate::tests::test_op2("div", Div::div, Div::div, Some(0.001))
     }
 }

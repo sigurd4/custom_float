@@ -46,6 +46,6 @@ mod test
     #[test]
     fn test_add()
     {
-        crate::tests::test_op2("add", Add::add, Add::add, Some(0.00001))
+        crate::tests::test_op2("add", Add::add, Add::add, None)
     }
 }
