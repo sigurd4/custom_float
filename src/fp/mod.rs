@@ -50,9 +50,7 @@ macro_rules! as_lossless {
             #[cfg(all(test, not(feature = "use_std_float")))]
             if let Some([as_lossless]) = _as_lossless
             {
-                const TOL: f64 = 0.001;
-
-                if !crate::tests::matches(y.into(), as_lossless.into(), Some(TOL))
+                if !y.approx_eq(as_lossless)
                 {
                     debug_assert_eq!(y, as_lossless, "Error is too big!")
                 }
@@ -192,6 +190,55 @@ where
         );
 
         None
+    }
+
+    pub fn approx_eq(self, rhs: Self) -> bool
+    {
+        if self == rhs
+            || (self.is_nan() && rhs.is_nan())
+            || ((self.is_zero() || self.is_subnormal()) && (rhs.is_zero() || rhs.is_subnormal()))
+            || (self.is_infinite() && rhs.is_infinite() && self.is_sign_negative() == rhs.is_sign_negative())
+        {
+            return true
+        }
+
+        if let Some(mut e0) = self.exp_bits().to_usize() && let Some(f0) = <u128 as NumCast>::from(self.mantissa_bits())
+            && let Some(mut e1) = rhs.exp_bits().to_usize() && let Some(f1) = <u128 as NumCast>::from(rhs.mantissa_bits())
+        {
+            const TOL: usize = 8;
+
+            if self.is_sign_negative() == rhs.is_sign_negative()
+            {
+                if EXP_BASE != 2
+                {
+                    e0 = util::count_digits_in_base(e0, EXP_BASE);
+                    e1 = util::count_digits_in_base(e1, EXP_BASE);
+                }
+                let a = (e0 + f0.ilog2() as usize)/TOL;
+                let b = (e1 + f1.ilog2() as usize)/TOL;
+    
+                if a == b
+                {
+                    return true
+                }
+            }
+            else
+            {
+                let mut e = e0.max(e1);
+                if EXP_BASE != 2
+                {
+                    e = util::count_digits_in_base(e, EXP_BASE);
+                }
+                let a = (e + (f0 + f1).ilog2() as usize)/TOL;
+    
+                if a == 0
+                {
+                    return true
+                }
+            }
+        }
+
+        false
     }
 
     #[inline]

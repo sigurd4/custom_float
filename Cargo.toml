@@ -10,7 +10,7 @@ keywords = ["float", "number", "custom", "ieee754"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["use_std_float"]
+default = [] #["use_std_float"]
 use_std_float = []
 
 [dependencies]
