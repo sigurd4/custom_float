@@ -11,6 +11,8 @@
 #![feature(f16)]
 #![feature(f128)]
 #![feature(generic_arg_infer)]
+#![feature(assert_matches)]
+#![feature(decl_macro)]
 
 //! # Custom Float
 //! 
@@ -112,7 +114,7 @@ mod tests
 
     use crate::{ati::Fp24, g_711::FpG711, google::{Bf16, Bf32, Bf8}, ibm::{HFpLong, HFpShort}, ieee754::{DecDouble, FpDouble, FpHalf, FpQuadruple, FpSingle}, intel::Fp80, khronos::KhronosFp11, nvidia::Tf19, plot, Fp};
 
-    pub type F = Fp<u32, true, 8, 0, 23, 2>;
+    pub type F = FpQuadruple;
 
     #[test]
     fn it_works()

@@ -4,7 +4,129 @@ use core::ops::{Add, Div, Rem, Shl, Shr, AddAssign, MulAssign};
 
 use num_traits::{NumCast, One, Zero, Float};
 
-use crate::{Int, UInt};
+use crate::{ieee754::{FpDouble, FpHalf, FpQuadruple, FpSingle}, Fp, Int, UInt};
+
+pub(crate) trait Conversion//: Float
+{
+    type Bits: UInt;
+
+    /// Wether or not the number has a sign bit. If not, it can only be positive.
+    const SIGN_BIT: bool;
+    /// The size of the exponent part in bits
+    const EXP_SIZE: usize;
+    /// The size of the integer part in bits
+    const INT_SIZE: usize;
+    /// The size of the fractional part in bits
+    const FRAC_SIZE: usize;
+    /// The base for the exponent
+    const EXP_BASE: usize;
+}
+
+impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Conversion for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+where
+    [(); bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
+    [(); EXP_BASE - 2]:
+{
+    type Bits = U;
+    
+    const SIGN_BIT: bool = SIGN_BIT;
+    const EXP_SIZE: usize = EXP_SIZE;
+    const INT_SIZE: usize = INT_SIZE;
+    const FRAC_SIZE: usize = FRAC_SIZE;
+    const EXP_BASE: usize = EXP_BASE;
+}
+
+macro_rules! impl_float {
+    ($($f:ty: $fp:ty),*) => {
+        $(
+            impl Conversion for $f
+            {
+                type Bits = <$fp as Conversion>::Bits;
+            
+                const SIGN_BIT: bool = <$fp as Conversion>::SIGN_BIT;
+                const EXP_SIZE: usize = <$fp as Conversion>::EXP_SIZE;
+                const INT_SIZE: usize = <$fp as Conversion>::INT_SIZE;
+                const FRAC_SIZE: usize = <$fp as Conversion>::FRAC_SIZE;
+                const EXP_BASE: usize = <$fp as Conversion>::EXP_BASE;
+            }
+        )*
+    };
+}
+impl_float!(f16: FpHalf, f32: FpSingle, f64: FpDouble, f128: FpQuadruple);
+
+macro_rules! impl_int {
+    ($($i:ty: $u:ty),*) => {
+        $(
+            impl Conversion for $u
+            {
+                type Bits = $u;
+            
+                const SIGN_BIT: bool = false;
+                const EXP_SIZE: usize = 0;
+                const INT_SIZE: usize = bitsize_of::<$u>();
+                const FRAC_SIZE: usize = 0;
+                const EXP_BASE: usize = 2;
+            }
+            impl Conversion for $i
+            {
+                type Bits = $u;
+            
+                const SIGN_BIT: bool = true;
+                const EXP_SIZE: usize = 0;
+                const INT_SIZE: usize = bitsize_of::<$u>() - 1;
+                const FRAC_SIZE: usize = 0;
+                const EXP_BASE: usize = 2;
+            }
+        )*
+    };
+}
+impl_int!(i8: u8, i16: u16, i32: u32, i64: u64, i128: u128);
+
+pub const fn is_float_conversion_mutually_lossless<A, B>() -> bool
+where
+    A: Conversion,
+    B: Conversion
+{
+    is_float_conversion_lossless::<A, B>() && is_float_conversion_lossless::<B, A>()
+}
+
+pub const fn is_float_conversion_lossless<From, To>() -> bool
+where
+    From: Conversion,
+    To: Conversion
+{
+    if From::SIGN_BIT && !To::SIGN_BIT
+        || From::INT_SIZE > To::INT_SIZE
+        || From::FRAC_SIZE > To::FRAC_SIZE
+    {
+        return false
+    }
+    if To::EXP_BASE == 0
+    {
+        To::EXP_SIZE == 0
+            && From::EXP_SIZE == 0
+    }
+    else
+    {
+        if From::EXP_BASE < To::EXP_BASE
+            || From::EXP_BASE % To::EXP_BASE != 0
+        {
+            return false
+        }
+        let mut b = From::EXP_BASE/To::EXP_BASE;
+        let mut a = To::EXP_SIZE;
+        while b != 0 && a % 2 == 0
+        {
+            a >>= 1;
+            b -= 1
+        }
+        b <= u32::MAX as usize || match From::EXP_SIZE.checked_shl(b as u32)
+        {
+            Some(b) => b <= a,
+            None => false
+        }
+    }
+}
 
 pub const fn bitsize_of<T>() -> usize
 {

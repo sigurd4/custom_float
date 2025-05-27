@@ -1,3 +1,17 @@
+[![Build Status (nightly)](https://github.com/sigurd4/custom_float/workflows/Build-nightly/badge.svg)](https://github.com/sigurd4/custom_float/actions/workflows/build-nightly.yml)
+[![Build Status (nightly, all features)](https://github.com/sigurd4/custom_float/workflows/Build-nightly-all-features/badge.svg)](https://github.com/sigurd4/custom_float/actions/workflows/build-nightly-all-features.yml)
+
+[![Build Status (stable)](https://github.com/sigurd4/custom_float/workflows/Build-stable/badge.svg)](https://github.com/sigurd4/custom_float/actions/workflows/build-stable.yml)
+[![Build Status (stable, all features)](https://github.com/sigurd4/custom_float/workflows/Build-stable-all-features/badge.svg)](https://github.com/sigurd4/custom_float/actions/workflows/build-stable-all-features.yml)
+
+[![Test Status](https://github.com/sigurd4/custom_float/workflows/Test/badge.svg)](https://github.com/sigurd4/custom_float/actions/workflows/test.yml)
+[![Lint Status](https://github.com/sigurd4/custom_float/workflows/Lint/badge.svg)](https://github.com/sigurd4/custom_float/actions/workflows/lint.yml)
+
+[![Latest Version](https://img.shields.io/crates/v/custom_float.svg)](https://crates.io/crates/custom_float)
+[![License:MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Documentation](https://img.shields.io/docsrs/custom_float)](https://docs.rs/custom_float)
+[![Coverage Status](https://img.shields.io/codecov/c/github/sigurd4/custom_float)](https://app.codecov.io/github/sigurd4/custom_float)
+
 # custom_float
 
 This crate adds a custom floating point number type, `Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>`, where the bit size of the exponent and mantissa can be set separately.
@@ -38,6 +52,8 @@ The number then automatically implements `num::Float`, and supports all ordinary
 
 This allows simple implementation of special floating point types, such as TensorFloat, IEEE754 Quadruple/binary128, Fp80, and BFloat16.
 
+The biggest integers in the standard library are 128-bit, so if you want floating point numbers with more bits than that, you have to provide your own 128-bit unsigned integer type.
+
 The accuracy of all of the floating point operations are not perfect, but work well enough to be usable. Various plots showing the accuracy of basic functions are shown in the [plots](https://github.com/sigurd4/custom_float/tree/master/plots) subfolder.
 
 All floats can be converted into each other painlessly, though the conversion may produce rounding errors or unbounded outputs when converting to a float with lesser resolution.
@@ -49,6 +65,7 @@ All floats can be converted into each other painlessly, though the conversion ma
 
 use custom_float::Fp;
 
+// This type is also available as `custom_float::ieee754::FpSingle`
 type FpSingle = Fp<u32, true, 8, 0, 23, 2>;
 
 let two = FpSingle::from(2);

@@ -10,11 +10,6 @@ where
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
     {
-        let x = Into::<f64>::into(*self);
-        if self.is_finite() != x.is_finite()
-        {
-            write!(f, "~")?
-        }
-        <f64 as Display>::fmt(&x, f)
+        super::fmt_as!(self, f => Display => f64) // TODO: f128
     }
 }

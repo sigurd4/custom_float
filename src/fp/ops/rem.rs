@@ -1,6 +1,7 @@
 use core::ops::{Rem, RemAssign};
 
 use crate::{UInt, Fp, util};
+use super::super::as_lossless;
 
 impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Rem<Self> for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
@@ -12,48 +13,54 @@ where
 
     fn rem(self, rhs: Self) -> Self::Output
     {
-        if self.is_nan() || rhs.is_nan()
-        {
-            return self + rhs;
-        }
-        if self.is_infinite() || rhs.is_zero()
-        {
-            return Self::snan()
-        }
-
-        let fa = self.abs();
-        let fb = rhs.abs();
-
-        if fa < fb
-        {
-            return self
-        }
-    
-        let mut dividend = fa;
-        /* normalize divisor */
-        let expo_a = fa.exp_bits();
-        let mut frac_b = fb.frac_bits();
-        if !Self::IS_INT_IMPLICIT
-        {
-            frac_b = frac_b + (fb.int_bits() << Self::INT_POS)
-        }
-        let mut divisor = Self::from_bits(Self::shift_exp(expo_a) + Self::shift_frac(frac_b));
-        while divisor < dividend.divb()
-        {
-            divisor = divisor.mulb();
-        }
-        /* compute quotient one bit at a time */
-        while divisor >= fb && !divisor.is_zero() && divisor.is_finite()
-        {
-            while dividend >= divisor
+        as_lossless!(
+            [self, rhs],
+            |[lhs, rhs]| [lhs % rhs],
             {
-                dividend -= divisor;
+                if self.is_nan() || rhs.is_nan()
+                {
+                    return self + rhs;
+                }
+                if self.is_infinite() || rhs.is_zero()
+                {
+                    return Self::snan()
+                }
+        
+                let fa = self.abs();
+                let fb = rhs.abs();
+        
+                if fa < fb
+                {
+                    return self
+                }
+            
+                let mut dividend = fa;
+                /* normalize divisor */
+                let expo_a = fa.exp_bits();
+                let mut frac_b = fb.frac_bits();
+                if !Self::IS_INT_IMPLICIT
+                {
+                    frac_b = frac_b + (fb.int_bits() << Self::INT_POS)
+                }
+                let mut divisor = Self::from_bits(Self::shift_exp(expo_a) + Self::shift_frac(frac_b));
+                while divisor < dividend.divb()
+                {
+                    divisor = divisor.mulb();
+                }
+                /* compute quotient one bit at a time */
+                while divisor >= fb && !divisor.is_zero() && divisor.is_finite()
+                {
+                    while dividend >= divisor
+                    {
+                        dividend -= divisor;
+                    }
+                    divisor = divisor.divb();
+                }
+                assert!(dividend.is_finite());
+                /* dividend now represents remainder */
+                dividend.copysign(self)
             }
-            divisor = divisor.divb();
-        }
-        assert!(dividend.is_finite());
-        /* dividend now represents remainder */
-        dividend.copysign(self)
+        )
     }
 }
 impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> RemAssign for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>

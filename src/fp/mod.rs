@@ -30,6 +30,34 @@ const NEWTON_LN: usize = if NO_NEWTON {0} else {2};
 const NEWTON_RT: usize = if NO_NEWTON {0} else {4};
 const NEWTON_TRIG: usize = if NO_NEWTON {0} else {3};
 
+macro_rules! as_lossless {
+    ($value:expr, $fn_as_lossless:expr, $fn:block) => {
+        {
+            #[cfg(not(test))]
+            let as_lossless = crate::Fp::as_lossless(
+                $value,
+                $fn_as_lossless,
+                $fn_as_lossless,
+                $fn_as_lossless,
+                $fn_as_lossless
+            );
+            #[cfg(not(test))]
+            if let Some([as_lossless]) = as_lossless
+            {
+                return as_lossless
+            }
+            let y = (|| $fn)();
+            /*#[cfg(test)]
+            if let Some([as_lossless]) = as_lossless
+            {
+                core::assert_matches::debug_assert_matches!(y.total_cmp(as_lossless), core::cmp::Ordering::Equal)
+            }*/
+            y
+        }
+    };
+}
+use as_lossless as as_lossless;
+
 /// A custom floating point type, where the bit size of the exponent and mantissa can be set separately.
 /// 
 /// `U` is the underlying unsigned integer type which is used to represent the number.
@@ -99,27 +127,68 @@ where
     [(); EXP_BASE - 2]:
 {
     /// Size of floating-point number in bits
-    pub const BIT_SIZE: usize = Self::SIGN_SIZE + EXP_SIZE + INT_SIZE + FRAC_SIZE;
+    pub const BIT_SIZE: usize = Self::SIGN_SIZE + Self::EXP_SIZE + Self::INT_SIZE + Self::FRAC_SIZE;
     /// Size of the sign bit
-    pub const SIGN_SIZE: usize = SIGN_BIT as usize;
+    pub const SIGN_SIZE: usize = Self::SIGN_BIT as usize;
+
+    /// Wether or not the number has a sign bit. If not, it can only be positive.
+    pub const SIGN_BIT: bool = SIGN_BIT;
+    /// The size of the exponent part in bits
+    pub const EXP_SIZE: usize = EXP_SIZE;
+    /// The size of the integer part in bits
+    pub const INT_SIZE: usize = INT_SIZE;
+    /// The size of the fractional part in bits
+    pub const FRAC_SIZE: usize = FRAC_SIZE;
+    /// The base for the exponent
+    pub const EXP_BASE: usize = EXP_BASE;
 
     /// Position of the sign bit
-    pub const SIGN_POS: usize = EXP_SIZE + INT_SIZE + FRAC_SIZE;
+    pub const SIGN_POS: usize = Self::EXP_SIZE + Self::INT_SIZE + Self::FRAC_SIZE;
     /// Position of the first exponent bit
-    pub const EXP_POS: usize = INT_SIZE + FRAC_SIZE;
+    pub const EXP_POS: usize = Self::INT_SIZE + Self::FRAC_SIZE;
     /// Position of the first integer bit
-    pub const INT_POS: usize = FRAC_SIZE;
+    pub const INT_POS: usize = Self::FRAC_SIZE;
     /// Position of the first fractional bit
     pub const FRAC_POS: usize = 0;
 
     /// Number of significant digits in base 2.
-    pub const MANTISSA_DIGITS: usize = INT_SIZE + FRAC_SIZE;
+    pub const MANTISSA_DIGITS: usize = Self::INT_SIZE + Self::FRAC_SIZE;
 
     /// `true` if the number contains an implicit integer bit
-    pub const IS_INT_IMPLICIT: bool = INT_SIZE == 0;
+    pub const IS_INT_IMPLICIT: bool = Self::INT_SIZE == 0;
 
     const MANTISSA_OP_SIZE: usize = FRAC_SIZE + INT_SIZE + Self::IS_INT_IMPLICIT as usize;
     const BASE_PADDING: usize = util::bitsize_of::<usize>() - EXP_BASE.leading_zeros() as usize - 1;
+
+    #[cfg(not(test))]
+    fn as_lossless<const N: usize, const M: usize>(
+        value: [Self; N],
+        as_f16: impl FnOnce([f16; N]) -> [f16; M],
+        as_f32: impl FnOnce([f32; N]) -> [f32; M],
+        as_f64: impl FnOnce([f64; N]) -> [f64; M],
+        as_f128: impl FnOnce([f128; N]) -> [f128; M]
+    ) -> Option<[Self; M]>
+    {
+        macro_rules! as_float {
+            ($($t:ty => $fn:expr),*) => {
+                $(
+                    if util::is_float_conversion_mutually_lossless::<Self, $t>()
+                    {
+                        return Some($fn(value.map(<$t as From<Self>>::from)).map(Self::from))
+                    }
+                )*
+            };
+        }
+
+        as_float!(
+            f16 => as_f16,
+            f32 => as_f32,
+            f64 => as_f64,
+            f128 => as_f128
+        );
+
+        None
+    }
 
     #[inline]
     fn max_exponent_bits() -> U
@@ -273,98 +342,104 @@ where
 
     fn add_with_sign(self, rhs: Self, neg: bool) -> Self
     {
-        if self.is_nan() || rhs.is_nan()
-        {
-            if rhs.is_snan() || !self.is_nan()
+        as_lossless!(
+            [self, rhs],
+            |[lhs, rhs]| [if neg {lhs - rhs} else {lhs + rhs}],
             {
-                return if neg {-rhs} else {rhs}
-            }
-            return self
-        }
-        
-        if rhs.is_zero()
-        {
-            return self
-        }
-        if self.is_zero()
-        {
-            return if neg {-rhs} else {rhs}
-        }
-
-        let s0 = self.is_sign_negative();
-        let s1 = rhs.is_sign_negative() ^ neg;
-
-        match (self.is_infinite(), rhs.is_infinite())
-        {
-            (true, true) => return if s0 == s1
-            {
-                self
-            }
-            else
-            {
-                Self::qnan()
-            },
-            (true, false) => return self,
-            (false, true) => return if neg {-rhs} else {rhs},
-            (false, false) => ()
-        }
-        
-        let e0 = self.exp_bits();
-        let e1 = rhs.exp_bits();
-        let mut f0 = self.mantissa_bits();
-        let mut f1 = rhs.mantissa_bits();
-
-        let base = U::from(EXP_BASE).unwrap();
-        let mut e = match e0.cmp(&e1)
-        {
-            Ordering::Less => {
-                let shr = e1 - e0;
-                f0 = util::rounding_div_pow(f0, base, shr);
-                e1
-            },
-            Ordering::Equal => e0,
-            Ordering::Greater => {
-                let shr = e0 - e1;
-                f1 = util::rounding_div_pow(f1, base, shr);
-                e0
-            }
-        };
-
-        let s = match (s0, s1)
-        {
-            (false, false) => false,
-            (false, true) => f0 < f1,
-            (true, false) => f0 > f1,
-            (true, true) => true,
-        };
-
-        let mut f = if s0 == s1
-        {
-            loop
-            {
-                match f0.checked_add(&f1)
+                if self.is_nan() || rhs.is_nan()
                 {
-                    Some(f) => break f,
-                    None => {
-                        e = e + U::one();
-                        f0 = util::rounding_div(f0, base);
-                        f1 = util::rounding_div(f1, base);
+                    if rhs.is_snan() || !self.is_nan()
+                    {
+                        return if neg {-rhs} else {rhs}
+                    }
+                    return self
+                }
+                
+                if rhs.is_zero()
+                {
+                    return self
+                }
+                if self.is_zero()
+                {
+                    return if neg {-rhs} else {rhs}
+                }
+
+                let s0 = self.is_sign_negative();
+                let s1 = rhs.is_sign_negative() ^ neg;
+
+                match (self.is_infinite(), rhs.is_infinite())
+                {
+                    (true, true) => return if s0 == s1
+                    {
+                        self
+                    }
+                    else
+                    {
+                        Self::qnan()
+                    },
+                    (true, false) => return self,
+                    (false, true) => return if neg {-rhs} else {rhs},
+                    (false, false) => ()
+                }
+                
+                let e0 = self.exp_bits();
+                let e1 = rhs.exp_bits();
+                let mut f0 = self.mantissa_bits();
+                let mut f1 = rhs.mantissa_bits();
+
+                let base = U::from(EXP_BASE).unwrap();
+                let mut e = match e0.cmp(&e1)
+                {
+                    Ordering::Less => {
+                        let shr = e1 - e0;
+                        f0 = util::rounding_div_pow(f0, base, shr);
+                        e1
+                    },
+                    Ordering::Equal => e0,
+                    Ordering::Greater => {
+                        let shr = e0 - e1;
+                        f1 = util::rounding_div_pow(f1, base, shr);
+                        e0
+                    }
+                };
+
+                let s = match (s0, s1)
+                {
+                    (false, false) => false,
+                    (false, true) => f0 < f1,
+                    (true, false) => f0 > f1,
+                    (true, true) => true,
+                };
+
+                let mut f = if s0 == s1
+                {
+                    loop
+                    {
+                        match f0.checked_add(&f1)
+                        {
+                            Some(f) => break f,
+                            None => {
+                                e = e + U::one();
+                                f0 = util::rounding_div(f0, base);
+                                f1 = util::rounding_div(f1, base);
+                            }
+                        }
                     }
                 }
+                else
+                {
+                    if f0 >= f1 {f0 - f1} else {f1 - f0}
+                };
+
+                if f.is_zero()
+                {
+                    return if s {-Self::zero()} else {Self::zero()}
+                }
+
+                Self::carry_exp_mantissa(&mut e, &mut f);
+                Self::from_sign_exp_mantissa(s, e, f)
             }
-        }
-        else
-        {
-            if f0 >= f1 {f0 - f1} else {f1 - f0}
-        };
-
-        if f.is_zero()
-        {
-            return if s {-Self::zero()} else {Self::zero()}
-        }
-
-        Self::carry_exp_mantissa(&mut e, &mut f);
-        Self::from_sign_exp_mantissa(s, e, f)
+        )
     }
 
     /// Converts to this type from the input type.
