@@ -170,6 +170,17 @@ mod tests
         ]
     }
 
+    pub(crate) fn matches<F>(a: F, b: F, tol: Option<F>) -> bool
+    where
+        F: Float
+    {
+        (match tol
+        {
+            Some(tol) => !((a - b).abs() > tol),
+            None => !(a != b)
+        }) || a.is_nan() && b.is_nan()
+    }
+
     pub fn test_op2(fn_name: &str, op1: impl Fn(f32, f32) -> f32, op2: impl Fn(F, F) -> F, d: Option<f32>)
     {
         for f0 in crate::tests::ttable()
@@ -184,11 +195,7 @@ mod tests
                 let s = op1(f0, f1);
                 let sp: f32 = op2(fp0, fp1).into();
 
-                if match d
-                {
-                    Some(d) => (s - sp).abs() > d,
-                    None => s != sp
-                } && !(s.is_nan() && sp.is_nan())
+                if !matches(s, sp, d)
                 {
                     if f0.is_subnormal()
                     {
@@ -213,11 +220,7 @@ mod tests
             let s = op1(f0);
             let sp: f32 = op2(fp0).into();
 
-            if match d
-            {
-                Some(d) => (s - sp).abs() > d,
-                None => s != sp
-            } && !(s.is_nan() && sp.is_nan())
+            if !matches(s, sp, d)
             {
                 if f0.is_subnormal()
                 {

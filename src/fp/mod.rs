@@ -33,25 +33,30 @@ const NEWTON_TRIG: usize = if NO_NEWTON {0} else {3};
 macro_rules! as_lossless {
     ($value:expr, $fn_as_lossless:expr, $fn:block) => {
         {
-            #[cfg(not(test))]
-            let as_lossless = crate::Fp::as_lossless(
+            #[cfg(any(test, feature = "use_std_float"))]
+            let _as_lossless = crate::Fp::as_lossless(
                 $value,
                 $fn_as_lossless,
                 $fn_as_lossless,
                 $fn_as_lossless,
                 $fn_as_lossless
             );
-            #[cfg(not(test))]
-            if let Some([as_lossless]) = as_lossless
+            #[cfg(all(not(test), feature = "use_std_float"))]
+            if let Some([as_lossless]) = _as_lossless
             {
                 return as_lossless
             }
             let y = (|| $fn)();
-            /*#[cfg(test)]
-            if let Some([as_lossless]) = as_lossless
+            #[cfg(all(test, not(feature = "use_std_float")))]
+            if let Some([as_lossless]) = _as_lossless
             {
-                core::assert_matches::debug_assert_matches!(y.total_cmp(as_lossless), core::cmp::Ordering::Equal)
-            }*/
+                const TOL: f64 = 0.001;
+
+                if !crate::tests::matches(y.into(), as_lossless.into(), Some(TOL))
+                {
+                    debug_assert_eq!(y, as_lossless, "Error is too big!")
+                }
+            }
             y
         }
     };
@@ -159,7 +164,7 @@ where
     const MANTISSA_OP_SIZE: usize = FRAC_SIZE + INT_SIZE + Self::IS_INT_IMPLICIT as usize;
     const BASE_PADDING: usize = util::bitsize_of::<usize>() - EXP_BASE.leading_zeros() as usize - 1;
 
-    #[cfg(not(test))]
+    #[cfg(any(test, feature = "use_std_float"))]
     fn as_lossless<const N: usize, const M: usize>(
         value: [Self; N],
         as_f16: impl FnOnce([f16; N]) -> [f16; M],
@@ -1408,7 +1413,7 @@ where
         {
             return U::zero()
         }
-        (self.to_bits() & U::max_value() >> (util::bitsize_of::<U>() - (Self::SIGN_POS - Self::SIGN_SIZE))) >> Self::SIGN_POS
+        (self.to_bits() & U::max_value() >> (util::bitsize_of::<U>() - Self::SIGN_POS - Self::SIGN_SIZE)) >> Self::SIGN_POS
     }
     /// Returns the exponent bits of the custom floating-point number.
     #[must_use = "this returns the result of the operation, without modifying the original"]
@@ -1419,7 +1424,7 @@ where
         {
             return U::zero()
         }
-        (self.to_bits() & U::max_value() >> (util::bitsize_of::<U>() - (Self::EXP_POS - EXP_SIZE))) >> Self::EXP_POS
+        (self.to_bits() & U::max_value() >> (util::bitsize_of::<U>() - Self::EXP_POS - EXP_SIZE)) >> Self::EXP_POS
     }
     /// Returns the integer bits of the custom floating-point number.
     #[must_use = "this returns the result of the operation, without modifying the original"]
@@ -1430,7 +1435,7 @@ where
         {
             return if self.is_normal() {U::one()} else {U::zero()}
         }
-        (self.to_bits() & U::max_value() >> (util::bitsize_of::<U>() - (Self::INT_POS + INT_SIZE))) >> Self::INT_POS
+        (self.to_bits() & U::max_value() >> (util::bitsize_of::<U>() - Self::INT_POS - INT_SIZE)) >> Self::INT_POS
     }
     /// Returns the fractional bits of the custom floating-point number.
     #[must_use = "this returns the result of the operation, without modifying the original"]
@@ -1441,7 +1446,7 @@ where
         {
             return U::zero()
         }
-        (self.to_bits() & U::max_value() >> (util::bitsize_of::<U>() - (Self::FRAC_POS + FRAC_SIZE))) >> Self::FRAC_POS
+        (self.to_bits() & U::max_value() >> (util::bitsize_of::<U>() - Self::FRAC_POS - FRAC_SIZE)) >> Self::FRAC_POS
     }
 
     /// Returns the exponent bias

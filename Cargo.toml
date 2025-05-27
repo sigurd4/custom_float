@@ -1,6 +1,6 @@
 [package]
 name = "custom_float"
-version = "0.2.6"
+version = "0.3.0"
 edition = "2021"
 license = "MIT"
 description = "Custom floating-point types"
@@ -10,7 +10,8 @@ keywords = ["float", "number", "custom", "ieee754"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = []
+default = ["use_std_float"]
+use_std_float = []
 
 [dependencies]
 moddef = "0.2.6"
