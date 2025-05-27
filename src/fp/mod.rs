@@ -47,7 +47,7 @@ macro_rules! as_lossless {
                 return as_lossless
             }
             let y = (|| $fn)();
-            #[cfg(all(test, not(feature = "use_std_float")))]
+            #[cfg(test)]
             if let Some([as_lossless]) = _as_lossless
             {
                 if !y.approx_eq(as_lossless)
