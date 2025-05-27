@@ -123,7 +123,6 @@ where
 impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
     [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
     [(); EXP_BASE - 2]:
 {
     /// Size of floating-point number in bits
@@ -426,9 +425,13 @@ where
                         }
                     }
                 }
+                else if f0 >= f1
+                {
+                    f0 - f1
+                }
                 else
                 {
-                    if f0 >= f1 {f0 - f1} else {f1 - f0}
+                    f1 - f0
                 };
 
                 if f.is_zero()
@@ -458,7 +461,6 @@ where
     pub fn from_fp<V: UInt, const S: bool, const E: usize, const I: usize, const F: usize, const B: usize>(fp: Fp<V, S, E, I, F, B>) -> Self
     where
         [(); util::bitsize_of::<V>() - S as usize - E - I - F]:,
-        [(); util::bitsize_of::<V>() - S as usize - E - 0 - F]:,
         [(); B - 2]:
     {
         let s = fp.is_sign_negative();
@@ -898,11 +900,7 @@ where
                 f = util::rounding_div(f, base);
             }
 
-            match I::from(f)
-            {
-                Some(f) => f,
-                None => return None
-            }
+            I::from(f)?
         };
 
         Some(n)
@@ -1075,11 +1073,7 @@ where
                 f = util::rounding_div(f, base);
             }
 
-            match I::from(f)
-            {
-                Some(f) => f,
-                None => return None
-            }
+            I::from(f)?
         };
 
         if s
@@ -1181,12 +1175,9 @@ where
                     return I::min_value()
                 }
             }
-            else
+            else if f >= U::from(I::max_value()).unwrap()
             {
-                if f >= U::from(I::max_value()).unwrap()
-                {
-                    return I::max_value()
-                }
+                return I::max_value()
             }
             <I as NumCast>::from(f).unwrap()
         };
@@ -1417,7 +1408,7 @@ where
         {
             return U::zero()
         }
-        (self.to_bits() & U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_POS - Self::SIGN_SIZE) >> Self::SIGN_POS
+        (self.to_bits() & U::max_value() >> (util::bitsize_of::<U>() - (Self::SIGN_POS - Self::SIGN_SIZE))) >> Self::SIGN_POS
     }
     /// Returns the exponent bits of the custom floating-point number.
     #[must_use = "this returns the result of the operation, without modifying the original"]
@@ -1428,7 +1419,7 @@ where
         {
             return U::zero()
         }
-        (self.to_bits() & U::max_value() >> util::bitsize_of::<U>() - Self::EXP_POS - EXP_SIZE) >> Self::EXP_POS
+        (self.to_bits() & U::max_value() >> (util::bitsize_of::<U>() - (Self::EXP_POS - EXP_SIZE))) >> Self::EXP_POS
     }
     /// Returns the integer bits of the custom floating-point number.
     #[must_use = "this returns the result of the operation, without modifying the original"]
@@ -1439,7 +1430,7 @@ where
         {
             return if self.is_normal() {U::one()} else {U::zero()}
         }
-        (self.to_bits() & U::max_value() >> util::bitsize_of::<U>() - (Self::INT_POS + INT_SIZE)) >> Self::INT_POS
+        (self.to_bits() & U::max_value() >> (util::bitsize_of::<U>() - (Self::INT_POS + INT_SIZE))) >> Self::INT_POS
     }
     /// Returns the fractional bits of the custom floating-point number.
     #[must_use = "this returns the result of the operation, without modifying the original"]
@@ -1450,7 +1441,7 @@ where
         {
             return U::zero()
         }
-        (self.to_bits() & U::max_value() >> util::bitsize_of::<U>() - (Self::FRAC_POS + FRAC_SIZE)) >> Self::FRAC_POS
+        (self.to_bits() & U::max_value() >> (util::bitsize_of::<U>() - (Self::FRAC_POS + FRAC_SIZE))) >> Self::FRAC_POS
     }
 
     /// Returns the exponent bias
@@ -1462,7 +1453,7 @@ where
         {
             return U::zero()
         }
-        U::max_value() >> util::bitsize_of::<U>() + 1 - EXP_SIZE
+        U::max_value() >> (util::bitsize_of::<U>() + 1 - EXP_SIZE)
     }
     
     /// Returns the `NaN` value.
@@ -1503,7 +1494,7 @@ where
     #[inline]
     pub fn qnan() -> Self
     {
-        Self::from_bits(U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_POS)
+        Self::from_bits(U::max_value() >> (util::bitsize_of::<U>() - Self::SIGN_POS))
     }
     
     /// Returns the `sNaN` value.
@@ -1528,7 +1519,7 @@ where
         {
             return Self::qnan()
         }
-        Self::from_bits((U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_POS) - (U::one() << Self::INT_POS + INT_SIZE - 1))
+        Self::from_bits((U::max_value() >> (util::bitsize_of::<U>() - Self::SIGN_POS)) - (U::one() << (Self::INT_POS + INT_SIZE - 1)))
     }
 
     /// Returns `true` if the number is a signaling NaN.
@@ -1554,7 +1545,7 @@ where
         {
             return false
         }
-        (self.to_bits() >> Self::INT_POS + INT_SIZE - 1) & U::one() == U::zero()
+        (self.to_bits() >> (Self::INT_POS + INT_SIZE - 1)) & U::one() == U::zero()
     }
 
     /// Returns the infinite value.
@@ -1576,7 +1567,7 @@ where
     #[inline]
     pub fn infinity() -> Self
     {
-        Self::from_bits(Self::shift_exp(U::max_value() >> util::bitsize_of::<U>() - EXP_SIZE))
+        Self::from_bits(Self::shift_exp(U::max_value() >> (util::bitsize_of::<U>() - EXP_SIZE)))
     }
 
     /// Returns the negative infinite value.
@@ -1912,7 +1903,7 @@ where
         {
             return FpCategory::Subnormal
         }
-        if e == (U::max_value() >> util::bitsize_of::<U>() - EXP_SIZE)
+        if e == (U::max_value() >> (util::bitsize_of::<U>() - EXP_SIZE))
         {
             if self.frac_bits().is_zero()
             {
@@ -2166,7 +2157,7 @@ where
         {
             return self
         }
-        Self::from_bits(self.to_bits() & (U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_POS))
+        Self::from_bits(self.to_bits() & (U::max_value() >> (util::bitsize_of::<U>() - Self::SIGN_POS)))
     }
 
     /// Returns a number that represents the sign of `self`.
@@ -2388,136 +2379,127 @@ where
             let s_bits = if s {Self::shift_sign(U::one())} else {U::zero()};
             Self::from_bits(s_bits + Self::shift_exp(e))
         }
-        else
+        else if Self::IS_INT_IMPLICIT
         {
-            if Self::IS_INT_IMPLICIT
-            {
-                let mut f = self.frac_bits();
+            let mut f = self.frac_bits();
 
-                if s ^ sign
+            if s ^ sign
+            {
+                if f.is_zero()
                 {
-                    if f.is_zero()
+                    if e.is_zero()
                     {
-                        if e.is_zero()
-                        {
-                            s = !s;
-                        }
-                        else
-                        {
-                            e = e - U::one();
-                            f = Self::max_frac_bits()
-                        }
+                        s = !s;
                     }
                     else
                     {
-                        f = f - U::one()
+                        e = e - U::one();
+                        f = Self::max_frac_bits()
                     }
                 }
                 else
                 {
-                    if f == Self::max_frac_bits()
-                    {
-                        e = e + U::one();
-                        f = U::zero()
-                    }
-                    else
-                    {
-                        f = f + U::one()
-                    }
+                    f = f - U::one()
                 }
-
-                let s_bits = if s {Self::shift_sign(U::one())} else {U::zero()};
-                Self::from_bits(s_bits + Self::shift_exp(e) + Self::shift_frac(f))
+            }
+            else if f == Self::max_frac_bits()
+            {
+                e = e + U::one();
+                f = U::zero()
             }
             else
             {
-                let mut f = self.mantissa_bits_abnormal();
+                f = f + U::one()
+            }
 
-                let base = U::from(EXP_BASE);
+            let s_bits = if s {Self::shift_sign(U::one())} else {U::zero()};
+            Self::from_bits(s_bits + Self::shift_exp(e) + Self::shift_frac(f))
+        }
+        else
+        {
+            let mut f = self.mantissa_bits_abnormal();
 
-                if s ^ sign
+            let base = U::from(EXP_BASE);
+
+            if s ^ sign
+            {
+                if f.is_zero()
                 {
-                    if f.is_zero()
+                    s = !s;
+                    e = U::zero()
+                }
+                else if let Some(base) = base && let Some(mut ff) = f.checked_mul(&base)
+                {
+                    let mut o = U::one();
+                    while !e.is_zero() && let oo = ff.saturating_sub(Self::max_mantissa_bits()) && oo < base
                     {
-                        s = !s;
-                        e = U::zero()
-                    }
-                    else
-                    {
-                        if let Some(base) = base && let Some(mut ff) = f.checked_mul(&base)
+                        o = oo.max(U::one());
+                        e = e - U::one();
+                        f = ff;
+                        if let Some(fff) = f.checked_mul(&base)
                         {
-                            let mut o = U::one();
-                            while !e.is_zero() && let oo = ff.saturating_sub(Self::max_mantissa_bits()) && oo < base
-                            {
-                                o = oo.max(U::one());
-                                e = e - U::one();
-                                f = ff;
-                                if let Some(fff) = f.checked_mul(&base)
-                                {
-                                    ff = fff
-                                }
-                                else
-                                {
-                                    break
-                                }
-                            }
-                            f = f - o
-                        }
-                        else if !e.is_zero() && f == U::one()
-                        {
-                            e = e - U::one();
-                            f = Self::max_mantissa_bits()
+                            ff = fff
                         }
                         else
                         {
-                            f = f - U::one()
+                            break
                         }
+                    }
+                    f = f - o
+                }
+                else if !e.is_zero() && f == U::one()
+                {
+                    e = e - U::one();
+                    f = Self::max_mantissa_bits()
+                }
+                else
+                {
+                    f = f - U::one()
+                }
+            }
+            else
+            {
+                if let Some(base) = base && let Some(mut ff) = f.checked_mul(&base)
+                {
+                    while !e.is_zero() && ff <= Self::max_mantissa_bits()
+                    {
+                        e = e - U::one();
+                        f = ff;
+                        if let Some(fff) = f.checked_mul(&base)
+                        {
+                            ff = fff
+                        }
+                        else
+                        {
+                            break
+                        }
+                    }
+                }
+                if f == Self::max_mantissa_bits()
+                {
+                    e = e + U::one();
+                    if e == Self::max_exponent_bits()
+                    {
+                        let s_bits = if s {Self::shift_sign(U::one())} else {U::zero()};
+                        return Self::from_bits(s_bits + Self::shift_exp(e))
+                    }
+                    if let Some(base) = base
+                    {
+                        f = f/base + U::one();
+                    }
+                    else
+                    {
+                        f = U::one()
                     }
                 }
                 else
                 {
-                    if let Some(base) = base && let Some(mut ff) = f.checked_mul(&base)
-                    {
-                        while !e.is_zero() && ff <= Self::max_mantissa_bits()
-                        {
-                            e = e - U::one();
-                            f = ff;
-                            if let Some(fff) = f.checked_mul(&base)
-                            {
-                                ff = fff
-                            }
-                            else
-                            {
-                                break
-                            }
-                        }
-                    }
-                    if f == Self::max_mantissa_bits()
-                    {
-                        e = e + U::one();
-                        if e == Self::max_exponent_bits()
-                        {
-                            let s_bits = if s {Self::shift_sign(U::one())} else {U::zero()};
-                            return Self::from_bits(s_bits + Self::shift_exp(e))
-                        }
-                        if let Some(base) = base
-                        {
-                            f = f/base + U::one();
-                        }
-                        else
-                        {
-                            f = U::one()
-                        }
-                    }
-                    else
-                    {
-                        f = f + U::one()
-                    }
+                    f = f + U::one()
                 }
-
-                let s_bits = if s {Self::shift_sign(U::one())} else {U::zero()};
-                Self::from_bits(s_bits + Self::shift_exp(e) + Self::shift_frac(f))
             }
+
+            let s_bits = if s {Self::shift_sign(U::one())} else {U::zero()};
+            Self::from_bits(s_bits + Self::shift_exp(e) + Self::shift_frac(f))
         }
     }
     
@@ -2968,6 +2950,26 @@ where
         }
     }
 
+    fn sqrt_y_naive(self) -> Self
+    {
+        if !SIGN_BIT && self < Self::one()
+        {
+            let xabs_log = self.recip().logb();
+
+            let n_xabs_log = xabs_log/Self::from(2u8);
+            
+            n_xabs_log.expb().recip()
+        }
+        else
+        {
+            let xabs_log = self.logb();
+
+            let n_xabs_log = xabs_log/Self::from(2u8);
+            
+            n_xabs_log.expb()
+        }
+    }
+
     /// Returns the square root of a number.
     ///
     /// Returns NaN if `self` is a negative number other than `-0.0`.
@@ -2992,7 +2994,54 @@ where
     #[must_use = "method returns a new number and does not mutate the original value"]
     #[inline]
     pub fn sqrt(self) -> Self
-    {   
+    {
+        trait SqrtSpec: Sized
+        {
+            fn _y(self) -> Self; 
+        }
+        impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> SqrtSpec for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+        where
+            [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
+            [(); EXP_BASE - 2]:
+        {
+            default fn _y(self) -> Self
+            {
+                self.sqrt_y_naive()
+            }
+        }
+        #[allow(clippy::identity_op)]
+        impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> SqrtSpec for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+        where
+            [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
+            [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
+            [(); EXP_BASE - 2]:
+        {
+            fn _y(self) -> Self
+            {
+                if EXP_BASE != 2
+                {
+                    self.sqrt_y_naive()
+                }
+                else if !Self::IS_INT_IMPLICIT
+                {
+                    let x = Fp::<U, SIGN_BIT, EXP_SIZE, 0, FRAC_SIZE, EXP_BASE>::from_fp(self);
+                    Self::from_fp(Fp::<U, SIGN_BIT, EXP_SIZE, 0, FRAC_SIZE, EXP_BASE>::from_bits(
+                        ((Fp::<U, SIGN_BIT, EXP_SIZE, 0, FRAC_SIZE, EXP_BASE>::exp_bias() + U::one()) * (U::one() << (FRAC_SIZE - 1)))
+                        + (x.to_bits() >> 1usize)
+                        - (U::one() << (FRAC_SIZE - 1))
+                    ))
+                }
+                else
+                {
+                    Self::from_bits(
+                        ((Self::exp_bias() + U::one()) * (U::one() << (FRAC_SIZE - 1)))
+                        + (self.to_bits() >> 1usize)
+                        - (U::one() << (FRAC_SIZE - 1))
+                    )
+                }
+            }
+        }
+
         if self.is_nan()
         {
             return self
@@ -3010,42 +3059,7 @@ where
             return self
         }
 
-        let y = if EXP_BASE != 2
-        {
-            if !SIGN_BIT && self < Self::one()
-            {
-                let xabs_log = self.recip().logb();
-    
-                let n_xabs_log = xabs_log/Self::from(2u8);
-                
-                n_xabs_log.expb().recip()
-            }
-            else
-            {
-                let xabs_log = self.logb();
-
-                let n_xabs_log = xabs_log/Self::from(2u8);
-                
-                n_xabs_log.expb()
-            }
-        }
-        else if !Self::IS_INT_IMPLICIT
-        {
-            let x = Fp::<U, SIGN_BIT, EXP_SIZE, 0, FRAC_SIZE, EXP_BASE>::from_fp(self);
-            Self::from_fp(Fp::<U, SIGN_BIT, EXP_SIZE, 0, FRAC_SIZE, EXP_BASE>::from_bits(
-                ((Fp::<U, SIGN_BIT, EXP_SIZE, 0, FRAC_SIZE, EXP_BASE>::exp_bias() + U::one()) * (U::one() << (FRAC_SIZE - 1)))
-                + (x.to_bits() >> 1usize)
-                - (U::one() << (FRAC_SIZE - 1))
-            ))
-        }
-        else
-        {
-            Self::from_bits(
-                ((Self::exp_bias() + U::one()) * (U::one() << (FRAC_SIZE - 1)))
-                + (self.to_bits() >> 1usize)
-                - (U::one() << (FRAC_SIZE - 1))
-            )
-        };
+        let y = self._y();
 
         const NEWTON: usize = NEWTON_RT;
         let half = Self::from(0.5);
@@ -3459,9 +3473,9 @@ where
         let base = U::from(EXP_BASE).unwrap();
         if e.is_zero() && Self::IS_INT_IMPLICIT
         {
-            while f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
+            while f < U::one() << (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)
             {
-                y = y - Self::one();
+                y -= Self::one();
                 f = f*base;
             }
         }
@@ -4223,7 +4237,7 @@ where
     #[inline]
     pub fn tan(mut self) -> Self
     {
-        self = self % Self::PI();
+        self %= Self::PI();
         while self > Self::FRAC_PI_2()
         {
             self -= Self::PI()
@@ -4320,7 +4334,7 @@ where
         }
         if xabs > Self::one()
         {
-            return (self - self)/(self - self)
+            return Self::snan()
         }
         if xabs < Self::from(0.000000007450580596923828125)
         {
@@ -4364,7 +4378,7 @@ where
         {
             let z_neg = one - ww2;
 
-            let mut y = util::polynomial(&p, z_neg, SIGN_BIT, true);
+            let mut y = util::polynomial(p, z_neg, SIGN_BIT, true);
             if y.is_nan()
             {
                 s = !s;
@@ -4376,7 +4390,7 @@ where
         {
             let z = ww2 - one;
 
-            util::polynomial(&p, z, SIGN_BIT, false)
+            util::polynomial(p, z, SIGN_BIT, false)
         }*w;
         if xabs > Self::FRAC_1_SQRT_2()
         {
@@ -4389,12 +4403,9 @@ where
                 y = Self::FRAC_PI_2() - y
             }
         }
-        else
+        else if s
         {
-            if s
-            {
-                y = -y
-            }
+            y = -y
         }
         if self.is_sign_negative()
         {
@@ -4539,7 +4550,7 @@ where
         let xabs = self.abs();
         if xabs > one
         {
-            return (self - self)/(self - self)
+            return Self::snan()
         }
         if xabs < Self::from(0.00000001490116119384765625)
         {
@@ -4761,7 +4772,7 @@ where
         {
             let z = one - ww2;
 
-            let mut y = util::polynomial(&p, z, SIGN_BIT, true);
+            let mut y = util::polynomial(p, z, SIGN_BIT, true);
             if y.is_nan()
             {
                 s = !s;
@@ -4773,7 +4784,7 @@ where
         {
             let z = ww2 - one;
 
-            let mut y = util::polynomial(&p, z, SIGN_BIT, false);
+            let mut y = util::polynomial(p, z, SIGN_BIT, false);
             if !SIGN_BIT && y.is_nan()
             {
                 s = !s;
@@ -4787,26 +4798,20 @@ where
             {
                 y = Self::FRAC_PI_2() + y
             }
-            else
-            {
-                if !SIGN_BIT && y > Self::FRAC_PI_2()
-                {
-                    y %= Self::PI();
-                    y = Self::PI() + Self::FRAC_PI_2() - y
-                }
-                else
-                {
-                    y = Self::FRAC_PI_2() - y
-                }
-            }
-        }
-        else
-        {
-            if s
+            else if !SIGN_BIT && y > Self::FRAC_PI_2()
             {
                 y %= Self::PI();
-                y = Self::PI() - y
+                y = Self::PI() + Self::FRAC_PI_2() - y
             }
+            else
+            {
+                y = Self::FRAC_PI_2() - y
+            }
+        }
+        else if s
+        {
+            y %= Self::PI();
+            y = Self::PI() - y
         }
 
         /*if y.is_nan()
@@ -4860,7 +4865,7 @@ where
             }
         }*/
 
-        y = y % Self::PI();
+        y %= Self::PI();
         while y > Self::FRAC_PI_2()
         {
             y -= Self::PI()
@@ -5396,26 +5401,25 @@ where
         }
         //(self + (self*self + Self::one()).sqrt()).ln()
 
-        let w;
         let xabs = self.abs();
         if xabs < Self::from(0.00006103515625)
         {
             return self
         }
-        if xabs > Self::from(16384.0)
+        let w = if xabs > Self::from(16384.0)
         {
             if !xabs.is_finite()
             {
                 return self + self
             }
-            w = xabs.ln() + Self::LN_2()
+            xabs.ln() + Self::LN_2()
         }
         else
         {
             let one = Self::one();
             let two = Self::from_uint(2u8);
             let t = xabs*xabs;
-            w = if xabs > two
+            if xabs > two
             {
                 (two*xabs + ((t + one).sqrt() + xabs).recip()).ln()
             }
@@ -5423,8 +5427,7 @@ where
             {
                 (xabs + t/(one + (one + t).sqrt())).ln_1p()
             }
-        }
-
+        };
         w.copysign(self)
     }
 
@@ -5455,7 +5458,7 @@ where
         }
         if self < Self::one()
         {
-            return (self - self)/(self - self)
+            return Self::snan()
         }
         if self.is_infinite()
         {
@@ -5566,20 +5569,24 @@ where
         const LOGROOT2PI: f64 = 0.9189385332046727417803297364056176;
 
         let mut sum = Self::from(LANCZOS_CHEB_7[0]);
-        for k in 1..LANCZOS_CHEB_7.len()
+        for (k, c) in LANCZOS_CHEB_7.iter()
+            .skip(1)
+            .enumerate()
         {
-            if SIGN_BIT || LANCZOS_CHEB_7[k].is_sign_positive()
+            if SIGN_BIT || c.is_sign_positive()
             {
-                sum += Self::from(LANCZOS_CHEB_7[k])/(self + Self::from_uint(k - 1))
+                sum += Self::from(*c)/(self + Self::from_uint(k))
             }
         }
         if !SIGN_BIT
         {
-            for k in 1..LANCZOS_CHEB_7.len()
+            for (k, c) in LANCZOS_CHEB_7.iter()
+                .skip(1)
+                .enumerate()
             {
-                if LANCZOS_CHEB_7[k].is_sign_negative()
+                if c.is_sign_negative()
                 {
-                    sum -= Self::from(-LANCZOS_CHEB_7[k])/(self + Self::from_uint(k - 1))
+                    sum -= Self::from(-c)/(self + Self::from_uint(k))
                 }
             }
         }
@@ -5724,7 +5731,7 @@ where
             return self
         }
 
-        let mask = (U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_SIZE) << Self::SIGN_POS;
+        let mask = (U::max_value() >> (util::bitsize_of::<U>() - Self::SIGN_SIZE)) << Self::SIGN_POS;
         
         Self::from_bits((self.to_bits() & (!mask)) | (sign.to_bits() & mask))
     }
@@ -5740,7 +5747,7 @@ where
             return Self::qnan()
         }
         
-        let mask = (U::max_value() >> util::bitsize_of::<U>() - Self::SIGN_SIZE) << Self::SIGN_POS;
+        let mask = (U::max_value() >> (util::bitsize_of::<U>() - Self::SIGN_SIZE)) << Self::SIGN_POS;
 
         let mut bits = self.to_bits() & (!mask);
         if neg
@@ -5986,12 +5993,12 @@ where
             f0 = f0 + (self.int_bits() << FRAC_SIZE);
             f1 = f1 + (other.int_bits() << FRAC_SIZE);
             
-            while e0 > e1 && f0 < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
+            while e0 > e1 && f0 < U::one() << (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)
             {
                 e0 = e0 - U::one();
                 f0 = f0*base;
             }            
-            while e1 > e0 && f1 < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
+            while e1 > e0 && f1 < U::one() << (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)
             {
                 e1 = e1 - U::one();
                 f1 = f1*base;
@@ -6063,7 +6070,7 @@ where
         e = e + U::one();
 
         let base = U::from(EXP_BASE).unwrap();        
-        while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
+        while e > U::zero() && f < U::one() << (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)
         {
             e = e - U::one();
             f = f*base;
@@ -6130,7 +6137,7 @@ where
             f = util::rounding_div(f, base);
         }
               
-        while e > U::zero() && f < U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
+        while e > U::zero() && f < U::one() << (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)
         {
             e = e - U::one();
             f = f*base;
@@ -6235,23 +6242,24 @@ where
                 q = s*util::polynomial(&QA.map(Neg::neg), s, SIGN_BIT, b);
                 one + q
             }
+            else if SIGN_BIT || one >= q
+            {
+                one - q
+            }
             else
             {
-                if SIGN_BIT || one >= q
-                {
-                    one - q
-                }
-                else
-                {
-                    r = !r;
-                    q - one
-                }
+                r = !r;
+                q - one
             }
         }
         else
         {
             let mut q = s*util::polynomial(&QA, s, SIGN_BIT, b);
-            if !SIGN_BIT && q.is_nan()
+            if SIGN_BIT || !q.is_nan()
+            {
+                one + q
+            }
+            else
             {
                 q = s*util::polynomial(&QA.map(Neg::neg), s, SIGN_BIT, b);
                 if one >= q
@@ -6263,10 +6271,6 @@ where
                     r = !r;
                     q - one
                 }
-            }
-            else
-            {
-                one + q
             }
         };
     
@@ -6371,14 +6375,14 @@ where
                 b = !b;
             }
         }
-        let z = Self::from_bits((self.to_bits() >> FRAC_SIZE/2) << FRAC_SIZE/2);
+        let z = Self::from_bits((self.to_bits() >> (FRAC_SIZE/2)) << (FRAC_SIZE/2));
 
         let ofs = Self::from(0.5625);
         if !SIGN_BIT
         {
-            if z >= self
+            match z >= self
             {
-                if b
+                true => if b
                 {
                     let p = (self - z) * (z + self);
                     let q = r / big_s;
@@ -6394,11 +6398,8 @@ where
                 else
                 {
                     (z * z + ofs).exp().recip() * ((z - self) * (z + self) + r / big_s).exp() / self
-                }
-            }
-            else
-            {
-                if b
+                },
+                false => if b
                 {
                     (z * z + ofs).exp().recip() / ((z - self) * (z + self) + r / big_s).exp() / self
                 }
@@ -6738,7 +6739,7 @@ where
             if s >= one
             {
                 b = !b;
-                s = s - one
+                s -= one
             }
             else
             {
@@ -7076,7 +7077,7 @@ where
             }
         }
         
-        return (Self::from(INVSQRTPI)*cc / self.sqrt(), cc_s);
+        (Self::from(INVSQRTPI)*cc / self.sqrt(), cc_s)
     }
 
     fn j0_extra_sign(mut self) -> (Self, bool)
@@ -7132,7 +7133,7 @@ where
                 if s > one
                 {
                     b = !b;
-                    s = s - one
+                    s -= one
                 }
                 else
                 {
@@ -7248,7 +7249,7 @@ where
                 if v > one
                 {
                     b = !b;
-                    v = v - one;
+                    v -= one;
                 }
                 else
                 {
@@ -7458,7 +7459,7 @@ where
             if s > one
             {
                 b = !b;
-                s = s - one
+                s -= one
             }
             else
             {
@@ -7846,7 +7847,7 @@ where
                 if s > one
                 {
                     b = !b;
-                    s = s - one
+                    s -= one
                 }
                 else
                 {
@@ -7954,7 +7955,7 @@ where
             if v > one
             {
                 b = !b;
-                v = v - one
+                v -= one
             }
             else
             {
@@ -8139,11 +8140,12 @@ where
                 */
                 let (s, s_s) = self.sin_extra_sign();
                 let (c, c_s) = self.cos_extra_sign();
-                let (s1, s2) = match nm1 & 3 {
-                    0 => (!c_s, s_s),
-                    1 => (!c_s, !s_s),
-                    2 => (c_s, !s_s),
-                    3 | _ => (c_s, s_s),
+                let (s1, s2) = match nm1 & 0b11 {
+                    0b00 => (!c_s, s_s),
+                    0b01 => (!c_s, !s_s),
+                    0b10 => (c_s, !s_s),
+                    0b11 => (c_s, s_s),
+                    _ => unreachable!()
                 };
                 let temp;
                 (temp, b_s) = util::add_extra_sign((c, s1), (s, s2), SIGN_BIT);
@@ -8164,169 +8166,166 @@ where
                 }
             }
         }
+        else if self < Self::from(0.00000000186264514923095703125)
+        {
+            /* x < 2**-29 */
+            /* x is tiny, return the first Taylor expansion of J(n,x)
+            * J(n,x) = 1/n!*(x/2)^n  - ...
+            */
+            if nm1 > 32
+            {
+                /* underflow */
+                b_s = false;
+                b = Self::zero();
+            }
+            else
+            {
+                let temp = self*Self::from(0.5);
+                b_s = false;
+                b = temp;
+                let mut a = one;
+                let mut i = 2;
+                while i <= nm1 + 1
+                {
+                    a *= Self::from_int(i); /* a = n! */
+                    b *= temp; /* b = (x/2)^n */
+                    i += 1;
+                }
+                b /= a;
+            }
+        }
         else
         {
-            if self < Self::from(0.00000000186264514923095703125)
+            /* use backward recurrence */
+            /*                      x      x^2      x^2
+            *  J(n,x)/J(n-1,x) =  ----   ------   ------   .....
+            *                      2n  - 2(n+1) - 2(n+2)
+            *
+            *                      1      1        1
+            *  (for large x)   =  ----  ------   ------   .....
+            *                      2n   2(n+1)   2(n+2)
+            *                      -- - ------ - ------ -
+            *                       x     x         x
+            *
+            * Let w = 2n/x and h=2/x, then the above quotient
+            * is equal to the continued fraction:
+            *                  1
+            *      = -----------------------
+            *                     1
+            *         w - -----------------
+            *                        1
+            *              w+h - ---------
+            *                     w+2h - ...
+            *
+            * To determine how many terms needed, let
+            * Q(0) = w, Q(1) = w(w+h) - 1,
+            * Q(k) = (w+k*h)*Q(k-1) - Q(k-2),
+            * When Q(k) > 1e4      good for single
+            * When Q(k) > 1e9      good for double
+            * When Q(k) > 1e17     good for quadruple
+            */
+            /* determine k */
+
+            let nf = Self::from_int(nm1) + one;
+            let w = two*nf/self;
+            let h = two/self;
+            let mut z = w + h;
+            let wz = w*z;
+
+            let mut q0_s = false;
+            let mut q0 = w;
+            let mut q1_s = false;
+            let mut q1 = if SIGN_BIT || wz >= one
             {
-                /* x < 2**-29 */
-                /* x is tiny, return the first Taylor expansion of J(n,x)
-                * J(n,x) = 1/n!*(x/2)^n  - ...
-                */
-                if nm1 > 32
+                wz - one
+            }
+            else
+            {
+                q1_s = !q1_s;
+                one - wz
+            };
+
+            let mut k = 1;
+            let q1_min = Self::from((EXP_BASE as f64).powf(13.287712379549449391481277717958/8.0*EXP_SIZE as f64));
+            while q1 < q1_min
+            {
+                k += 1;
+                z += h;
+                let (tmp, tmp_s) = util::add_extra_sign((z*q1, q1_s), (q0, !q0_s), SIGN_BIT);
+                q0 = q1;
+                q0_s = q1_s;
+                q1 = tmp;
+                q1_s = tmp_s;
+            }
+            let mut t = Self::zero();
+            let mut i = k;
+            while i >= 0
+            {
+                t = (two*(Self::from_int(i) + nf)/self - t).recip();
+                assert!(!t.is_nan());
+                i -= 1;
+            }
+            let mut a_s = false;
+            let mut a = t;
+            b_s = false;
+            b = one;
+            /*  estimate log((2/x)^n*n!) = n*log(2/x)+n*ln(n)
+            *  Hence, if n*(log(2n/x)) > ...
+            *  single 8.8722839355e+01
+            *  double 7.09782712893383973096e+02
+            *  long double 1.1356523406294143949491931077970765006170e+04
+            *  then recurrent value may overflow and the result is
+            *  likely underflow to zero
+            */
+            let wabs = w.abs();
+            let tmp = nf*wabs.ln();
+            if tmp < Self::from(0.69860503429133858267716535433071*Self::exp_bias().to_f64().unwrap()) || wabs < one
+            {
+                i = nm1;
+                while i > 0
                 {
-                    /* underflow */
-                    b_s = false;
-                    b = Self::zero();
-                }
-                else
-                {
-                    let temp = self*Self::from(0.5);
-                    b_s = false;
-                    b = temp;
-                    let mut a = one;
-                    let mut i = 2;
-                    while i <= nm1 + 1
-                    {
-                        a *= Self::from_int(i); /* a = n! */
-                        b *= temp; /* b = (x/2)^n */
-                        i += 1;
-                    }
-                    b = b / a;
+                    let (temp, temp_s) = (b, b_s);
+                    b *= (two*Self::from_int(i))/self;
+                    (b, b_s) = util::add_extra_sign((b, b_s), (a, !a_s), SIGN_BIT);
+                    a = temp;
+                    a_s = temp_s;
+                    i -= 1;
                 }
             }
             else
             {
-                /* use backward recurrence */
-                /*                      x      x^2      x^2
-                *  J(n,x)/J(n-1,x) =  ----   ------   ------   .....
-                *                      2n  - 2(n+1) - 2(n+2)
-                *
-                *                      1      1        1
-                *  (for large x)   =  ----  ------   ------   .....
-                *                      2n   2(n+1)   2(n+2)
-                *                      -- - ------ - ------ -
-                *                       x     x         x
-                *
-                * Let w = 2n/x and h=2/x, then the above quotient
-                * is equal to the continued fraction:
-                *                  1
-                *      = -----------------------
-                *                     1
-                *         w - -----------------
-                *                        1
-                *              w+h - ---------
-                *                     w+2h - ...
-                *
-                * To determine how many terms needed, let
-                * Q(0) = w, Q(1) = w(w+h) - 1,
-                * Q(k) = (w+k*h)*Q(k-1) - Q(k-2),
-                * When Q(k) > 1e4      good for single
-                * When Q(k) > 1e9      good for double
-                * When Q(k) > 1e17     good for quadruple
-                */
-                /* determine k */
+                let x1p500 = Self::from((EXP_BASE as f64).powf(0.47244094488188976377952755905512*Self::exp_bias().to_f64().unwrap())); // 0x1p500 == 2^500
 
-                let nf = Self::from_int(nm1) + one;
-                let w = two*nf/self;
-                let h = two/self;
-                let mut z = w + h;
-                let wz = w*z;
+                i = nm1;
+                while i > 0
+                {
+                    let (temp, temp_s) = (b, b_s);
+                    b *= (two*Self::from_int(i))/self;
+                    (b, b_s) = util::add_extra_sign((b, b_s), (a, !a_s), SIGN_BIT);
+                    a = temp;
+                    a_s = temp_s;
 
-                let mut q0_s = false;
-                let mut q0 = w;
-                let mut q1_s = false;
-                let mut q1 = if SIGN_BIT || wz >= one
-                {
-                    wz - one
-                }
-                else
-                {
-                    q1_s = !q1_s;
-                    one - wz
-                };
-
-                let mut k = 1;
-                let q1_min = Self::from((EXP_BASE as f64).powf(13.287712379549449391481277717958/8.0*EXP_SIZE as f64));
-                while q1 < q1_min
-                {
-                    k += 1;
-                    z += h;
-                    let (tmp, tmp_s) = util::add_extra_sign((z*q1, q1_s), (q0, !q0_s), SIGN_BIT);
-                    q0 = q1;
-                    q0_s = q1_s;
-                    q1 = tmp;
-                    q1_s = tmp_s;
-                }
-                let mut t = Self::zero();
-                let mut i = k;
-                while i >= 0
-                {
-                    t = (two*(Self::from_int(i) + nf)/self - t).recip();
-                    assert!(!t.is_nan());
+                    /* scale b to avoid spurious overflow */
+                    if b > x1p500
+                    {
+                        a /= b;
+                        t /= b;
+                        b = one;
+                    }
                     i -= 1;
                 }
-                let mut a_s = false;
-                let mut a = t;
-                b_s = false;
-                b = one;
-                /*  estimate log((2/x)^n*n!) = n*log(2/x)+n*ln(n)
-                *  Hence, if n*(log(2n/x)) > ...
-                *  single 8.8722839355e+01
-                *  double 7.09782712893383973096e+02
-                *  long double 1.1356523406294143949491931077970765006170e+04
-                *  then recurrent value may overflow and the result is
-                *  likely underflow to zero
-                */
-                let wabs = w.abs();
-                let tmp = nf*wabs.ln();
-                if tmp < Self::from(0.69860503429133858267716535433071*Self::exp_bias().to_f64().unwrap()) || wabs < one
-                {
-                    i = nm1;
-                    while i > 0
-                    {
-                        let (temp, temp_s) = (b, b_s);
-                        b *= (two*Self::from_int(i))/self;
-                        (b, b_s) = util::add_extra_sign((b, b_s), (a, !a_s), SIGN_BIT);
-                        a = temp;
-                        a_s = temp_s;
-                        i -= 1;
-                    }
-                }
-                else
-                {
-                    let x1p500 = Self::from((EXP_BASE as f64).powf(0.47244094488188976377952755905512*Self::exp_bias().to_f64().unwrap())); // 0x1p500 == 2^500
-
-                    i = nm1;
-                    while i > 0
-                    {
-                        let (temp, temp_s) = (b, b_s);
-                        b *= (two*Self::from_int(i))/self;
-                        (b, b_s) = util::add_extra_sign((b, b_s), (a, !a_s), SIGN_BIT);
-                        a = temp;
-                        a_s = temp_s;
-
-                        /* scale b to avoid spurious overflow */
-                        if b > x1p500
-                        {
-                            a /= b;
-                            t /= b;
-                            b = one;
-                        }
-                        i -= 1;
-                    }
-                }
-                let (z, z_s) = self.j0_extra_sign();
-                let (w, w_s) = self.j1_extra_sign();
-                if z.abs() >= w.abs()
-                {
-                    b_s = z_s^b_s;
-                    b = t * z / b;
-                }
-                else
-                {
-                    b_s = w_s^a_s;
-                    b = t * w / a;
-                }
+            }
+            let (z, z_s) = self.j0_extra_sign();
+            let (w, w_s) = self.j1_extra_sign();
+            if z.abs() >= w.abs()
+            {
+                b_s ^= z_s;
+                b = t * z / b;
+            }
+            else
+            {
+                b_s = w_s^a_s;
+                b = t * w / a;
             }
         }
 
@@ -8409,11 +8408,12 @@ where
              */
             let (s, s_s) = self.sin_extra_sign();
             let (c, c_s) = self.cos_extra_sign();
-            let (s1, s2) = match nm1 & 3 {
-                0 => (!s_s, !c_s),
-                1 => (!s_s, c_s),
-                2 => (s_s, c_s),
-                3 | _ => (s_s, !c_s),
+            let (s1, s2) = match nm1 & 0b11 {
+                0b00 => (!s_s, !c_s),
+                0b01 => (!s_s, c_s),
+                0b10 => (s_s, c_s),
+                0b11 => (s_s, !c_s),
+                _ => unreachable!()
             };
             let temp;
             (temp, b_s) = util::add_extra_sign((s, s1), (c, s2), SIGN_BIT);
@@ -8447,7 +8447,6 @@ where
 impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
     [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
     [(); EXP_BASE - 2]:,
     U: ConstZero
 {

@@ -9,7 +9,6 @@ macro_rules! impl_as_primitive_uint {
             where
                 U: 'static,
                 [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-                [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
                 [(); EXP_BASE - 2]:
             {
                 #[inline]
@@ -31,7 +30,6 @@ macro_rules! impl_as_primitive_int {
             where
                 U: 'static,
                 [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-                [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
                 [(); EXP_BASE - 2]:
             {
                 #[inline]
@@ -53,7 +51,6 @@ macro_rules! impl_as_primitive_float {
             where
                 U: 'static,
                 [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-                [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
                 [(); EXP_BASE - 2]:
             {
                 #[inline]
@@ -71,11 +68,9 @@ impl<T: UInt, U: UInt, const S: bool, const SIGN_BIT: bool, const E: usize, cons
 where
     T: 'static,
     [(); util::bitsize_of::<T>() - S as usize - E - I - F]:,
-    [(); util::bitsize_of::<T>() - S as usize - E - 0 - F]:,
     [(); B - 2]:,
     U: 'static,
     [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
     [(); EXP_BASE - 2]:
 {
     fn as_(self) -> Fp<T, S, E, I, F, B>

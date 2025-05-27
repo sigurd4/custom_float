@@ -3,7 +3,6 @@ use crate::{util, Fp, UInt};
 impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> PartialEq for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
     [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
     [(); EXP_BASE - 2]:
 {
     fn eq(&self, other: &Self) -> bool
@@ -40,12 +39,12 @@ where
 
         if let Some(base) = U::from(EXP_BASE)
         {
-            while Self::MANTISSA_OP_SIZE >= Self::BASE_PADDING && e0 > e1 && f0 <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
+            while Self::MANTISSA_OP_SIZE >= Self::BASE_PADDING && e0 > e1 && f0 <= U::one() << (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)
             {
                 e0 = e0 - U::one();
                 f0 = f0*base;
             }
-            while Self::MANTISSA_OP_SIZE >= Self::BASE_PADDING && e1 > e0 && f1 <= U::one() << Self::MANTISSA_OP_SIZE - Self::BASE_PADDING
+            while Self::MANTISSA_OP_SIZE >= Self::BASE_PADDING && e1 > e0 && f1 <= U::one() << (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)
             {
                 e1 = e1 - U::one();
                 f1 = f1*base;

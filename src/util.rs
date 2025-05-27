@@ -188,28 +188,30 @@ where
     }
     let mut y = F::zero();
     let mut zn = F::one();
-    for n in 0..N
+    for (n, p) in p.iter()
+        .enumerate()
     {
         if may_be_neg
         {
-            y = y + <F as From<_>>::from(p[n])*zn;
+            y += <F as From<_>>::from(*p)*zn;
         }
-        else if p[n].is_sign_positive() ^ (z_neg && (n % 2 != 0))
+        else if p.is_sign_positive() ^ (z_neg && (n % 2 != 0))
         {
-            y = y + <F as From<_>>::from(p[n].abs())*zn;
+            y += <F as From<_>>::from(p.abs())*zn;
         }
-        zn = zn*z;
+        zn *= z;
     }
     if !may_be_neg
     {
         let mut zn = F::one();
-        for n in 0..N
+        for (n, p) in p.iter()
+            .enumerate()
         {
-            if p[n].is_sign_negative() ^ (z_neg && (n % 2 != 0))
+            if p.is_sign_negative() ^ (z_neg && (n % 2 != 0))
             {
-                y = y - <F as From<_>>::from(p[n].abs())*zn;
+                y = y - <F as From<_>>::from(p.abs())*zn;
             }
-            zn = zn*z;
+            zn *= z;
         }
     }
     y
