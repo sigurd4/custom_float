@@ -29,9 +29,19 @@ mod test
 {
     use core::ops::Neg;
 
+    use test::Bencher;
+
+    use crate::tests::{self, F};
+
     #[test]
     fn test_neg()
     {
         crate::tests::test_op1("neg", Neg::neg, Neg::neg, None, Some(-10.0..10.0))
+    }
+    #[bench]
+    fn bench_neg(bencher: &mut Bencher)
+    {
+        test_neg();
+        tests::bench_op1::<F, _>(bencher, Neg::neg)
     }
 }

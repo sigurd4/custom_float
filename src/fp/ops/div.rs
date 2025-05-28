@@ -87,7 +87,9 @@ mod test
 {
     use std::ops::Div;
 
-    use crate::tests::F;
+    use test::Bencher;
+
+    use crate::tests::{self, F};
 
     #[test]
     fn test_div_once()
@@ -101,6 +103,12 @@ mod test
     #[test]
     fn test_div()
     {
-        crate::tests::test_op2("div", Div::div, Div::div, Some(0.001))
+        crate::tests::test_op2("div", Div::div, Div::div, None)
+    }
+    #[bench]
+    fn bench_div(bencher: &mut Bencher)
+    {
+        test_div();
+        tests::bench_op2::<F, _>(bencher, Div::div)
     }
 }

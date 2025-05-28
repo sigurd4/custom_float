@@ -32,9 +32,19 @@ mod test
 {
     use std::ops::Sub;
 
+    use test::Bencher;
+
+    use crate::tests::{self, F};
+
     #[test]
     fn test_sub()
     {
-        crate::tests::test_op2("sub", Sub::sub, Sub::sub, Some(0.00001))
+        crate::tests::test_op2("sub", Sub::sub, Sub::sub, None)
+    }
+    #[bench]
+    fn bench_sub(bencher: &mut Bencher)
+    {
+        test_sub();
+        tests::bench_op2::<F, _>(bencher, Sub::sub)
     }
 }

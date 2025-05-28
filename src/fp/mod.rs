@@ -33,7 +33,10 @@ const NEWTON_TRIG: usize = if NO_NEWTON {0} else {3};
 macro_rules! as_lossless {
     ($value:expr, $fn_as_lossless:expr, $fn:block) => {
         {
-            #[cfg(any(test, feature = "use_std_float"))]
+            #[cfg(any(
+                feature = "use_std_float",
+                all(debug_assertions, test)
+            ))]
             let _as_lossless = crate::Fp::as_lossless(
                 $value,
                 $fn_as_lossless,
@@ -41,13 +44,13 @@ macro_rules! as_lossless {
                 $fn_as_lossless,
                 $fn_as_lossless
             );
-            #[cfg(all(not(test), feature = "use_std_float"))]
+            #[cfg(all(any(not(debug_assertions), not(test)), feature = "use_std_float"))]
             if let Some([as_lossless]) = _as_lossless
             {
                 return as_lossless
             }
             let y = (|| $fn)();
-            #[cfg(test)]
+            #[cfg(all(debug_assertions, test))]
             if let Some([as_lossless]) = _as_lossless
             {
                 if !y.approx_eq(as_lossless)
@@ -162,7 +165,10 @@ where
     const MANTISSA_OP_SIZE: usize = FRAC_SIZE + INT_SIZE + Self::IS_INT_IMPLICIT as usize;
     const BASE_PADDING: usize = util::bitsize_of::<usize>() - EXP_BASE.leading_zeros() as usize - 1;
 
-    #[cfg(any(test, feature = "use_std_float"))]
+    #[cfg(any(
+        feature = "use_std_float",
+        all(debug_assertions, test)
+    ))]
     fn as_lossless<const N: usize, const M: usize>(
         value: [Self; N],
         as_f16: impl FnOnce([f16; N]) -> [f16; M],
@@ -523,11 +529,6 @@ where
                 let mut e = Self::max_exponents(e0, e1, &mut f0, &mut f1);
                 let s = Self::add_signs(s0, s1, f0, f1);
                 let mut f = Self::abs_add_mantissas(&mut e, f0, f1, s0 != s1);
-
-                if f.is_zero()
-                {
-                    return if s {-Self::zero()} else {Self::zero()}
-                }
 
                 Self::normalize_mantissa(&mut e, &mut f, None);
                 Self::from_sign_exp_mantissa(s, e, f)
@@ -8712,19 +8713,47 @@ mod test
 {
     #![allow(unused)]
 
-    use crate::{g_711::FpG711, ieee754::{FpDouble, FpHalf}, tests::F, Fp};
+    use std::process::Termination;
+
+    use num::zero;
+    use test::Bencher;
+
+    use crate::{g_711::FpG711, ieee754::{FpDouble, FpHalf}, tests::{self, F}, Fp};
+
+    #[test]
+    fn test_ln_gamma()
+    {
+        crate::tests::test_op1("gamma", f32::gamma, Fp::gamma, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*4.5..7.0))
+    }
+    #[bench]
+    fn bench_ln_gamma(bencher: &mut Bencher) -> impl Termination
+    {
+        test_ln_gamma();
+        tests::bench_op1::<F, _>(bencher, Fp::ln_gamma)
+    }
 
     #[test]
     fn test_gamma()
     {
         crate::tests::test_op1("ln_gamma", |x| f32::ln_gamma(x).0, |x| Fp::ln_gamma(x).0, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*4.5..20.0));
-        crate::tests::test_op1("gamma", f32::gamma, Fp::gamma, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*4.5..7.0))
+    }
+    #[bench]
+    fn bench_gamma(bencher: &mut Bencher) -> impl Termination
+    {
+        test_gamma();
+        tests::bench_op1::<F, _>(bencher, Fp::gamma)
     }
     
     #[test]
     fn test_j0()
     {
         crate::tests::test_op1("j0", libm::j0f, Fp::j0, Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*20.0..20.0))
+    }
+    #[bench]
+    fn bench_j0(bencher: &mut Bencher) -> impl Termination
+    {
+        test_j0();
+        tests::bench_op1::<F, _>(bencher, Fp::j0)
     }
     
     #[test]
@@ -8734,11 +8763,23 @@ mod test
         //crate::tests::test_op1("y0", libm::y0f, |x| x.y0_extra_sign().0, Some(0.1), Some(0.01..20.0))
         crate::tests::test_op1("y0", libm::y0f, Fp::y0, Some(0.1), Some(0.01..20.0))
     }
+    #[bench]
+    fn bench_y0(bencher: &mut Bencher) -> impl Termination
+    {
+        test_y0();
+        tests::bench_op1::<F, _>(bencher, Fp::y0)
+    }
     
     #[test]
     fn test_j1()
     {
         crate::tests::test_op1("j1", libm::j1f, Fp::j1, Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*20.0..20.0))
+    }
+    #[bench]
+    fn bench_j1(bencher: &mut Bencher) -> impl Termination
+    {
+        test_j1();
+        tests::bench_op1::<F, _>(bencher, Fp::j1)
     }
     
     #[test]
@@ -8746,11 +8787,23 @@ mod test
     {
         crate::tests::test_op1("y1", libm::y1f, Fp::y1, Some(0.1), Some(0.1..20.0))
     }
+    #[bench]
+    fn bench_y1(bencher: &mut Bencher) -> impl Termination
+    {
+        test_y1();
+        tests::bench_op1::<F, _>(bencher, Fp::y1)
+    }
     
     #[test]
     fn test_j2()
     {
         crate::tests::test_op1("j2", |x| libm::jnf(2, x), |x| x.jn(2), Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*20.0..20.0))
+    }
+    #[bench]
+    fn bench_j2(bencher: &mut Bencher) -> impl Termination
+    {
+        test_j2();
+        tests::bench_op1::<F, _>(bencher, |x| x.jn(2))
     }
     
     #[test]
@@ -8758,11 +8811,23 @@ mod test
     {
         crate::tests::test_op1("y2", |x| libm::ynf(2, x), |x| x.yn(2), Some(0.1), Some(1.0..20.0))
     }
+    #[bench]
+    fn bench_y2(bencher: &mut Bencher) -> impl Termination
+    {
+        test_y2();
+        tests::bench_op1::<F, _>(bencher, |x| x.yn(2))
+    }
     
     #[test]
     fn test_j3()
     {
         crate::tests::test_op1("j3", |x| libm::jnf(3, x), |x| x.jn(3), Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*20.0..20.0))
+    }
+    #[bench]
+    fn bench_j3(bencher: &mut Bencher) -> impl Termination
+    {
+        test_j3();
+        tests::bench_op1::<F, _>(bencher, |x| x.jn(3))
     }
     
     #[test]
@@ -8770,11 +8835,23 @@ mod test
     {
         crate::tests::test_op1("y3", |x| libm::ynf(3, x), |x| x.yn(3), Some(0.1), Some(1.0..20.0))
     }
+    #[bench]
+    fn bench_y3(bencher: &mut Bencher) -> impl Termination
+    {
+        test_y3();
+        tests::bench_op1::<F, _>(bencher, |x| x.yn(3))
+    }
     
     #[test]
     fn test_erf()
     {
         crate::tests::test_op1("erf", libm::erff, Fp::erf, Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0))
+    }
+    #[bench]
+    fn bench_erf(bencher: &mut Bencher) -> impl Termination
+    {
+        test_erf();
+        tests::bench_op1::<F, _>(bencher, Fp::erf)
     }
 
     #[test]
@@ -8792,10 +8869,19 @@ mod test
     {
         crate::tests::test_op1("erfc", libm::erfcf, Fp::erfc, Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0))
     }
+    #[bench]
+    fn bench_erfc(bencher: &mut Bencher) -> impl Termination
+    {
+        test_erfc();
+        tests::bench_op1::<F, _>(bencher, Fp::erfc)
+    }
 
     #[test]
     fn test_next_up_down()
     {
+        crate::tests::test_op1("next_up", f32::next_up, Fp::next_up, None, Some(-10.0..10.0));
+        crate::tests::test_op1("next_down", f32::next_down, Fp::next_down, None, Some(-10.0..10.0));
+
         type F = Fp<u8, true, 3, 1, 3, {usize::MAX}>;
 
         let mut x = F::neg_infinity();
@@ -8841,5 +8927,12 @@ mod test
                 break
             }
         }
+    }
+    #[bench]
+    fn bench_next_up_down(bencher: &mut Bencher) -> impl Termination
+    {
+        test_next_up_down();
+        tests::bench_op1::<F, _>(bencher, Fp::next_up);
+        tests::bench_op1::<F, _>(bencher, Fp::next_down)
     }
 }

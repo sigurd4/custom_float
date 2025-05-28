@@ -32,7 +32,9 @@ mod test
 {
     use std::ops::Add;
 
-    use crate::tests::F;
+    use test::Bencher;
+
+    use crate::tests::{self, F};
 
     #[test]
     fn test_add_once()
@@ -47,5 +49,11 @@ mod test
     fn test_add()
     {
         crate::tests::test_op2("add", Add::add, Add::add, None)
+    }
+    #[bench]
+    fn bench_add(bencher: &mut Bencher)
+    {
+        test_add();
+        tests::bench_op2::<F, _>(bencher, Add::add)
     }
 }

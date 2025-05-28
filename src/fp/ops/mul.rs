@@ -174,9 +174,19 @@ mod test
 {
     use std::ops::Mul;
 
+    use test::Bencher;
+
+    use crate::tests::{self, F};
+
     #[test]
     fn test_mul()
     {
         crate::tests::test_op2("mul", Mul::mul, Mul::mul, None)
+    }
+    #[bench]
+    fn bench_mul(bencher: &mut Bencher)
+    {
+        test_mul();
+        tests::bench_op2::<F, _>(bencher, Mul::mul)
     }
 }

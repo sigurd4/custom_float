@@ -1,4 +1,5 @@
 #![cfg_attr(not(test), no_std)]
+#![feature(test)]
 #![allow(incomplete_features)]
 #![feature(const_trait_impl)]
 #![feature(generic_const_exprs)]
@@ -13,6 +14,7 @@
 #![feature(generic_arg_infer)]
 #![feature(assert_matches)]
 #![feature(decl_macro)]
+#![feature(more_float_constants)]
 #![allow(clippy::excessive_precision)]
 
 //! # Custom Float
@@ -99,6 +101,9 @@ moddef::moddef!(
     }
 );
 
+#[cfg(test)]
+extern crate test;
+
 pub trait AnyInt = Bounded + PrimInt + CheckedShl + CheckedShr;
 pub trait UInt = Unsigned + AnyInt + core::fmt::Debug + core::fmt::Binary;
 pub trait Int = Signed + AnyInt + CheckedNeg;
@@ -108,14 +113,15 @@ mod tests
 {
     #![allow(unused)]
 
+    use core::f64::consts::*;
     use std::{
-        ops::{Range, RangeBounds},
-        time::{Instant, SystemTime}
+        ops::{Range, RangeBounds}, process::Termination, time::{Instant, SystemTime}
     };
 
     use linspace::LinspaceArray;
     use num::Complex;
     use num_traits::{Float, One, ToPrimitive, Zero};
+    use test::Bencher;
 
     use crate::{
         ati::Fp24,
@@ -175,13 +181,43 @@ mod tests
     pub fn ttable<F: Float>() -> Vec<F>
     {
         vec![
+            F::from(10000.0).unwrap(),
             F::from(3.333333).unwrap(),
             F::from(10.0).unwrap(),
             F::from(16.0).unwrap(),
             F::from(-2.2).unwrap(),
             F::from(2.2).unwrap(),
+            F::from(0.3643634).unwrap(),
+            F::from(0.1353856).unwrap(),
+            F::from(1.253464).unwrap(),
+            F::from(PI).unwrap(),
+            F::from(TAU).unwrap(),
+            F::from(PHI).unwrap(),
+            F::from(EGAMMA).unwrap(),
+            F::from(FRAC_PI_2).unwrap(),
+            F::from(FRAC_PI_3).unwrap(),
+            F::from(FRAC_PI_4).unwrap(),
+            F::from(FRAC_PI_6).unwrap(),
+            F::from(FRAC_PI_8).unwrap(),
+            F::from(FRAC_1_PI).unwrap(),
+            F::from(FRAC_1_SQRT_PI).unwrap(),
+            F::from(FRAC_1_SQRT_2PI).unwrap(),
+            F::from(FRAC_2_PI).unwrap(),
+            F::from(FRAC_2_SQRT_PI).unwrap(),
+            F::from(SQRT_2).unwrap(),
+            F::from(FRAC_1_SQRT_2).unwrap(),
+            F::from(SQRT_3).unwrap(),
+            F::from(FRAC_1_SQRT_3).unwrap(),
+            F::from(E).unwrap(),
+            F::from(LOG2_10).unwrap(),
+            F::from(LOG2_E).unwrap(),
+            F::from(LOG10_2).unwrap(),
+            F::from(LOG10_E).unwrap(),
+            F::from(LN_2).unwrap(),
+            F::from(LN_10).unwrap(),
             F::one(),
-            F::one().tan(),
+            F::epsilon(),
+            F::from(1.0.tan()).unwrap(),
             F::one() + F::epsilon(),
             F::zero(),
             F::from(0.5).unwrap(),
@@ -259,43 +295,72 @@ mod tests
 
         if let Some(r) = r
         {
+            #[cfg(debug_assertions)]
             plot_approx(fn_name, r.clone(), &op1, |x| op2(Fp::from(x)).into());
+            #[cfg(debug_assertions)]
             plot_err(fn_name, r.clone(), &op1, |x| op2(Fp::from(x)).into());
-            if BENCH
-            {
-                plot_bench(
-                    fn_name,
-                    r,
-                    |x| {
-                        let t0 = Instant::now();
+            #[cfg(not(debug_assertions))]
+            plot_bench(
+                fn_name,
+                r,
+                |x| {
+                    let t0 = Instant::now();
 
-                        for _ in 0..M
-                        {
-                            let _ = op1(x);
-                        }
-
-                        Instant::now().duration_since(t0).div_f64(M as f64).as_secs_f32()
-                    },
-                    |x| {
-                        let x = Fp::from(x);
-                        let t0 = Instant::now();
-
-                        for _ in 0..M
-                        {
-                            let _ = op2(x);
-                        }
-
-                        Instant::now().duration_since(t0).div_f64(M as f64).as_secs_f32()
+                    for _ in 0..M
+                    {
+                        let _ = op1(x);
                     }
-                )
-            }
+
+                    Instant::now().duration_since(t0).div_f64(M as f64).as_secs_f32()
+                },
+                |x| {
+                    let x = Fp::from(x);
+                    let t0 = Instant::now();
+
+                    for _ in 0..M
+                    {
+                        let _ = op2(x);
+                    }
+
+                    Instant::now().duration_since(t0).div_f64(M as f64).as_secs_f32()
+                }
+            )
         }
+    }
+
+    pub fn bench_op1<F, O>(bencher: &mut Bencher, mut op: impl FnMut(F) -> O)
+    where
+        F: Float
+    {
+        let mut x = ttable::<F>()
+            .into_iter()
+            .cycle();
+
+        bencher.iter(|| op(x.next().unwrap()));
+    }
+
+    pub fn bench_op2<F, O>(bencher: &mut Bencher, mut op: impl FnMut(F, F) -> O)
+    where
+        F: Float
+    {
+        let mut x = ttable::<F>()
+            .into_iter()
+            .flat_map(|lhs| ttable::<F>()
+                .into_iter()
+                .map(move |rhs| (lhs, rhs))
+            ).collect::<Vec<_>>()
+            .into_iter()
+            .cycle();
+
+        bencher.iter(|| {
+            let (lhs, rhs) = x.next().unwrap();
+            op(lhs, rhs)
+        });
     }
 
     const M: usize = 64;
     const N: usize = 1024;
     const PLOT_TARGET: &str = "plots";
-    const BENCH: bool = false;
 
     #[allow(unused)]
     pub fn plot_err<R>(fn_name: &str, range: R, func: impl Fn(f32) -> f32, approx: impl Fn(f32) -> f32)
@@ -384,9 +449,63 @@ mod tests
     }
 
     #[test]
-    fn test_convert()
+    fn test_ident()
     {
         test_op1("ident", |x| x, |x| x, None, Some(-5.0..20.0))
+    }
+    #[bench]
+    fn bench_ident(bencher: &mut Bencher) -> impl Termination
+    {
+        test_ident();
+        bench_op1::<F, _>(bencher, |x| x);
+    }
+
+    #[test]
+    fn test_to_f16()
+    {
+        test_op1("to_f16", |x| (x as f16) as _, |x| (f16::from(x) as f32).into(), None, Some(-5.0..20.0))
+    }
+    #[bench]
+    fn bench_to_f16(bencher: &mut Bencher) -> impl Termination
+    {
+        test_to_f16();
+        bench_op1::<F, _>(bencher, f16::from);
+    }
+
+    #[test]
+    fn test_to_f32()
+    {
+        test_op1("to_f32", |x| (x as f32) as _, |x| f32::from(x).into(), None, Some(-5.0..20.0))
+    }
+    #[bench]
+    fn bench_to_f32(bencher: &mut Bencher) -> impl Termination
+    {
+        test_to_f32();
+        bench_op1::<F, _>(bencher, f32::from);
+    }
+
+    #[test]
+    fn test_to_f64()
+    {
+        test_op1("to_f64", |x| (x as f64) as _, |x| (f64::from(x) as f32).into(), None, Some(-5.0..20.0))
+    }
+    #[bench]
+    fn bench_to_f64(bencher: &mut Bencher) -> impl Termination
+    {
+        test_to_f64();
+        bench_op1::<F, _>(bencher, f64::from);
+    }
+
+    #[test]
+    fn test_to_f128()
+    {
+        test_op1("to_f128", |x| (x as f128) as f32, |x| (f128::from(x) as f32).into(), None, Some(-5.0..20.0))
+    }
+    #[bench]
+    fn bench_to_f128(bencher: &mut Bencher) -> impl Termination
+    {
+        test_to_f128();
+        bench_op1::<F, _>(bencher, f128::from);
     }
 
     #[test]
