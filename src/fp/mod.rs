@@ -482,49 +482,30 @@ where
             [self, rhs],
             |[lhs, rhs]| [if neg {lhs - rhs} else {lhs + rhs}],
             {
-                if self.is_nan() || rhs.is_nan()
-                {
-                    return self.add_nan(rhs)
-                }
-                
-                if rhs.is_zero()
-                {
-                    return self
-                }
-                if self.is_zero()
-                {
-                    return if neg {-rhs} else {rhs}
-                }
-
                 let s0 = self.is_sign_negative();
                 let s1 = rhs.is_sign_negative() ^ neg;
 
-                match (self.is_infinite(), rhs.is_infinite())
+                match (self.classify(), rhs.classify())
                 {
-                    (true, true) => return if s0 == s1
-                    {
-                        self
+                    (FpCategory::Nan, _) | (_, FpCategory::Nan) => self.add_nan(rhs),
+                    (FpCategory::Infinite, FpCategory::Infinite) if s0 != s1 => Self::qnan(),
+                    (_, FpCategory::Zero) | (FpCategory::Infinite, _) => self,
+                    (FpCategory::Zero, _) | (_, FpCategory::Infinite) => rhs.xor_sign(neg),
+                    (FpCategory::Normal | FpCategory::Subnormal, FpCategory::Normal | FpCategory::Subnormal) => {
+                        let e0 = self.exp_bits();
+                        let e1 = rhs.exp_bits();
+                        let mut f0 = self.mantissa_bits();
+                        let mut f1 = rhs.mantissa_bits();
+        
+                        let s = Self::add_signs(s0, s1, f0, f1);
+                        
+                        let mut e = Self::max_exponents(e0, e1, &mut f0, &mut f1);
+                        let mut f = Self::abs_add_mantissas(&mut e, f0, f1, s0 != s1);
+        
+                        Self::normalize_mantissa(&mut e, &mut f, None);
+                        Self::from_exp_mantissa(e, f).with_sign(s)
                     }
-                    else
-                    {
-                        Self::qnan()
-                    },
-                    (true, false) => return self,
-                    (false, true) => return if neg {-rhs} else {rhs},
-                    (false, false) => ()
                 }
-                
-                let e0 = self.exp_bits();
-                let e1 = rhs.exp_bits();
-                let mut f0 = self.mantissa_bits();
-                let mut f1 = rhs.mantissa_bits();
-
-                let mut e = Self::max_exponents(e0, e1, &mut f0, &mut f1);
-                let s = Self::add_signs(s0, s1, f0, f1);
-                let mut f = Self::abs_add_mantissas(&mut e, f0, f1, s0 != s1);
-
-                Self::normalize_mantissa(&mut e, &mut f, None);
-                Self::from_exp_mantissa(e, f).with_sign(s)
             }
         )
     }
@@ -6308,11 +6289,11 @@ where
         Self::from_bits((self.to_bits() & (!mask)) | (sign.to_bits() & mask))
     }
 
-    fn with_sign(self, neg: bool) -> Self
+    fn with_sign(self, sign: bool) -> Self
     {
         if !SIGN_BIT
         {
-            if !neg || self.is_zero()
+            if !sign || self.is_zero()
             {
                 return self
             }
@@ -6322,7 +6303,7 @@ where
         let mask = Self::shift_sign(U::one());
 
         let mut bits = self.to_bits();
-        if neg
+        if sign
         {
             bits = bits | mask;
         }
@@ -6332,6 +6313,18 @@ where
         }
         
         Self::from_bits(bits)
+    }
+
+    fn xor_sign(self, sign: bool) -> Self
+    {
+        if sign
+        {
+            -self
+        }
+        else
+        {
+            self
+        }
     }
     
     /// Returns the additive identity element of `Self`, `0`.
