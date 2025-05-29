@@ -315,27 +315,64 @@ where
     Some(t)
 }
 
-/// Returns (2^`digits_bin`).ilog(base)
-pub fn count_digits_in_base(digits_bin: usize, base: usize) -> usize
+/// Returns (2^`digits_bin`).ilog(`base`)
+pub const fn exp2_ilog(exponent: usize, base: usize) -> usize
 {
     let mut d: usize = 1;
     let mut o = 0;
 
-    for _ in 0..digits_bin
+    let mut n = exponent;
+    while n > 0
     {
         if d.leading_zeros() == 0
         {
             o += 1;
             d /= base;
         }
-        d <<= 1
+        d <<= 1;
+        n -= 1
     }
 
     let y = o + d.ilog(base) as usize;
 
-    if let Some(s) = 1usize.checked_shl(digits_bin as u32)
+    #[cfg(debug_assertions)]
+    if let Some(s) = 1usize.checked_shl(exponent as u32)
     {
-        assert_eq!(y, s.ilog(base) as usize)
+        debug_assert!(y == s.ilog(base) as usize)
+    }
+
+    y
+}
+
+/// Returns (`base`^`digits_bin`).ilog2()
+pub const fn pow_ilog2(mut exponent: usize, base: usize) -> usize
+{
+    if base == 0
+    {
+        return 0
+    }
+    let p = base.ilog2();
+    let mut d: usize = 1;
+    let mut o = 0;
+
+    let mut n = exponent;
+    while n > 0
+    {
+        if d.leading_zeros() <= p
+        {
+            o += 1;
+            d >>= 1;
+        }
+        d *= base;
+        n -= 1
+    }
+
+    let y = o + d.ilog2() as usize;
+
+    #[cfg(debug_assertions)]
+    if let Some(s) = base.checked_pow(exponent as u32)
+    {
+        debug_assert!(y == s.ilog2() as usize)
     }
 
     y

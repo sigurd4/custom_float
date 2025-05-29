@@ -113,14 +113,14 @@ mod tests
 {
     #![allow(unused)]
 
-    use core::f64::consts::*;
+    use core::{f64::consts::*, ops::Neg};
     use std::{
         ops::{Range, RangeBounds}, process::Termination, time::{Instant, SystemTime}
     };
 
     use linspace::LinspaceArray;
     use num::Complex;
-    use num_traits::{Float, One, ToPrimitive, Zero};
+    use num_traits::{Float, Inv, One, ToPrimitive, Zero};
     use test::Bencher;
 
     use crate::{
@@ -180,15 +180,18 @@ mod tests
 
     pub fn ttable<F: Float>() -> Vec<F>
     {
-        vec![
+        let a = [
+            F::one(),
             F::from(10000.0).unwrap(),
+            F::from(0.5).unwrap(),
             F::from(3.333333).unwrap(),
             F::from(10.0).unwrap(),
             F::from(16.0).unwrap(),
-            F::from(-2.2).unwrap(),
             F::from(2.2).unwrap(),
             F::from(0.3643634).unwrap(),
             F::from(0.1353856).unwrap(),
+            F::from(0.035136474).unwrap(),
+            F::from(0.74378643).unwrap(),
             F::from(1.253464).unwrap(),
             F::from(PI).unwrap(),
             F::from(TAU).unwrap(),
@@ -215,18 +218,28 @@ mod tests
             F::from(LOG10_E).unwrap(),
             F::from(LN_2).unwrap(),
             F::from(LN_10).unwrap(),
-            F::one(),
             F::epsilon(),
             F::from(1.0.tan()).unwrap(),
             F::one() + F::epsilon(),
-            F::zero(),
-            F::from(0.5).unwrap(),
-            F::from(-0.5).unwrap(),
-            F::nan(),
-            F::infinity(),
-            F::neg_infinity(),
-            F::min_positive_value(),
-        ]
+        ];
+
+        let mut a = a.into_iter()
+            .chain(a.into_iter()
+                .map(|x| x.recip())
+            ).chain([
+                F::min_positive_value(),
+                F::zero(),
+                F::infinity(),
+            ]).collect::<Vec<_>>();
+
+        a.clone()
+            .into_iter()
+            .chain(a.into_iter()
+                .map(Neg::neg)
+            ).chain([
+                F::nan()
+            ])
+            .collect()
     }
 
     pub(crate) fn matches<F>(a: F, b: F, tol: Option<F>) -> bool
@@ -264,7 +277,7 @@ mod tests
                     {
                         println!("y is subnormal");
                     }
-                    println!("{:e} ? {:e} == {:e} != {:e}", f0, f1, s, sp);
+                    println!("{:?} ? {:?} == {:?} != {:?}", f0, f1, s, sp);
                 }
             }
         }

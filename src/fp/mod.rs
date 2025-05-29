@@ -44,7 +44,7 @@ macro_rules! as_lossless {
                 $fn_as_lossless,
                 $fn_as_lossless
             );
-            #[cfg(all(any(not(debug_assertions), not(test)), feature = "use_std_float"))]
+            #[cfg(all(not(test), feature = "use_std_float"))]
             if let Some([as_lossless]) = _as_lossless
             {
                 return as_lossless
@@ -164,6 +164,8 @@ where
 
     const MANTISSA_OP_SIZE: usize = FRAC_SIZE + INT_SIZE + Self::IS_INT_IMPLICIT as usize;
     const BASE_PADDING: usize = util::bitsize_of::<usize>() - EXP_BASE.leading_zeros() as usize - 1;
+    const BASE_SQRT_LEAST_PADDING: usize = util::bitsize_of::<usize>() - EXP_BASE.isqrt().leading_zeros() as usize - 1;
+    const BASE_SQRT_MOST_PADDING: usize = util::bitsize_of::<usize>() - (EXP_BASE/EXP_BASE.isqrt()).leading_zeros() as usize - 1;
 
     #[cfg(any(
         feature = "use_std_float",
@@ -208,8 +210,8 @@ where
             return true
         }
 
-        if let Some(mut e0) = self.exp_bits().to_usize() && let Some(f0) = <u128 as NumCast>::from(self.mantissa_bits())
-            && let Some(mut e1) = rhs.exp_bits().to_usize() && let Some(f1) = <u128 as NumCast>::from(rhs.mantissa_bits())
+        if let Some(e0) = self.exp_bits().to_usize() && let Some(f0) = <u128 as NumCast>::from(self.mantissa_bits())
+            && let Some(e1) = rhs.exp_bits().to_usize() && let Some(f1) = <u128 as NumCast>::from(rhs.mantissa_bits())
         {
             if !Self::IS_INT_IMPLICIT
             {
@@ -217,33 +219,37 @@ where
                 rhs.normalize_up();
             }
 
-            let tol = Self::FRAC_SIZE.saturating_sub(4);
+            const TOL: usize = 4;
+            let tol = Self::FRAC_SIZE.saturating_sub(TOL + 1) + 1;
 
-            if self.is_sign_negative() == rhs.is_sign_negative()
+            let quantize = |mut e: usize, f: u128| if f != 0
             {
                 if EXP_BASE != 2
                 {
-                    e0 = util::count_digits_in_base(e0, EXP_BASE);
-                    e1 = util::count_digits_in_base(e1, EXP_BASE);
+                    e = util::pow_ilog2(e, EXP_BASE);
                 }
-                let a = (e0 + f0.ilog2() as usize)/tol;
-                let b = (e1 + f1.ilog2() as usize)/tol;
+                (e + f.ilog2() as usize)/tol
+            }
+            else
+            {
+                0
+            };
+
+            if self.is_sign_negative() == rhs.is_sign_negative()
+            {
+                let a = quantize(e0, f0);
+                let b = quantize(e1, f1);
     
-                if a == b
+                if a.max(b) - a.min(b) <= 1
                 {
                     return true
                 }
             }
             else
             {
-                let mut e = e0 + e1;
-                if EXP_BASE != 2
-                {
-                    e = util::count_digits_in_base(e, EXP_BASE);
-                }
-                let a = (e + (f0 + f1).ilog2() as usize)/tol;
+                let a = quantize(e0 + e1, f0 + f1);
     
-                if a == 0
+                if a <= 1
                 {
                     return true
                 }
@@ -348,19 +354,6 @@ where
             *mantissa = *mantissa - one;
             debug_assert!(*mantissa < one)
         }
-    }
-
-    fn from_sign_exp_mantissa(sign: bool, exp: U, mantissa: U) -> Self
-    {
-        if !SIGN_BIT && sign
-        {
-            if mantissa.is_zero()
-            {
-                return Self::zero()
-            }
-            return Self::qnan()
-        }
-        Self::from_exp_mantissa(exp, mantissa).with_sign(sign)
     }
 
     fn from_exp_mantissa(exp: U, mut mantissa: U) -> Self
@@ -531,7 +524,7 @@ where
                 let mut f = Self::abs_add_mantissas(&mut e, f0, f1, s0 != s1);
 
                 Self::normalize_mantissa(&mut e, &mut f, None);
-                Self::from_sign_exp_mantissa(s, e, f)
+                Self::from_exp_mantissa(e, f).with_sign(s)
             }
         )
     }
@@ -940,7 +933,7 @@ where
             f
         };
 
-        Self::from_sign_exp_mantissa(s, e, f)
+        Self::from_exp_mantissa(e, f).with_sign(s)
     }
 
     /// Converts a custom floating-point type into an unsigned integer.
@@ -1816,7 +1809,7 @@ where
             return Self::from_bits(Self::shift_exp(bias) + Self::shift_frac(U::one()))
         }
 
-        let exp_frac = U::from(util::count_digits_in_base(FRAC_SIZE + INT_SIZE, EXP_BASE)).unwrap();
+        let exp_frac = U::from(util::exp2_ilog(FRAC_SIZE + INT_SIZE, EXP_BASE)).unwrap();
         if bias <= exp_frac
         {
             return Self::from_bits(util::powu(U::from(EXP_BASE).unwrap(), <usize as NumCast>::from(bias).unwrap() - 1))
@@ -2838,51 +2831,11 @@ where
     fn mantissa_div(mantissa1: U, mantissa2: U, exp: &mut U, exp_offset: &mut U) -> Result<U, Self>
     {
         let mut mantissa = Self::integral_div(mantissa1, mantissa2, exp_offset)?;
-        Self::integral_to_mantissa(&mut mantissa, exp, exp_offset)?;
+        Self::integral_div_to_mantissa_div(&mut mantissa, exp, exp_offset)?;
         Ok(mantissa)
     }
 
-    fn exponent_sub(exp1: U, exp2: U, mantissa1: &mut U, mantissa2: &mut U) -> Result<U, Self>
-    {
-        let bias = Self::exp_bias();
-        if let Some(e) = exp1.checked_sub(&exp2)
-        {
-            return e.checked_add(&bias).ok_or_else(Self::infinity)
-        }
-        if let Some(e) = bias.checked_sub(&exp2)
-        {
-            return exp1.checked_add(&e).ok_or_else(Self::infinity)
-        }
-        let e = exp2 - bias;
-        if let Some(e) = exp1.checked_sub(&e)
-        {
-            return Ok(e)
-        }
-        if let Some(base) = U::from(EXP_BASE)
-        {
-            let mut o = e - exp1;
-            while o > U::zero()
-            {
-                o = o - U::one();
-                if (*mantissa1 % base).is_zero()
-                {
-                    *mantissa1 = *mantissa1/base;
-                }
-                else if mantissa2.leading_zeros() as usize > Self::BASE_PADDING
-                {
-                    *mantissa2 = *mantissa2*base;
-                }
-                else
-                {
-                    *mantissa1 = util::rounding_div(*mantissa1, base);
-                }
-            }
-            return Ok(U::zero())
-        }
-        Err(Self::zero())
-    }
-
-    fn integral_to_mantissa(mantissa: &mut U, exp: &mut U, exp_offset: &mut U) -> Result<(), Self>
+    fn integral_div_to_mantissa_div(mantissa: &mut U, exp: &mut U, exp_offset: &mut U) -> Result<(), Self>
     {
         if FRAC_SIZE == 0
         {
@@ -2892,17 +2845,16 @@ where
         {
             if let Some(diff) = exp_offset.checked_sub(&change)
             {
-                *exp_offset = diff
+                *exp_offset = diff;
+                return Ok(())
             }
             else if let Some(diff) = exp.checked_add(&(change - *exp_offset))
             {
                 *exp_offset = U::zero();
-                *exp = diff
+                *exp = diff;
+                return Ok(())
             }
-            else
-            {
-                return Err(Self::infinity())
-            }
+            return Err(Self::infinity())
         }
         else if let Some(base) = U::from(EXP_BASE)
         {
@@ -2939,6 +2891,305 @@ where
             return Err(Self::zero())
         }
         Ok(())
+    }
+
+    fn integral_mul(mut mantissa1: U, mut mantissa2: U, exp_offset: &mut U) -> U
+    {
+        if EXP_BASE.is_power_of_two()
+        {
+            for m in [&mut mantissa1, &mut mantissa2]
+            {
+                if !m.is_zero()
+                {
+                    let i = m.trailing_zeros()/EXP_BASE.ilog2();
+                    if i != 0 && let Some(o) = U::from(i)
+                    {
+                        *m = *m >> i;
+                        *exp_offset = *exp_offset + o
+                    }
+                }
+            }
+        }
+        loop
+        {
+            if let Some(f) = mantissa1.checked_mul(&mantissa2)
+            {
+                return f
+            }
+            
+            match Self::mantissa_pairs_div_base(&mut mantissa1, &mut mantissa2)
+            {
+                Ok(()) => *exp_offset = *exp_offset + U::one(),
+                Err(()) => return Self::max_mantissa_bits()
+            }
+        }
+    }
+
+    fn mantissa_mul(mantissa1: U, mantissa2: U, exp: &mut U, exp_offset: &mut U) -> Result<U, Self>
+    {
+        let mut mantissa = Self::integral_mul(mantissa1, mantissa2, exp_offset);
+        Self::integral_mul_to_mantissa_mul(&mut mantissa, exp, exp_offset)?;
+        Ok(mantissa)
+    }
+
+    fn integral_mul_to_mantissa_mul(mantissa: &mut U, exp: &mut U, exp_offset: &mut U) -> Result<(), Self>
+    {
+        if FRAC_SIZE == 0
+        {
+            return Ok(())
+        }
+        let mut shifts = FRAC_SIZE;
+        if EXP_BASE.is_power_of_two() && let Some(mut change) = U::from(FRAC_SIZE/EXP_BASE.ilog2() as usize)
+        {
+            if let Some(diff) = exp_offset.checked_sub(&change)
+            {
+                *exp_offset = diff;
+                return Ok(())
+            }
+            change = change - *exp_offset;
+            if let Some(diff) = exp.checked_sub(&change)
+            {
+                *exp_offset = U::zero();
+                *exp = diff;
+                return Ok(())
+            }
+            change = change - *exp;
+            if let Some(unshift) = change.to_usize() && let Some(diff) = shifts.checked_sub(unshift*EXP_BASE.ilog2() as usize)
+            {
+                *exp_offset = U::zero();
+                *exp = U::zero();
+                shifts -= diff
+            }
+            else
+            {
+                return Err(Self::infinity())
+            }
+        }
+        if let Some(base) = U::from(EXP_BASE)
+        {
+            for _ in 0..shifts
+            {
+                while (*exp_offset > U::zero() || *exp > U::zero()) && mantissa.leading_zeros() as usize > Self::BASE_PADDING
+                {
+                    if *exp_offset > U::zero()
+                    {
+                        *exp_offset = *exp_offset - U::one();
+                    }
+                    else
+                    {
+                        *exp = *exp - U::one();
+                    }
+                    *mantissa = *mantissa*base;
+                }
+                *mantissa = util::rounding_div_2(*mantissa);
+            }
+        }
+        return Err(Self::zero())
+    }
+
+    fn mantissa_pairs_div_base(mantissa1: &mut U, mantissa2: &mut U) -> Result<(), ()>
+    {
+        let mut mantissas = if mantissa1 < mantissa2
+        {
+            [mantissa2, mantissa1]
+        }
+        else
+        {
+            [mantissa1, mantissa2]
+        };
+        let [&mut m_most, &mut m_least] = mantissas;
+
+        if let Some(base) = U::from(EXP_BASE)
+        {
+            for m in mantissas.iter_mut()
+            {
+                if (**m % base).is_zero()
+                {
+                    **m = **m/base;
+                    return Ok(())
+                }
+            }
+        }
+
+        if let Some(base_sqrt_least) = U::from(EXP_BASE.isqrt())
+            && let Some(base_sqrt_most) = U::from(EXP_BASE/EXP_BASE.isqrt())
+        {
+            if EXP_BASE.isqrt() == EXP_BASE/EXP_BASE.isqrt()
+            {
+                let base_sqrt = base_sqrt_least;
+                if (m_most % base_sqrt).is_zero() && (m_least % base_sqrt).is_zero()
+                {
+                    for m in mantissas.iter_mut()
+                    {
+                        **m = **m/base_sqrt
+                    }
+                    return Ok(())
+                }
+                if m_least.checked_mul(&m_least).is_none_or(|m| m >= m_most)
+                {
+                    for m in mantissas.iter_mut()
+                    {
+                        **m = util::rounding_div(**m, base_sqrt)
+                    }
+                    return Ok(())
+                }
+            }
+            else
+            {
+                for bases @ [b1, b2] in [
+                    [base_sqrt_most, base_sqrt_least],
+                    [base_sqrt_least, base_sqrt_most]
+                ]
+                {
+                    if (m_most % b1).is_zero() && (m_least % b2).is_zero()
+                    {
+                        for (m, b) in mantissas.iter_mut()
+                            .zip(bases)
+                        {
+                            **m = **m/b
+                        }
+                        return Ok(())
+                    }
+                }
+                if m_least.checked_mul(&m_least).is_none_or(|m| m >= m_most)
+                {
+                    let pick = (m_most % base_sqrt_least).is_zero() || (m_least % base_sqrt_most).is_zero();
+                    for (m, b) in mantissas.iter_mut()
+                        .zip(if pick
+                        {
+                            [base_sqrt_least, base_sqrt_most]
+                        }
+                        else
+                        {
+                            [base_sqrt_most, base_sqrt_least]
+                        })
+                    {
+                        **m = util::rounding_div(**m, b)
+                    }
+                    return Ok(())
+                }
+            }
+        }
+
+        if let Some(base) = U::from(EXP_BASE)
+        {
+            let [m_most, _] = &mut mantissas;
+            **m_most = util::rounding_div(**m_most, base);
+            return Ok(())
+        }
+
+        Err(())
+    }
+
+    fn exponent_add(mut exp1: U, mut exp2: U, mantissa1: &mut U, mantissa2: &mut U) -> Result<U, Self>
+    {
+        let bias = Self::exp_bias();
+        if let Some(e) = exp1.checked_add(&exp2)
+        {
+            if let Some(e) = e.checked_sub(&bias)
+            {
+                return Ok(e)
+            }
+            let mut o = bias - e;
+            while o > U::zero()
+            {
+                match Self::mantissa_pairs_div_base(mantissa1, mantissa2)
+                {
+                    Ok(()) => o = o - U::one(),
+                    Err(()) => return Err(Self::zero())
+                }
+            }
+            return Ok(U::zero())
+        }
+        let exp_most = if exp1 < exp2
+        {
+            &mut exp2
+        }
+        else
+        {
+            &mut exp1
+        };
+        *exp_most = *exp_most - bias;
+        if let Some(e) = exp1.checked_add(&exp2)
+        {
+            return Ok(e)
+        }
+        Err(Self::infinity())
+    }
+
+    fn exponent_sub(exp1: U, exp2: U, mantissa1: &mut U, mantissa2: &mut U) -> Result<U, Self>
+    {
+        let bias = Self::exp_bias();
+        if let Some(e) = exp1.checked_sub(&exp2)
+        {
+            return e.checked_add(&bias).ok_or_else(Self::infinity)
+        }
+        if let Some(e) = bias.checked_sub(&exp2)
+        {
+            return exp1.checked_add(&e).ok_or_else(Self::infinity)
+        }
+        let e = exp2 - bias;
+        if let Some(e) = exp1.checked_sub(&e)
+        {
+            return Ok(e)
+        }
+        let mut o = e - exp1;
+        'lp1:
+        while o > U::zero()
+        {
+            o = o - U::one();
+            if let Some(base) = U::from(EXP_BASE)
+            {
+                if (*mantissa1 % base).is_zero()
+                {
+                    *mantissa1 = *mantissa1/base;
+                    continue 'lp1
+                }
+                else if mantissa2.leading_zeros() as usize > Self::BASE_PADDING
+                {
+                    *mantissa2 = *mantissa2*base;
+                    continue 'lp1
+                }
+            }
+            if let Some(base_least) = U::from(EXP_BASE.isqrt()) && let Some(base_most) = U::from(EXP_BASE/EXP_BASE.isqrt())
+            {
+                if (*mantissa1 % base_least).is_zero()
+                    && mantissa2.leading_zeros() as usize > Self::BASE_SQRT_MOST_PADDING
+                {
+                    *mantissa1 = *mantissa1/base_least;
+                    *mantissa2 = *mantissa2*base_most;
+                    continue 'lp1
+                }
+                if EXP_BASE.isqrt() != EXP_BASE/EXP_BASE.isqrt()
+                    && (*mantissa1 % base_most).is_zero()
+                    && mantissa2.leading_zeros() as usize > Self::BASE_SQRT_LEAST_PADDING
+                {
+                    *mantissa1 = *mantissa1/base_most;
+                    *mantissa2 = *mantissa2*base_least;
+                    continue 'lp1
+                }
+                if mantissa2.leading_zeros() as usize > Self::BASE_SQRT_MOST_PADDING
+                {
+                    *mantissa1 = util::rounding_div(*mantissa1, base_least);
+                    *mantissa2 = *mantissa2*base_most;
+                    continue 'lp1
+                }
+                if EXP_BASE.isqrt() != EXP_BASE/EXP_BASE.isqrt()
+                    && mantissa2.leading_zeros() as usize > Self::BASE_SQRT_LEAST_PADDING
+                {
+                    *mantissa1 = util::rounding_div(*mantissa1, base_most);
+                    *mantissa2 = *mantissa2*base_least;
+                    continue 'lp1
+                }
+            }
+            if let Some(base) = U::from(EXP_BASE)
+            {
+                *mantissa1 = util::rounding_div(*mantissa1, base);
+                continue 'lp1
+            }
+            return Err(Self::zero())
+        }
+        Ok(U::zero())
     }
 
     /// Take the reciprocal (inverse) of a number, `1/x`.
@@ -2993,7 +3244,7 @@ where
                         };
                 
                         Self::normalize_mantissa(&mut e, &mut f, None);
-                        Self::from_sign_exp_mantissa(s, e, f)
+                        Self::from_exp_mantissa(e, f).with_sign(s)
                     }
                 }
             }
@@ -3072,7 +3323,7 @@ where
         let xabs = self.abs();
         let nabs = n.abs();
 
-        let exp_frac = U::from(util::count_digits_in_base(FRAC_SIZE + INT_SIZE, EXP_BASE)).unwrap();
+        let exp_frac = U::from(util::exp2_ilog(FRAC_SIZE + INT_SIZE, EXP_BASE)).unwrap();
 
         let edge_x = {
             let e = Self::max_exponent_bits() - U::one();
@@ -3413,7 +3664,7 @@ where
             return self
         }
         
-        let exp_frac = U::from(util::count_digits_in_base(FRAC_SIZE + INT_SIZE, EXP_BASE)).unwrap();
+        let exp_frac = U::from(util::exp2_ilog(FRAC_SIZE + INT_SIZE, EXP_BASE)).unwrap();
 
         if self >= Self::from_uint(U::one() << (EXP_SIZE - 1))
         {
@@ -4207,7 +4458,7 @@ where
         /* note: hypot(x,y) ~= x + y*y/x/2 with inexact for small y/x */
         if match <usize as NumCast>::from(ex - ey)
         {
-            Some(de) => de > util::count_digits_in_base(FRAC_SIZE + 1, EXP_BASE),
+            Some(de) => de > util::exp2_ilog(FRAC_SIZE + 1, EXP_BASE),
             None => true
         }
         {
@@ -6041,12 +6292,16 @@ where
             return Self::qnan()
         }
         
-        let mask = (U::max_value() >> (util::bitsize_of::<U>() - Self::SIGN_SIZE)) << Self::SIGN_POS;
+        let mask = Self::shift_sign(U::one());
 
-        let mut bits = self.to_bits() & (!mask);
+        let mut bits = self.to_bits();
         if neg
         {
             bits = bits | mask;
+        }
+        else
+        {
+            bits = bits & !mask
         }
         
         Self::from_bits(bits)
@@ -6345,7 +6600,7 @@ where
         e = e + U::one();
 
         Self::normalize_mantissa(&mut e, &mut f, None);
-        Self::from_sign_exp_mantissa(s, e, f)
+        Self::from_exp_mantissa(e, f).with_sign(s)
     }
 
     /// Returns `self/EXP_BASE`.
@@ -6402,7 +6657,7 @@ where
         }
         
         Self::normalize_mantissa(&mut e, &mut f, None);
-        Self::from_sign_exp_mantissa(s, e, f)
+        Self::from_exp_mantissa(e, f).with_sign(s)
     }
 
     /// Restrict a value to a certain interval unless it is NaN.

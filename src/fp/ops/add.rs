@@ -44,7 +44,6 @@ mod test
         let c = a + b;
         println!("{a} + {b} = {c}");
     }
-
     #[test]
     fn test_add()
     {

@@ -63,7 +63,7 @@ where
                         };
                 
                         Self::normalize_mantissa(&mut e, &mut f, None);
-                        Self::from_sign_exp_mantissa(s, e, f)
+                        Self::from_exp_mantissa(e, f).with_sign(s)
                     }
                 }
             }
