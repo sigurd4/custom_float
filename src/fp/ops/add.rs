@@ -39,8 +39,8 @@ mod test
     #[test]
     fn test_add_once()
     {
-        let a = F::from(-2.2e0f32);
-        let b = F::from(3.333333e0f32);
+        let a = F::from(1f32);
+        let b = F::from(-16f32);
         let c = a + b;
         println!("{a} + {b} = {c}");
     }

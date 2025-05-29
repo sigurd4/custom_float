@@ -496,12 +496,10 @@ where
                         let e1 = rhs.exp_bits();
                         let mut f0 = self.mantissa_bits();
                         let mut f1 = rhs.mantissa_bits();
-        
-                        let s = Self::add_signs(s0, s1, f0, f1);
                         
                         let mut e = Self::max_exponents(e0, e1, &mut f0, &mut f1);
                         let mut f = Self::abs_add_mantissas(&mut e, f0, f1, s0 != s1);
-        
+                        let s = Self::add_signs(s0, s1, f0, f1);
                         Self::normalize_mantissa(&mut e, &mut f, None);
                         Self::from_exp_mantissa(e, f).with_sign(s)
                     }
