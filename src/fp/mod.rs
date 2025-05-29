@@ -2795,9 +2795,16 @@ where
         (self*a) + b
     }
 
-    fn integral_div(mut mantissa1: U, mut mantissa2: U, exp_offset: &mut U) -> Result<U, Self>
+    fn integral_div(mut mantissa1: U, mut mantissa2: U, exp: &mut U, exp_offset: &mut U) -> Result<U, Self>
     {
-        let base = U::from(EXP_BASE);
+        if EXP_BASE.is_power_of_two()
+        {
+            if !util::complementary_add_sub_assign(exp_offset, exp, Self::shl_mantissa_without_loss(&mut mantissa1)).is_ok()
+                || !util::complementary_add_sub_assign(exp_offset, exp, Self::shr_mantissa_without_loss(&mut mantissa2)).is_ok()
+            {
+                return Err(Self::infinity())
+            }
+        }
         loop
         {
             if mantissa2.is_zero()
@@ -2805,7 +2812,7 @@ where
                 return Err(Self::infinity())
             }
             let f = util::rounding_div(mantissa1, mantissa2);
-            if let Some(base) = base && !mantissa1.is_zero() && f.leading_zeros() as usize >= Self::BASE_PADDING
+            if let Some(base) = U::from(EXP_BASE) && !mantissa1.is_zero() && f.leading_zeros() as usize >= Self::BASE_PADDING
             {
                 if mantissa1.leading_zeros() as usize > Self::BASE_PADDING
                 {
@@ -2830,7 +2837,7 @@ where
 
     fn mantissa_div(mantissa1: U, mantissa2: U, exp: &mut U, exp_offset: &mut U) -> Result<U, Self>
     {
-        let mut mantissa = Self::integral_div(mantissa1, mantissa2, exp_offset)?;
+        let mut mantissa = Self::integral_div(mantissa1, mantissa2, exp, exp_offset)?;
         Self::integral_div_to_mantissa_div(&mut mantissa, exp, exp_offset)?;
         Ok(mantissa)
     }
@@ -2841,16 +2848,17 @@ where
         {
             return Ok(())
         }
-        if EXP_BASE.is_power_of_two() && let Some(change) = U::from(FRAC_SIZE/EXP_BASE.ilog2() as usize)
+        if EXP_BASE.is_power_of_two() && let Some(mut change) = U::from(FRAC_SIZE/EXP_BASE.ilog2() as usize)
         {
             if let Some(diff) = exp_offset.checked_sub(&change)
             {
                 *exp_offset = diff;
                 return Ok(())
             }
-            else if let Some(diff) = exp.checked_add(&(change - *exp_offset))
+            change = change - *exp_offset;
+            *exp_offset = U::zero();
+            if let Some(diff) = exp.checked_add(&change)
             {
-                *exp_offset = U::zero();
                 *exp = diff;
                 return Ok(())
             }
@@ -2893,22 +2901,41 @@ where
         Ok(())
     }
 
+    fn shr_mantissa_without_loss(mantissa: &mut U) -> U
+    {
+        if !mantissa.is_zero()
+        {
+            let i: u32 = mantissa.trailing_zeros()/EXP_BASE.ilog2();
+            if i != 0 && let Some(o) = U::from(i)
+            {
+                *mantissa = *mantissa >> util::pow_ilog2(i as usize, EXP_BASE);
+                return o
+            }
+        }
+        U::zero()
+    }
+
+    fn shl_mantissa_without_loss(mantissa: &mut U) -> U
+    {
+        let quanta = EXP_BASE.ilog2() + EXP_BASE.is_power_of_two() as u32;
+        if !mantissa.is_zero()
+        {
+            let i: u32 = mantissa.leading_zeros()/quanta;
+            if i != 0 && let Some(o) = U::from(i)
+            {
+                *mantissa = *mantissa << util::pow_ilog2(i as usize, EXP_BASE);
+                return o
+            }
+        }
+        U::zero()
+    }
+
     fn integral_mul(mut mantissa1: U, mut mantissa2: U, exp_offset: &mut U) -> U
     {
         if EXP_BASE.is_power_of_two()
         {
-            for m in [&mut mantissa1, &mut mantissa2]
-            {
-                if !m.is_zero()
-                {
-                    let i = m.trailing_zeros()/EXP_BASE.ilog2();
-                    if i != 0 && let Some(o) = U::from(i)
-                    {
-                        *m = *m >> i;
-                        *exp_offset = *exp_offset + o
-                    }
-                }
-            }
+            *exp_offset = *exp_offset + Self::shr_mantissa_without_loss(&mut mantissa1);
+            *exp_offset = *exp_offset + Self::shr_mantissa_without_loss(&mut mantissa2);
         }
         loop
         {

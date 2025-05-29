@@ -2,7 +2,7 @@
 
 use core::ops::{Add, Div, Rem, Shl, Shr, AddAssign, MulAssign};
 
-use num_traits::{CheckedShl, Float, NumCast, One, Zero};
+use num_traits::{CheckedShl, CheckedAdd, CheckedSub, Float, NumCast, One, Zero};
 
 use crate::{ieee754::{FpDouble, FpHalf, FpQuadruple, FpSingle}, AnyInt, Fp, Int, UInt};
 
@@ -160,6 +160,24 @@ pub const fn bitsize_of<T>() -> usize
     core::mem::size_of::<T>()*8
 }
 
+pub fn complementary_add_sub_assign<T>(y_add: &mut T, y_sub: &mut T, mut x: T) -> Result<(), ()>
+where
+    T: CheckedSub + CheckedAdd + Copy
+{
+    if let Some(diff) = y_sub.checked_sub(&x)
+    {
+        *y_sub = diff;
+        return Ok(())
+    }
+    x = x - *y_sub;
+    if let Some(sum) = y_add.checked_add(&x)
+    {
+        *y_add = sum;
+        return Ok(())
+    }
+    Err(())
+}
+
 #[inline]
 pub fn add_extra_sign<T>(a: (T, bool), b: (T, bool), may_be_neg: bool) -> (T, bool)
 where
@@ -315,9 +333,17 @@ where
     Some(t)
 }
 
-/// Returns (2^`digits_bin`).ilog(`base`)
+/// Returns (2^`exponent`).ilog(`base`)
 pub const fn exp2_ilog(exponent: usize, base: usize) -> usize
 {
+    if base == 0
+    {
+        return 0
+    }
+    if base.is_power_of_two()
+    {
+        return exponent/base.ilog2() as usize
+    }
     let mut d: usize = 1;
     let mut o = 0;
 
@@ -344,12 +370,16 @@ pub const fn exp2_ilog(exponent: usize, base: usize) -> usize
     y
 }
 
-/// Returns (`base`^`digits_bin`).ilog2()
+/// Returns (`base`^`exponent`).ilog2()
 pub const fn pow_ilog2(mut exponent: usize, base: usize) -> usize
 {
-    if base == 0
+    if base == 0 || base == 1
     {
         return 0
+    }
+    if base.is_power_of_two()
+    {
+        return exponent*base.ilog2() as usize
     }
     let p = base.ilog2();
     let mut d: usize = 1;
