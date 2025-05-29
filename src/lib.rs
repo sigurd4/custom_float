@@ -15,6 +15,7 @@
 #![feature(assert_matches)]
 #![feature(decl_macro)]
 #![feature(more_float_constants)]
+#![feature(duration_millis_float)]
 #![allow(clippy::excessive_precision)]
 
 //! # Custom Float
@@ -313,31 +314,34 @@ mod tests
             #[cfg(debug_assertions)]
             plot_err(fn_name, r.clone(), &op1, |x| op2(Fp::from(x)).into());
             #[cfg(not(debug_assertions))]
-            plot_bench(
-                fn_name,
-                r,
-                |x| {
-                    let t0 = Instant::now();
+            {
+                const NANOS_PER_MILLIS: f64 = 1e6;
+                plot_bench(
+                    fn_name,
+                    r,
+                    |x| {
+                        let t0 = Instant::now();
 
-                    for _ in 0..M
-                    {
-                        let _ = op1(x);
+                        for _ in 0..M
+                        {
+                            let _ = op1(x);
+                        }
+
+                        Instant::now().duration_since(t0).div_f64(M as f64/NANOS_PER_MILLIS).as_millis_f32()
+                    },
+                    |x| {
+                        let x = Fp::from(x);
+                        let t0 = Instant::now();
+
+                        for _ in 0..M
+                        {
+                            let _ = op2(x);
+                        }
+
+                        Instant::now().duration_since(t0).div_f64(M as f64/NANOS_PER_MILLIS).as_millis_f32()
                     }
-
-                    Instant::now().duration_since(t0).div_f64(M as f64).as_secs_f32()
-                },
-                |x| {
-                    let x = Fp::from(x);
-                    let t0 = Instant::now();
-
-                    for _ in 0..M
-                    {
-                        let _ = op2(x);
-                    }
-
-                    Instant::now().duration_since(t0).div_f64(M as f64).as_secs_f32()
-                }
-            )
+                )
+            }
         }
     }
 
