@@ -461,8 +461,10 @@ where
         ((sign1 != sign2) && mantissa1 < mantissa2) != sign1
     }
 
-    fn max_exponents(exp1: U, exp2: U, mantissa1: &mut U, mantissa2: &mut U) -> U
+    fn max_exponents(mut exp1: U, mut exp2: U, mantissa1: &mut U, mantissa2: &mut U) -> U
     {
+        Self::normalize_mantissa_down(&mut exp1, mantissa1, Some(exp2));
+        Self::normalize_mantissa_down(&mut exp2, mantissa2, Some(exp1));
         let (exp, shr, mantissa) = match exp1.cmp(&exp2)
         {
             Ordering::Less => (
@@ -2900,32 +2902,6 @@ where
             // Not safe to halve a and b
             a*half + b*half
         }
-    }
-
-    /// Fused multiply-add. Computes `(self * a) + b`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
-    /// use custom_float::ieee754::FpDouble;
-    ///
-    /// let m = FpDouble::from(10.0);
-    /// let x = FpDouble::from(4.0);
-    /// let b = FpDouble::from(60.0);
-    ///
-    /// // 100.0
-    /// let abs_difference = (m.mul_add(x, b) - (m*x + b)).abs();
-    ///
-    /// assert!(abs_difference < FpDouble::from(1e-10));
-    /// ```
-    #[must_use = "method returns a new number and does not mutate the original value"]
-    #[inline]
-    pub fn mul_add(self, a: Self, b: Self) -> Self
-    {
-        // TODO: Do this better (EASY)
-        (self*a) + b
     }
 
     fn integral_div(mut mantissa1: U, mut mantissa2: U, exp: &mut U, exp_offset: &mut U) -> Result<U, Self>

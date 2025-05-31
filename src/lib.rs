@@ -255,6 +255,40 @@ mod tests
         }) || a.is_nan() && b.is_nan()
     }
 
+    pub fn test_op3(fn_name: &str, op1: impl Fn(f32, f32, f32) -> f32, op2: impl Fn(F, F, F) -> F, d: Option<f32>)
+    {
+        for f0 in crate::tests::ttable()
+        {
+            for f1 in crate::tests::ttable()
+            {
+                for f2 in crate::tests::ttable()
+                {
+                    let fp0 = F::from(f0);
+                    let fp1 = F::from(f1);
+                    let fp2 = F::from(f2);
+
+                    //println!("{} ? {} ? {}", f0, f1, f2);
+
+                    let s = op1(f0, f1, f2);
+                    let sp: f32 = op2(fp0, fp1, fp2).into();
+
+                    if !matches(s, sp, d)
+                    {
+                        if f0.is_subnormal() || f1.is_subnormal() || f2.is_subnormal()
+                        {
+                            println!("f is subnormal");
+                        }
+                        if s.is_subnormal()
+                        {
+                            println!("y is subnormal");
+                        }
+                        println!("{:?} ? {:?} ? {:?} == {:?} != {:?}", f0, f1, f2, s, sp);
+                    }
+                }
+            }
+        }
+    }
+
     pub fn test_op2(fn_name: &str, op1: impl Fn(f32, f32) -> f32, op2: impl Fn(F, F) -> F, d: Option<f32>)
     {
         for f0 in crate::tests::ttable()
@@ -271,7 +305,7 @@ mod tests
 
                 if !matches(s, sp, d)
                 {
-                    if f0.is_subnormal()
+                    if f0.is_subnormal() || f1.is_subnormal()
                     {
                         println!("f is subnormal");
                     }
@@ -373,6 +407,28 @@ mod tests
         bencher.iter(|| {
             let (lhs, rhs) = x.next().unwrap();
             op(lhs, rhs)
+        });
+    }
+
+    pub fn bench_op3<F, O>(bencher: &mut Bencher, mut op: impl FnMut(F, F, F) -> O)
+    where
+        F: Float
+    {
+        let mut x = ttable::<F>()
+            .into_iter()
+            .flat_map(|a| ttable::<F>()
+                .into_iter()
+                .flat_map(move |b| ttable::<F>()
+                    .into_iter()
+                    .map(move |c| (a, b, c))
+                )
+            ).collect::<Vec<_>>()
+            .into_iter()
+            .cycle();
+
+        bencher.iter(|| {
+            let (a, b, c) = x.next().unwrap();
+            op(a, b, c)
         });
     }
 

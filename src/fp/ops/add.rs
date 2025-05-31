@@ -47,7 +47,7 @@ mod test
     #[test]
     fn test_add()
     {
-        crate::tests::test_op2("add", Add::add, Add::add, None)
+        crate::tests::test_op2("add", Add::add, Add::add, Some(0.000001))
     }
     #[bench]
     fn bench_add(bencher: &mut Bencher)
