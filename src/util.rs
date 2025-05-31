@@ -155,6 +155,61 @@ pub fn utilized_size_of<T: AnyInt>(x: &T) -> usize
     bitsize_of::<T>() - x.leading_zeros() as usize + is_signed::<T>() as usize
 }
 
+pub const fn icbrt(a: usize) -> usize
+{
+    if bitsize_of::<usize>() <= 32
+    {
+        // Implementation based on Hacker's Delight `icbrt2`
+        let mut x = a;
+        let mut y2 = 0;
+        let mut y = 0;
+        let smax = bitsize_of::<usize>() / 3;
+        let mut s = smax + 1;
+        while s > 0
+        {
+            s -= 1;
+            let s = s * 3;
+            y2 *= 4;
+            y *= 2;
+            let b = 3 * (y2 + y) + 1;
+            if x >> s >= b {
+                x -= b << s;
+                y2 += 2 * y + 1;
+                y += 1;
+            }
+        }
+        return y;
+    }
+
+    if a < 8
+    {
+        return (a > 0) as usize;
+    }
+
+    #[inline]
+    const fn guess(x: usize) -> usize
+    {
+        1 << ((x.ilog2() + 2) / 3)
+    }
+
+    #[inline]
+    const fn fixpoint(a: usize, mut x: usize) -> usize
+    {
+        let mut xn = (a / (x * x) + x * 2) / 3;
+        while x < xn {
+            x = xn;
+            xn = (a / (x * x) + x * 2) / 3;
+        }
+        while x > xn {
+            x = xn;
+            xn = (a / (x * x) + x * 2) / 3;
+        }
+        x
+    }
+
+    fixpoint(a, guess(a))
+}
+
 pub const fn bitsize_of<T>() -> usize
 {
     core::mem::size_of::<T>()*8
@@ -176,49 +231,6 @@ where
         return Ok(())
     }
     Err(())
-}
-
-#[inline]
-pub fn add_extra_sign<T>(a: (T, bool), b: (T, bool), may_be_neg: bool) -> (T, bool)
-where
-    T: Float
-{
-    let (a, a_s) = a;
-    let (b, b_s) = b;
-    let mut s = false;
-    let y = match (a_s, b_s)
-    {
-        (false, false) => a + b,
-        (true, false) => if may_be_neg || a <= b
-        {
-            b - a
-        }
-        else
-        {
-            s = !s;
-            a - b
-        },
-        (false, true) => if may_be_neg || b <= a
-        {
-            a - b
-        }
-        else
-        {
-            s = !s;
-            b - a
-        },
-        (true, true) => if may_be_neg
-        {
-            -a - b
-        }
-        else
-        {
-            s = !s;
-            a + b
-        }
-    };
-
-    (y, s)
 }
 
 #[inline]
@@ -340,6 +352,10 @@ pub const fn exp2_ilog(exponent: usize, base: usize) -> usize
     {
         return 0
     }
+    if base == 2
+    {
+        return exponent
+    }
     if base.is_power_of_two()
     {
         return exponent/base.ilog2() as usize
@@ -406,6 +422,27 @@ pub const fn pow_ilog2(mut exponent: usize, base: usize) -> usize
     }
 
     y
+}
+
+pub const fn is_power_of(mut value: usize, base: usize) -> bool
+{
+    if value == 0
+    {
+        return false
+    }
+
+    loop
+    {
+        if value == 1
+        {
+            return true
+        }
+        if !value.is_multiple_of(base)
+        {
+            return false
+        }
+        value /= base
+    }
 }
 
 trait RoundingDivPowSpec<I: UInt>: Div<Output = Self> + Rem<Output = Self> + Shl<u32, Output = Self> + Add<Output = Self> + PartialOrd + One + Copy

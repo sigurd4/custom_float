@@ -16,6 +16,10 @@ where
             [self, rhs],
             |[lhs, rhs]| [lhs*rhs],
             {
+                if self.to_bits() == rhs.to_bits()
+                {
+                    return self.squared()
+                }
                 let s = self.is_sign_negative()^rhs.is_sign_negative();
                 match (self.classify(), rhs.classify())
                 {
@@ -42,14 +46,14 @@ where
                         let mut e = match Self::exponent_add(e0, e1, &mut f0, &mut f1)
                         {
                             Ok(e) => e,
-                            Err(done) => return done
+                            Err(done) => return done.with_sign(s)
                         };
                 
                         let mut o = U::zero();
                         let mut f = match Self::mantissa_mul(f0, f1, &mut e, &mut o)
                         {
                             Ok(e) => e,
-                            Err(done) => return done
+                            Err(done) => return done.with_sign(s)
                         };
                         
                         let mut e = match e.checked_add(&o)
@@ -90,8 +94,8 @@ mod test
     #[test]
     fn test_mul_once()
     {
-        let a = F::from(10000f32);
-        let b = F::from(10000f32);
+        let a = F::from(1f32);
+        let b = F::from(1f32);
         let c = a * b;
         println!("{a} * {b} = {c}");
     }

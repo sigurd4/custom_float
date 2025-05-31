@@ -141,10 +141,11 @@ mod tests
     #[test]
     fn it_works()
     {
+        let one = F::one();
         let mut x = [0.0; 8].map(|x| F::from(x));
-        x[0] = F::one() + F::one() + F::one();
-        x[1] = F::one() + F::from(0.5);
-        x[2] = F::one();
+        x[0] = one + one + one;
+        x[1] = one + F::from(0.5);
+        x[2] = one;
 
         println!("{:?}", x);
 
