@@ -4,6 +4,7 @@ use core::ops::Neg;
 
 use num_traits::{ConstZero, FloatConst, FromBytes, NumCast, ToBytes, Zero};
 
+use crate::util::Saturation;
 use crate::{util, AnyInt, Int, UInt};
 
 moddef::moddef!(
@@ -902,51 +903,25 @@ where
         
         let f = if util::bitsize_of::<I>() > util::bitsize_of::<U>()
         {
-            let base = I::from(EXP_BASE).unwrap();
             let mut f = from;
-                
-            for _ in 0..FRAC_SIZE
-            {
-                f = match f.checked_shl(1)
-                {
-                    Some(x) => x,
-                    None => {
-                        let x = util::rounding_div(f, base);
-                        e = match e.checked_add(&U::one())
-                        {
-                            Some(e) => e,
-                            None => return Self::infinity()
-                        };
-                        x << 1usize
-                    }
-                };
-            }
 
+            match Self::integral_div_to_mantissa_div(&mut f, &mut e, None)
+            {
+                Ok(()) => (),
+                Err(done) => return done
+            };
             Self::normalize_mantissa(&mut e, &mut f, None);
             NumCast::from(f).unwrap()
         }
         else
         {
-            let base = U::from(EXP_BASE).unwrap();
             let mut f = <U as NumCast>::from(from).unwrap();
                 
-            for _ in 0..FRAC_SIZE
+            match Self::integral_div_to_mantissa_div(&mut f, &mut e, None)
             {
-                f = match f.checked_shl(1)
-                {
-                    Some(x) => x,
-                    None => {
-                        let x = util::rounding_div(f, base);
-                        e = match e.checked_add(&U::one())
-                        {
-                            Some(e) => e,
-                            None => return Self::infinity()
-                        };
-                        x << 1usize
-                    }
-                };
-            }
-            
+                Ok(()) => (),
+                Err(done) => return done
+            };
             Self::normalize_mantissa(&mut e, &mut f, None);
             f
         };
@@ -956,72 +931,173 @@ where
     
     /// Converts a signed integer into a custom floating-point type.
     #[must_use = "method returns a new number and does not mutate the original value"]
-    pub fn from_int<I: Int>(from: I) -> Self
+    pub fn from_int<I: Int>(mut from: I) -> Self
     {
-        if from == I::min_value()
-        {
-            // TODO: Don't do this.
-            return Self::from_int(from + I::one()) - Self::one()
-        }
-
         let s = from < I::zero();
         if s && !SIGN_BIT
         {
             return Self::qnan()
         }
+        let overflow = from == I::min_value();
+        from = if overflow
+        {
+            I::max_value()
+        }
+        else
+        {
+            from.abs()
+        };
         let mut e = Self::exp_bias();
         let f = if util::bitsize_of::<I>() - 1 > util::bitsize_of::<U>()
         {
-            let base = I::from(EXP_BASE).unwrap();
-            let mut f = from.abs();
-            
-            for _ in 0..FRAC_SIZE
+            let mut f = from;
+            if overflow && let Some(base) = I::from(EXP_BASE)
             {
-                f = match f.checked_shl(1)
-                {
-                    Some(x) => x,
-                    None => {
-                        let x = util::rounding_div(f, base);
-                        e = match e.checked_add(&U::one())
-                        {
-                            Some(e) => e,
-                            None => return Self::infinity()
-                        };
-                        x << 1usize
-                    }
-                };
+                f = f/base + I::one();
+                e = e + U::one();
             }
-
+            match Self::integral_div_to_mantissa_div(&mut f, &mut e, None)
+            {
+                Ok(()) => (),
+                Err(done) => return done.with_sign(s)
+            };
             Self::normalize_mantissa(&mut e, &mut f, None);
             NumCast::from(f).unwrap()
         }
         else
         {
-            let base = U::from(EXP_BASE).unwrap();
-            let mut f = <U as NumCast>::from(from.abs()).unwrap();
-            
-            for _ in 0..FRAC_SIZE
+            let mut f = if overflow
             {
-                f = match f.checked_shl(1)
-                {
-                    Some(x) => x,
-                    None => {
-                        let x = util::rounding_div(f, base);
-                        e = match e.checked_add(&U::one())
-                        {
-                            Some(e) => e,
-                            None => return Self::infinity()
-                        };
-                        x << 1usize
-                    }
-                };
+                U::one() << (util::bitsize_of::<I>() - 1)
             }
-
+            else
+            {
+                <U as NumCast>::from(from).unwrap()
+            };
+            match Self::integral_div_to_mantissa_div(&mut f, &mut e, None)
+            {
+                Ok(()) => (),
+                Err(done) => return done.with_sign(s)
+            };
             Self::normalize_mantissa(&mut e, &mut f, None);
             f
         };
 
         Self::from_exp_mantissa(e, f).with_sign(s)
+    }
+
+    fn force_exp_to<M: AnyInt>(exp: &mut U, mantissa: &mut M, target_exp: U) -> Result<(), Saturation>
+    {
+        if mantissa.is_zero()
+        {
+            return Err(Saturation::Underflow)
+        }
+        if *exp > target_exp
+        {
+            let base = match M::from(EXP_BASE)
+            {
+                Some(b) => b,
+                None => return Err(Saturation::Overflow)
+            };
+            loop
+            {
+                *mantissa = match mantissa.checked_mul(&base)
+                {
+                    Some(m) => m,
+                    None => return Err(Saturation::Overflow)
+                };
+                *exp = *exp - U::one();
+                if *exp <= target_exp
+                {
+                    break
+                }
+            }
+        }
+        else if *exp < target_exp
+        {
+            let base = match M::from(EXP_BASE)
+            {
+                Some(b) => b,
+                None => return Err(Saturation::Underflow)
+            };
+            loop
+            {
+                *mantissa = util::rounding_div(*mantissa, base);
+                if mantissa.is_zero()
+                {
+                    return Err(Saturation::Underflow)
+                }
+                *exp = *exp + U::one();
+                if *exp >= target_exp
+                {
+                    break
+                }
+            }
+        }
+        assert_eq!(*exp, target_exp);
+        Ok(())
+    }
+
+    fn checked_to_uint<I: UInt>(self, convert: impl FnOnce(U) -> Result<I, Saturation>) -> Result<I, Option<Saturation>>
+    {
+        let s = self.is_sign_negative();
+        let apply_sign = |sgn| if sgn {Neg::neg} else {util::do_nothing};
+        match self.classify()
+        {
+            FpCategory::Zero => Ok(I::zero()),
+            FpCategory::Nan => Err(None),
+            FpCategory::Infinite => Err(Some(apply_sign(s)(Saturation::Overflow))),
+            FpCategory::Normal | FpCategory::Subnormal => if s
+            {
+                Err(Some(Saturation::Underflow))
+            }
+            else
+            {
+                let mut e = self.exp_bits();
+                let mut f = self.mantissa_bits();
+                let mut n;
+                let bias = Self::exp_bias();
+
+                let check = |result| match result
+                {
+                    Ok(()) => None,
+                    Err(sat) => Some(
+                        match sat
+                        {
+                            Saturation::Overflow => Err(Some(Saturation::Overflow)),
+                            Saturation::Underflow => Ok(I::zero())
+                        }
+                    )
+                };
+        
+                if util::bitsize_of::<I>() > util::bitsize_of::<U>()
+                {
+                    n = I::from(f).unwrap();
+        
+                    if let Some(done) = check(
+                        Self::integral_mul_to_mantissa_mul(&mut n, &mut e, None)
+                            .and_then(|()| Self::force_exp_to(&mut e, &mut n, bias))
+                    )
+                    {
+                        return done
+                    }
+                }
+                else
+                {
+                    if let Some(done) = check(
+                        Self::integral_mul_to_mantissa_mul(&mut f, &mut e, None)
+                            .and_then(|()| Self::force_exp_to(&mut e, &mut f, bias))
+                    )
+                    {
+                        return done
+                    }
+
+                    n = convert(f)?;
+                }
+
+                Ok(n)
+            }
+        }
     }
 
     /// Converts a custom floating-point type into an unsigned integer.
@@ -1030,81 +1106,7 @@ where
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn to_uint<I: UInt>(self) -> Option<I>
     {
-        let s = self.is_sign_negative();
-        match self.classify()
-        {
-            FpCategory::Zero => Some(I::zero()),
-            FpCategory::Infinite | FpCategory::Nan => None,
-            FpCategory::Normal | FpCategory::Subnormal => if s
-            {
-                None
-            }
-            else
-            {
-                let mut e = self.exp_bits();
-                let f = self.mantissa_bits();
-                let bias = Self::exp_bias();
-        
-                let n = if util::bitsize_of::<I>() > util::bitsize_of::<U>()
-                {
-                    let mut f = I::from(f).unwrap();
-                    let base = I::from(EXP_BASE).unwrap();
-        
-                    for _ in 0..FRAC_SIZE
-                    {
-                        while e > bias && f.leading_zeros() > 3
-                        {
-                            e = e - U::one();
-                            f = f*base;
-                        }
-                        f = util::rounding_div_2(f);
-                    }
-        
-                    while e > bias
-                    {
-                        e = e - U::one();
-                        f = f*base;
-                    }
-                    while e < bias
-                    {
-                        e = e + U::one();
-                        f = util::rounding_div(f, base);
-                    }
-        
-                    f
-                }
-                else
-                {
-                    let base = U::from(EXP_BASE).unwrap();
-                    let mut f = U::from(f).unwrap();
-        
-                    for _ in 0..FRAC_SIZE
-                    {
-                        while e > bias && f.leading_zeros() > 3
-                        {
-                            e = e - U::one();
-                            f = f*base;
-                        }
-                        f = util::rounding_div_2(f);
-                    }
-        
-                    while e > bias
-                    {
-                        e = e - U::one();
-                        f = f*base;
-                    }
-                    while e < bias
-                    {
-                        e = e + U::one();
-                        f = util::rounding_div(f, base);
-                    }
-        
-                    I::from(f)?
-                };
-        
-                Some(n)
-            }
-        }
+        self.checked_to_uint(|x| I::from(x).ok_or(Saturation::Overflow)).ok()
     }
     
     /// Converts a custom floating-point type into an unsigned integer.
@@ -1113,86 +1115,93 @@ where
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn to_uint_wrapping<I: UInt>(mut self) -> I
     {
-        let s = self.is_sign_negative();
+        if self.is_sign_negative()
+        {
+            let wrap = Self::from_uint(util::bitsize_of::<I>()).exp2();
+            self %= wrap;
+            self += wrap
+        }
+        match self.checked_to_uint(|x| I::from(x % (U::one() << util::bitsize_of::<I>())).ok_or(Saturation::Overflow))
+        {
+            Ok(y) => y,
+            Err(err) => match err
+            {
+                Some(sat) => match sat
+                {
+                    Saturation::Overflow => I::max_value(),
+                    Saturation::Underflow => I::min_value(),
+                },
+                None => I::zero(),
+            },
+        }
+    }
+
+    fn checked_to_int<I: Int>(self, convert: impl FnOnce(U, &mut bool) -> Result<I, Saturation>) -> Result<I, Option<Saturation>>
+    {
+        let mut s = self.is_sign_negative();
+        let apply_sign = |sgn| if sgn {Neg::neg} else {util::do_nothing};
         match self.classify()
         {
-            FpCategory::Infinite if !s => I::max_value(),
-            FpCategory::Infinite | FpCategory::Zero | FpCategory::Nan => I::zero(),
+            FpCategory::Zero => Ok(I::zero()),
+            FpCategory::Nan => Err(None),
+            FpCategory::Infinite => Err(Some(apply_sign(s)(Saturation::Overflow))),
             FpCategory::Normal | FpCategory::Subnormal => {
-                // TODO: Don't do this:
-                let max = Self::from_uint(I::max_value()) + Self::one();
-                let min = Self::from_uint(I::min_value());
-                self = max - ((max - min - ((self - min + Self::one()) % (max - min))) % (max - min)) - Self::one();
-        
-                let s = !self.sign_bit().is_zero();
-                if s
-                {
-                    return I::zero()
-                }
                 let mut e = self.exp_bits();
-                let f = self.mantissa_bits();
+                let mut f = self.mantissa_bits();
+                let mut n;
                 let bias = Self::exp_bias();
-                
-                if util::bitsize_of::<I>() > util::bitsize_of::<U>()
+
+                let check = |result| match result
                 {
-                    let mut f = I::from(f).unwrap();
-                    let base = I::from(EXP_BASE).unwrap();
-        
-                    for _ in 0..FRAC_SIZE
-                    {
-                        while e > bias && f.leading_zeros() > 3
+                    Ok(()) => None,
+                    Err(sat) => Some(
+                        match sat
                         {
-                            e = e - U::one();
-                            f = f*base;
+                            Saturation::Overflow => Err(Some(apply_sign(s)(Saturation::Overflow))),
+                            Saturation::Underflow => Ok(I::zero())
                         }
-                        f = util::rounding_div_2(f);
+                    )
+                };
+        
+                if util::bitsize_of::<I>() - 1 > util::bitsize_of::<U>()
+                {
+                    n = I::from(f).unwrap();
+                    if s
+                    {
+                        n = -n;
                     }
         
-                    while e > bias
+                    if let Some(done) = check(
+                        Self::integral_mul_to_mantissa_mul(&mut n, &mut e, None)
+                            .and_then(|()| Self::force_exp_to(&mut e, &mut n, bias))
+                    )
                     {
-                        e = e - U::one();
-                        f = f*base;
+                        return done
                     }
-                    while e < bias
-                    {
-                        e = e + U::one();
-                        f = util::rounding_div(f, base);
-                    }
-        
-                    f
                 }
                 else
                 {
-                    let base = U::from(EXP_BASE).unwrap();
-                    let mut f = U::from(f).unwrap();
-        
-                    for _ in 0..FRAC_SIZE
+                    if let Some(done) = check(
+                        Self::integral_mul_to_mantissa_mul(&mut f, &mut e, None)
+                            .and_then(|()| Self::force_exp_to(&mut e, &mut f, bias))
+                    )
                     {
-                        while e > bias && f.leading_zeros() > 3
-                        {
-                            e = e - U::one();
-                            f = f*base;
-                        }
-                        f = util::rounding_div_2(f);
+                        return done
+                    }
+
+                    if s && f == U::one() << (util::bitsize_of::<I>() - 1)
+                    {
+                        return Ok(I::min_value())
                     }
         
-                    while e > bias
+                    n = convert(f, &mut s).map_err(apply_sign(s))?;
+                    if s
                     {
-                        e = e - U::one();
-                        f = f*base;
-                    }
-                    while e < bias
-                    {
-                        e = e + U::one();
-                        f = util::rounding_div(f, base);
-                    }
-        
-                    match I::from(f)
-                    {
-                        Some(f) => f,
-                        None => I::max_value()
+                        n = -n;
                     }
                 }
+        
+                Ok(n)
             }
         }
     }
@@ -1203,195 +1212,41 @@ where
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn to_int<I: Int>(self) -> Option<I>
     {
-        let s = self.is_sign_negative();
-        match self.classify()
-        {
-            FpCategory::Zero => Some(I::zero()),
-            FpCategory::Infinite | FpCategory::Nan => None,
-            FpCategory::Normal | FpCategory::Subnormal => {
-                let mut e = self.exp_bits();
-                let f = self.mantissa_bits();
-                let bias = Self::exp_bias();
-        
-                let n = if util::bitsize_of::<I>() > util::bitsize_of::<U>()
-                {
-                    let mut f = I::from(f).unwrap();
-                    let base = I::from(EXP_BASE).unwrap();
-        
-                    for _ in 0..FRAC_SIZE
-                    {
-                        while e > bias && f.leading_zeros() > 3
-                        {
-                            e = e - U::one();
-                            f = f*base;
-                        }
-                        f = util::rounding_div_2(f);
-                    }
-        
-                    while e > bias
-                    {
-                        e = e - U::one();
-                        f = f*base;
-                    }
-                    while e < bias
-                    {
-                        e = e + U::one();
-                        f = util::rounding_div(f, base);
-                    }
-        
-                    f
-                }
-                else
-                {
-                    let base = U::from(EXP_BASE).unwrap();
-                    let mut f = U::from(f).unwrap();
-        
-                    for _ in 0..FRAC_SIZE
-                    {
-                        while e > bias && f.leading_zeros() > 3
-                        {
-                            e = e - U::one();
-                            f = f*base;
-                        }
-                        f = util::rounding_div_2(f);
-                    }
-        
-                    while e > bias
-                    {
-                        e = e - U::one();
-                        f = f*base;
-                    }
-                    while e < bias
-                    {
-                        e = e + U::one();
-                        f = util::rounding_div(f, base);
-                    }
-        
-                    I::from(f)?
-                };
-        
-                if s
-                {
-                    n.checked_neg()
-                }
-                else
-                {
-                    Some(n)   
-                }
-            }
-        }
+        self.checked_to_int(|x, _| I::from(x).ok_or(Saturation::Overflow)).ok()
     }
     
     /// Converts a custom floating-point type into a signed integer.
     ///
     /// Wraps if out of bounds.
     #[must_use = "method returns a new number and does not mutate the original value"]
-    pub fn to_int_wrapping<I: Int>(mut self) -> I
+    pub fn to_int_wrapping<I: Int>(self) -> I
     {
-        let s = self.is_sign_negative();
-        match self.classify()
+        match self.checked_to_int(|mut x, s| {
+            let iwrap = U::one() << (util::bitsize_of::<I>());
+            x = x % iwrap;
+            while match x.cmp(&(U::one() << (util::bitsize_of::<I>() - 1)))
+            {
+                Ordering::Less => false,
+                Ordering::Equal => !*s,
+                Ordering::Greater => true
+            }
+            {
+                x = iwrap - x;
+                *s = !*s;
+            }
+            I::from(x).ok_or(Saturation::Overflow)
+        })
         {
-            FpCategory::Zero | FpCategory::Nan => I::zero(),
-            FpCategory::Infinite => if s
+            Ok(y) => y,
+            Err(err) => match err
             {
-                I::min_value()
-            }
-            else
-            {
-                I::max_value()
+                Some(sat) => match sat
+                {
+                    Saturation::Overflow => I::max_value(),
+                    Saturation::Underflow => I::min_value(),
+                },
+                None => I::zero(),
             },
-            FpCategory::Normal | FpCategory::Subnormal => {
-                // TODO: Don't do this:
-                let max = Self::from_int(I::max_value()) + Self::one();
-                let min = Self::from_int(I::min_value());
-                self = max - ((max - min - ((self - min + Self::one()) % (max - min))) % (max - min)) - Self::one();
-        
-                let s = !self.sign_bit().is_zero();
-                let mut e = self.exp_bits();
-                let f = self.mantissa_bits();
-                let bias = Self::exp_bias();
-                
-                let n = if util::bitsize_of::<I>() > util::bitsize_of::<U>()
-                {
-                    let mut f = I::from(f).unwrap();
-                    let base = I::from(EXP_BASE).unwrap();
-        
-                    for _ in 0..FRAC_SIZE
-                    {
-                        while e > bias && f.leading_zeros() > 3
-                        {
-                            e = e - U::one();
-                            f = f*base;
-                        }
-                        f = util::rounding_div_2(f);
-                    }
-        
-                    while e > bias
-                    {
-                        e = e - U::one();
-                        f = f*base;
-                    }
-                    while e < bias
-                    {
-                        e = e + U::one();
-                        f = util::rounding_div(f, base);
-                    }
-        
-                    f
-                }
-                else
-                {
-                    let base = U::from(EXP_BASE).unwrap();
-                    let mut f = U::from(f).unwrap();
-        
-                    for _ in 0..FRAC_SIZE
-                    {
-                        while e > bias && f.leading_zeros() > 3
-                        {
-                            e = e - U::one();
-                            f = f*base;
-                        }
-                        f = util::rounding_div_2(f);
-                    }
-        
-                    while e > bias
-                    {
-                        e = e - U::one();
-                        f = f*base;
-                    }
-                    while e < bias
-                    {
-                        e = e + U::one();
-                        f = util::rounding_div(f, base);
-                    }
-        
-                    if s
-                    {
-                        if f > U::zero() && f - U::one() >= U::from(-I::one() - I::min_value()).unwrap()
-                        {
-                            return I::min_value()
-                        }
-                    }
-                    else if f >= U::from(I::max_value()).unwrap()
-                    {
-                        return I::max_value()
-                    }
-                    <I as NumCast>::from(f).unwrap()
-                };
-                
-                if s
-                {
-                    match n.checked_neg()
-                    {
-                        Some(n) => n,
-                        None => n
-                    }
-                }
-                else
-                {
-                    n
-                }
-            }
         }
     }
 
@@ -2947,67 +2802,134 @@ where
     fn mantissa_div(mantissa1: U, mantissa2: U, exp: &mut U, exp_offset: &mut U) -> Result<U, Self>
     {
         let mut mantissa = Self::integral_div(mantissa1, mantissa2, exp, exp_offset)?;
-        Self::integral_div_to_mantissa_div(&mut mantissa, exp, exp_offset)?;
+        Self::integral_div_to_mantissa_div(&mut mantissa, exp, Some(exp_offset))?;
         Ok(mantissa)
     }
 
-    fn integral_div_to_mantissa_div(mantissa: &mut U, exp: &mut U, exp_offset: &mut U) -> Result<(), Self>
+    fn integral_div_to_mantissa_div<M: AnyInt>(mantissa: &mut M, exp: &mut U, mut exp_offset: Option<&mut U>) -> Result<(), Self>
     {
+        if mantissa.is_zero()
+        {
+            return Err(Self::zero())
+        }
         if FRAC_SIZE == 0
         {
-            return Ok(())
+            Ok(())
         }
-        if EXP_BASE.is_power_of_two() && let Some(mut change) = U::from(FRAC_SIZE/EXP_BASE.ilog2() as usize)
+        else if EXP_BASE.is_power_of_two() && let Some(mut change) = U::from(FRAC_SIZE/EXP_BASE.ilog2() as usize)
         {
-            if let Some(diff) = exp_offset.checked_sub(&change)
+            if let Some(ofs) = exp_offset
             {
-                *exp_offset = diff;
-                return Ok(())
+                if let Some(diff) = ofs.checked_sub(&change)
+                {
+                    *ofs = diff;
+                    return Ok(())
+                }
+                change = change - *ofs;
+                *ofs = U::zero();
             }
-            change = change - *exp_offset;
-            *exp_offset = U::zero();
             if let Some(diff) = exp.checked_add(&change)
             {
                 *exp = diff;
                 return Ok(())
             }
-            return Err(Self::infinity())
+            Err(Self::infinity())
         }
-        else if let Some(base) = U::from(EXP_BASE)
+        else if EXP_BASE.is_multiple_of(2) && let Some(half_base) = M::from(EXP_BASE/2)
         {
-            for _ in 0..FRAC_SIZE
+            let mut step = 1usize;
+            loop
             {
-                *mantissa = loop
+                if !EXP_BASE.is_multiple_of(2 << step)
                 {
-                    if mantissa.is_zero()
+                    break
+                }
+                step += 1;
+            }
+            let mut n = FRAC_SIZE;
+            loop
+            {
+                if mantissa.is_zero()
+                {
+                    return Err(Self::zero())
+                }
+
+                let lz = mantissa.leading_zeros();
+                if lz > 0
+                {
+                    let s = n.min(lz as usize);
+                    n -= s;
+                    *mantissa = *mantissa << s;
+                    if n == 0
                     {
-                        return Err(Self::zero())
+                        break
                     }
-                    if mantissa.leading_zeros() > 0
-                    {
-                        break *mantissa << 1usize
-                    }
-                    if *exp_offset > U::zero()
-                    {
-                        *exp_offset = *exp_offset - U::one();
-                    }
-                    else if *exp < U::max_value()
-                    {
-                        *exp = *exp + U::one();
-                    }
-                    else
-                    {
-                        return Err(Self::infinity())
-                    }
-                    *mantissa = util::rounding_div(*mantissa, base);
+                }
+
+                if let Some(ofs) = &mut exp_offset && **ofs > U::zero()
+                {
+                    **ofs = **ofs - U::one();
+                }
+                else if *exp < U::max_value()
+                {
+                    *exp = *exp + U::one();
+                }
+                else
+                {
+                    return Err(Self::infinity())
+                }
+                let s = n.min(step);
+                n -= s;
+                *mantissa = util::rounding_div(*mantissa, half_base >> (s - 1));
+                if n == 0
+                {
+                    break
                 }
             }
+            Ok(())
+        }
+        else if let Some(base) = M::from(EXP_BASE)
+        {
+            let mut n = FRAC_SIZE;
+            loop
+            {
+                if mantissa.is_zero()
+                {
+                    return Err(Self::zero())
+                }
+                
+                let lz = mantissa.leading_zeros();
+                if lz > 0
+                {
+                    let s = n.min(lz as usize);
+                    n -= s;
+                    *mantissa = *mantissa << s;
+                    if n == 0
+                    {
+                        break
+                    }
+                }
+
+                if let Some(ofs) = &mut exp_offset && **ofs > U::zero()
+                {
+                    **ofs = **ofs - U::one();
+                }
+                else if *exp < U::max_value()
+                {
+                    *exp = *exp + U::one();
+                }
+                else
+                {
+                    return Err(Self::infinity())
+                }
+                *mantissa = util::rounding_div(*mantissa, base);
+            }
+            Ok(())
         }
         else
         {
-            return Err(Self::zero())
+            Err(Self::zero())
         }
-        Ok(())
     }
 
     fn shr_mantissa_without_loss(mantissa: &mut U) -> U
@@ -3064,11 +2986,19 @@ where
     fn mantissa_mul(mantissa1: U, mantissa2: U, exp: &mut U, exp_offset: &mut U) -> Result<U, Self>
     {
         let mut mantissa = Self::integral_mul(mantissa1, mantissa2, exp_offset);
-        Self::integral_mul_to_mantissa_mul(&mut mantissa, exp, exp_offset)?;
+        match Self::integral_mul_to_mantissa_mul(&mut mantissa, exp, Some(exp_offset))
+        {
+            Ok(()) => (),
+            Err(sat) => match sat
+            {
+                Saturation::Overflow => return Err(Self::infinity()),
+                Saturation::Underflow => return Err(Self::zero())
+            }
+        }
         Ok(mantissa)
     }
 
-    fn integral_mul_to_mantissa_mul(mantissa: &mut U, exp: &mut U, exp_offset: &mut U) -> Result<(), Self>
+    fn integral_mul_to_mantissa_mul<M: AnyInt>(mantissa: &mut M, exp: &mut U, mut exp_offset: Option<&mut U>) -> Result<(), Saturation>
     {
         if FRAC_SIZE == 0
         {
@@ -3077,50 +3007,56 @@ where
         let mut shifts = FRAC_SIZE;
         if EXP_BASE.is_power_of_two() && let Some(mut change) = U::from(FRAC_SIZE/EXP_BASE.ilog2() as usize)
         {
-            if let Some(diff) = exp_offset.checked_sub(&change)
+            if let Some(ofs) = &mut exp_offset
             {
-                *exp_offset = diff;
-                return Ok(())
+                if let Some(diff) = ofs.checked_sub(&change)
+                {
+                    **ofs = diff;
+                    return Ok(())
+                }
+                change = change - **ofs;
+                **ofs = U::zero();
             }
-            change = change - *exp_offset;
             if let Some(diff) = exp.checked_sub(&change)
             {
-                *exp_offset = U::zero();
                 *exp = diff;
                 return Ok(())
             }
             change = change - *exp;
+            *exp = U::zero();
             if let Some(unshift) = change.to_usize() && let Some(diff) = shifts.checked_sub(unshift*EXP_BASE.ilog2() as usize)
             {
-                *exp_offset = U::zero();
-                *exp = U::zero();
                 shifts -= diff
             }
             else
             {
-                return Err(Self::infinity())
+                return Err(Saturation::Overflow)
             }
         }
-        if let Some(base) = U::from(EXP_BASE)
+        if let Some(base) = M::from(EXP_BASE)
         {
             for _ in 0..shifts
             {
-                while (*exp_offset > U::zero() || *exp > U::zero()) && mantissa.leading_zeros() as usize > Self::BASE_PADDING
+                while mantissa.leading_zeros() as usize > Self::BASE_PADDING
                 {
-                    if *exp_offset > U::zero()
+                    if let Some(ofs) = &mut exp_offset && **ofs > U::zero()
                     {
-                        *exp_offset = *exp_offset - U::one();
+                        **ofs = **ofs - U::one();
+                    }
+                    else if *exp > U::zero()
+                    {
+                        *exp = *exp - U::one();
                     }
                     else
                     {
-                        *exp = *exp - U::one();
+                        break
                     }
                     *mantissa = *mantissa*base;
                 }
                 *mantissa = util::rounding_div_2(*mantissa);
             }
         }
-        return Err(Self::zero())
+        Err(Saturation::Underflow)
     }
 
     fn _mantissa_pairs_div_base_add(mantissa1: &mut U, mantissa2: &mut U, add: Option<fn (U, U) -> U>) -> Result<Option<U>, ()>
@@ -3728,7 +3664,7 @@ where
             return (Self::one()/self).sqrt()
         }
 
-        if !SIGN_BIT
+        if !SIGN_BIT && xabs < Self::zero()
         {
             let xabs_log = xabs.recip().logb();
     
@@ -3929,18 +3865,7 @@ where
                 let e = x.floor();
                 let f = x - e;
         
-                let ln_exp_base = if EXP_BASE == 2
-                {
-                    Self::LN_2()
-                }
-                else if EXP_BASE == 10
-                {
-                    Self::LN_10()
-                }
-                else
-                {
-                    Self::from((EXP_BASE as f64).ln())
-                };
+                let ln_exp_base = Self::ln_exp_base();
         
                 let z = Self::from(Into::<f64>::into(f*ln_exp_base).exp());
         
@@ -3980,16 +3905,7 @@ where
     #[inline]
     fn exp_nonewton(self) -> Self
     {
-        if EXP_BASE == 2
-        {
-            return (self/Self::LN_2()).expb()
-        }
-        if EXP_BASE == 10
-        {
-            return (self/Self::LN_10()).expb()
-        }
-        
-        (self/Self::from((EXP_BASE as f64).ln())).expb()
+        (self/Self::ln_exp_base()).expb()
     }
 
     /// Returns `e^(self)`, (the exponential function).
@@ -4092,18 +4008,22 @@ where
         (self*Self::LN_2()).exp()
     }
 
-    #[inline]
-    fn ln_nonewton(self) -> Self
+    fn ln_exp_base() -> Self
     {
-        let ln_b = match EXP_BASE
+        match EXP_BASE
         {
             2 => Self::LN_2(),
             10 => Self::LN_10(),
             _ if EXP_BASE.is_power_of_two() => Self::from(EXP_BASE.ilog2())*Self::LN_2(),
             _ if util::is_power_of(EXP_BASE, 10) => Self::from(EXP_BASE.ilog10())*Self::LN_10(),
             _ => Self::from((EXP_BASE as f64).ln())
-        };
-        self.logb()*ln_b
+        }
+    }
+
+    #[inline]
+    fn ln_nonewton(self) -> Self
+    {
+        self.logb()*Self::ln_exp_base()
     }
 
     #[inline]

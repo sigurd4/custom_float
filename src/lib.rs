@@ -120,7 +120,7 @@ mod tests
     };
 
     use linspace::LinspaceArray;
-    use num::Complex;
+    use num::{Complex, NumCast};
     use num_traits::{Float, Inv, One, ToPrimitive, Zero};
     use test::Bencher;
 
@@ -137,6 +137,7 @@ mod tests
     };
 
     pub type F = FpDouble;
+    //pub type F = DecDouble;
 
     #[test]
     fn it_works()
@@ -384,8 +385,9 @@ mod tests
     where
         F: Float
     {
-        let mut x = ttable::<F>()
-            .into_iter()
+        let x = ttable::<F>();
+        let mut x = x.iter()
+            .copied()
             .cycle();
 
         bencher.iter(|| op(x.next().unwrap()));
@@ -395,13 +397,14 @@ mod tests
     where
         F: Float
     {
-        let mut x = ttable::<F>()
+        let x = ttable::<F>()
             .into_iter()
             .flat_map(|lhs| ttable::<F>()
                 .into_iter()
                 .map(move |rhs| (lhs, rhs))
-            ).collect::<Vec<_>>()
-            .into_iter()
+            ).collect::<Vec<_>>();
+        let mut x = x.iter()
+            .copied()
             .cycle();
 
         bencher.iter(|| {
@@ -414,7 +417,7 @@ mod tests
     where
         F: Float
     {
-        let mut x = ttable::<F>()
+        let x = ttable::<F>()
             .into_iter()
             .flat_map(|a| ttable::<F>()
                 .into_iter()
@@ -422,14 +425,29 @@ mod tests
                     .into_iter()
                     .map(move |c| (a, b, c))
                 )
-            ).collect::<Vec<_>>()
-            .into_iter()
+            ).collect::<Vec<_>>();
+        let mut x = x.iter()
+            .copied()
             .cycle();
 
         bencher.iter(|| {
             let (a, b, c) = x.next().unwrap();
             op(a, b, c)
         });
+    }
+
+    fn bench_op1_integers<F, O>(bencher: &mut Bencher, op: impl Fn(F) -> O)
+    where
+        F: From<u16> + Copy
+    {
+        let x = (u16::MIN..=u16::MAX)
+            .map(|n| F::from(n))
+            .collect::<Vec<_>>();
+        let mut x = x.iter()
+            .copied()
+            .cycle();
+
+        bencher.iter(|| op(x.next().unwrap()));
     }
 
     const M: usize = 64;
@@ -537,60 +555,137 @@ mod tests
     #[test]
     fn test_to_f16()
     {
-        test_op1("to_f16", |x| (x as f16) as _, |x| (f16::from(x) as f32).into(), None, Some(-5.0..20.0))
+        test_op1("to_f16", |x| (x as f16) as _, |x| (<f16 as From<_>>::from(x) as f32).into(), None, Some(-5.0..20.0))
     }
     #[bench]
     fn bench_to_f16(bencher: &mut Bencher) -> impl Termination
     {
         test_to_f16();
-        bench_op1::<F, _>(bencher, f16::from);
+        bench_op1::<F, _>(bencher, <f16 as From<_>>::from);
     }
 
     #[test]
     fn test_to_f32()
     {
-        test_op1("to_f32", |x| (x as f32) as _, |x| f32::from(x).into(), None, Some(-5.0..20.0))
+        test_op1("to_f32", |x| (x as f32) as _, |x| <f32 as From<_>>::from(x).into(), None, Some(-5.0..20.0))
     }
     #[bench]
     fn bench_to_f32(bencher: &mut Bencher) -> impl Termination
     {
         test_to_f32();
-        bench_op1::<F, _>(bencher, f32::from);
+        bench_op1::<F, _>(bencher, <f32 as From<_>>::from);
     }
 
     #[test]
     fn test_to_f64()
     {
-        test_op1("to_f64", |x| (x as f64) as _, |x| (f64::from(x) as f32).into(), None, Some(-5.0..20.0))
+        test_op1("to_f64", |x| (x as f64) as _, |x| (<f64 as From<_>>::from(x) as f32).into(), None, Some(-5.0..20.0))
     }
     #[bench]
     fn bench_to_f64(bencher: &mut Bencher) -> impl Termination
     {
         test_to_f64();
-        bench_op1::<F, _>(bencher, f64::from);
+        bench_op1::<F, _>(bencher, <f64 as From<_>>::from);
     }
 
     #[test]
     fn test_to_f128()
     {
-        test_op1("to_f128", |x| (x as f128) as f32, |x| (f128::from(x) as f32).into(), None, Some(-5.0..20.0))
+        test_op1("to_f128", |x| (x as f128) as f32, |x| (<f128 as From<_>>::from(x) as f32).into(), None, Some(-5.0..20.0))
     }
     #[bench]
     fn bench_to_f128(bencher: &mut Bencher) -> impl Termination
     {
         test_to_f128();
-        bench_op1::<F, _>(bencher, f128::from);
+        bench_op1::<F, _>(bencher, <f128 as From<_>>::from);
+    }
+
+    #[test]
+    fn test_to_uint_once()
+    {
+        let f = F::from_uint(1u8);
+        println!("{:?}", f);
+        println!("{:?}", f.to_uint::<u8>());
+        println!("{:?}", f.to_uint_wrapping::<u8>())
+    }
+
+    #[test]
+    fn test_to_int_once()
+    {
+        let f = F::from_uint(128u8);
+        println!("{:?}", f);
+        println!("{:?}", f.to_int::<i8>());
+        println!("{:?}", f.to_int_wrapping::<i8>())
     }
 
     #[test]
     fn test_to_int()
     {
-        for n in u8::MIN..=u8::MAX
+        for n in i16::MIN..=i16::MAX
+        {
+            let f = F::from_int(n);
+            assert_eq!(f.to_uint::<u8>(), NumCast::from(n));
+            assert_eq!(f.to_uint_wrapping::<u8>(), n as u8);
+
+            let f = F::from_int(n);
+            assert_eq!(f.to_int::<i8>(), NumCast::from(n));
+            assert_eq!(f.to_int_wrapping::<i8>(), n as i8);
+        }
+        for n in u16::MIN..=u16::MAX
         {
             let f = F::from_uint(n);
-            assert_eq!(f.to_uint_wrapping::<u8>(), n);
-            assert_eq!(f.to_uint(), Some(n));
+            assert_eq!(f.to_uint::<u8>(), NumCast::from(n));
+            assert_eq!(f.to_uint_wrapping::<u8>(), n as u8);
+
+            let f = F::from_uint(n);
+            assert_eq!(f.to_int::<i8>(), NumCast::from(n));
+            assert_eq!(f.to_int_wrapping::<i8>(), n as i8);
         }
+    }
+
+    #[bench]
+    fn bench_to_uint(bencher: &mut Bencher)
+    {
+        bench_op1::<F, _>(bencher, |x| x.to_uint::<u8>());
+        bench_op1::<F, _>(bencher, |x| x.to_uint::<u16>());
+        bench_op1::<F, _>(bencher, |x| x.to_uint::<u32>());
+        bench_op1::<F, _>(bencher, |x| x.to_uint::<u64>());
+        bench_op1::<F, _>(bencher, |x| x.to_uint::<u128>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_uint::<u8>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_uint::<u16>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_uint::<u32>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_uint::<u64>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_uint::<u128>());
+    }
+
+    #[bench]
+    fn bench_to_int(bencher: &mut Bencher)
+    {
+        bench_op1::<F, _>(bencher, |x| x.to_int::<i8>());
+        bench_op1::<F, _>(bencher, |x| x.to_int::<i16>());
+        bench_op1::<F, _>(bencher, |x| x.to_int::<i32>());
+        bench_op1::<F, _>(bencher, |x| x.to_int::<i64>());
+        bench_op1::<F, _>(bencher, |x| x.to_int::<i128>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_int::<i8>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_int::<i16>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_int::<i32>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_int::<i64>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_int::<i128>());
+    }
+
+    #[bench]
+    fn bench_to_uint_wrapping(bencher: &mut Bencher)
+    {
+        let mut n = (u16::MIN..=u16::MAX)
+            .map(|n| (F::from_uint(n), n))
+            .collect::<Vec<_>>()
+            .into_iter()
+            .cycle();
+
+        bencher.iter(|| {
+            let (f, n) = n.next().unwrap();
+            f.to_uint::<u8>()
+        });
     }
 
     #[test]

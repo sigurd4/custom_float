@@ -1,10 +1,36 @@
 #![allow(unused)]
 
-use core::ops::{Add, Div, Rem, Shl, Shr, AddAssign, MulAssign};
+use core::ops::{Add, AddAssign, Div, MulAssign, Neg, Rem, Shl, Shr};
 
 use num_traits::{CheckedShl, CheckedAdd, CheckedSub, Float, NumCast, One, Zero};
 
 use crate::{ieee754::{FpDouble, FpHalf, FpQuadruple, FpSingle}, AnyInt, Fp, Int, UInt};
+
+pub(crate) fn do_nothing<T>(x: T) -> T
+{
+    x
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum Saturation
+{
+    Overflow,
+    Underflow
+}
+
+impl Neg for Saturation
+{
+    type Output = Self;
+
+    fn neg(self) -> Self::Output
+    {
+        match self
+        {
+            Self::Overflow => Self::Underflow,
+            Self::Underflow => Self::Overflow
+        }
+    }
+}
 
 pub(crate) trait Conversion//: Float
 {
