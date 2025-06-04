@@ -683,7 +683,7 @@ where
             && let Some(max_lz) = <u32 as NumCast>::from(util::bitsize_of::<M>() - Self::MANTISSA_OP_SIZE - 1)
             && let Some(shifts) = <usize as NumCast>::from(max_exp.saturating_sub(*exp))
         {
-            *exp = *exp - Self::shr_mantissa_without_loss(mantissa, Some(shifts), EXP_BASE.ilog2(), Some(max_lz));
+            *exp = *exp + Self::shr_mantissa_without_loss(mantissa, Some(shifts), EXP_BASE.ilog2(), Some(max_lz));
         }
         if let Some(base) = M::from(EXP_BASE)
         {
@@ -1142,7 +1142,14 @@ where
             self %= wrap;
             self += wrap
         }
-        match self.checked_to_uint(|x| I::from(x % (U::one() << util::bitsize_of::<I>())).ok_or(Saturation::Overflow))
+        match self.checked_to_uint(|mut x| {
+            if core::mem::size_of::<U>() > core::mem::size_of::<I>()
+            {
+                let iwrap = U::one() << (util::bitsize_of::<I>());
+                x = x % iwrap;
+            }
+            I::from(x).ok_or(Saturation::Overflow)
+        })
         {
             Ok(y) => y,
             Err(err) => match err
@@ -1243,17 +1250,24 @@ where
     pub fn to_int_wrapping<I: Int>(self) -> I
     {
         match self.checked_to_int(|mut x, s| {
-            let iwrap = U::one() << (util::bitsize_of::<I>());
-            x = x % iwrap;
-            while match x.cmp(&(U::one() << (util::bitsize_of::<I>() - 1)))
+            if core::mem::size_of::<U>() >= core::mem::size_of::<I>()
             {
-                Ordering::Less => false,
-                Ordering::Equal => !*s,
-                Ordering::Greater => true
-            }
-            {
-                x = iwrap - x;
-                *s = !*s;
+                let mut iwrap = U::zero();
+                if core::mem::size_of::<U>() > core::mem::size_of::<I>()
+                {
+                    iwrap = U::one() << (util::bitsize_of::<I>());
+                    x = x % iwrap;
+                }
+                while match x.cmp(&(U::one() << (util::bitsize_of::<I>() - 1)))
+                {
+                    Ordering::Less => false,
+                    Ordering::Equal => !*s,
+                    Ordering::Greater => true
+                }
+                {
+                    x = iwrap.wrapping_sub(&x);
+                    *s = !*s;
+                }
             }
             I::from(x).ok_or(Saturation::Overflow)
         })
@@ -3361,26 +3375,33 @@ where
                 return Ok(e)
             }
             let mut o = bias - e;
-            while o > U::zero()
+            if let Some(m2) = &mut mantissa2
             {
-                match if let Some(m2) = &mut mantissa2
+                while o > U::zero()
                 {
-                    Self::mantissa_pairs_div_base(mantissa1, *m2).map(|()| U::one())
-                }
-                else
-                {
-                    Self::mantissa_div_sqrt_base_or_base(mantissa1)
-                }
-                {
-                    Ok(add_exp) => if let Some(oo) = o.checked_sub(&add_exp)
+                    match Self::mantissa_pairs_div_base(mantissa1, *m2)
                     {
-                        o = oo
+                        Ok(()) => o = o - U::one(),
+                        Err(()) => return Err(Self::zero())
                     }
-                    else
+                }
+            }
+            else
+            {
+                while o > U::zero()
+                {
+                    match Self::mantissa_div_sqrt_base_or_base(mantissa1)
                     {
-                        return Ok(add_exp - o)
-                    },
-                    Err(()) => return Err(Self::zero())
+                        Ok(add_exp) => if let Some(oo) = o.checked_sub(&add_exp)
+                        {
+                            o = oo
+                        }
+                        else
+                        {
+                            return Ok(add_exp - o)
+                        },
+                        Err(()) => return Err(Self::zero())
+                    }
                 }
             }
             return Ok(U::zero())
@@ -5883,16 +5904,8 @@ where
             return xabs
         }
 
-        let emx = (-xabs).exp();
-    
-        let mut y = (Self::one() + emx*emx)/emx*Self::from(0.5);
-
-        if !y.is_finite()
-        {
-            let ex = xabs.exp();
-        
-            y = (ex*ex + Self::one())/ex*Self::from(0.5);
-        }
+        let ex = xabs.exp();
+        let mut y = ex.midpoint(ex.recip());
 
         if y.is_finite()
         {
@@ -5902,7 +5915,7 @@ where
             {
                 let x = y.acosh();
                 let (diff, s) = x.sub_extra_sign(xabs);
-                let dy = diff*(y*y - Self::one()).sqrt();
+                let dy = diff*(y.squared() - Self::one()).sqrt();
                 let yy = y.add_with_sign(false, dy, !s);
                 if !yy.is_finite()
                 {

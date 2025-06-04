@@ -18,7 +18,7 @@ where
             {
                 if self.to_bits() == rhs.to_bits()
                 {
-                    //return self.squared()
+                    return self.squared()
                 }
                 let s = self.is_sign_negative()^rhs.is_sign_negative();
                 match (self.classify(), rhs.classify())

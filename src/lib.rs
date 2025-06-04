@@ -85,7 +85,7 @@
 //! assert_eq!(two + two, four);
 //! ```
 
-use num_traits::{Num, Bounded, CheckedNeg, CheckedShl, CheckedShr, PrimInt, Signed, Unsigned};
+use num_traits::{Bounded, CheckedNeg, CheckedShl, CheckedShr, Num, PrimInt, Signed, Unsigned, WrappingSub};
 
 moddef::moddef!(
     pub mod {
@@ -111,7 +111,7 @@ moddef::moddef!(
 #[cfg(test)]
 extern crate test;
 
-pub trait AnyInt = Num + Bounded + PrimInt + CheckedShl + CheckedShr;
+pub trait AnyInt = Num + Bounded + PrimInt + CheckedShl + CheckedShr + WrappingSub;
 pub trait UInt = Unsigned + AnyInt + core::fmt::Debug + core::fmt::Binary;
 pub trait Int = Signed + AnyInt + CheckedNeg;
 
@@ -641,6 +641,8 @@ mod tests
     #[test]
     fn test_to_int()
     {
+        test_op1("to_uint", |x| (x as u8) as f32, |x| F::from_uint(x.to_uint_wrapping::<u8>()), None, Some(-16.0..16.0));
+        test_op1("to_int", |x| (x as i8) as f32, |x| F::from_int(x.to_int_wrapping::<i8>()), None, Some(-16.0..16.0));
         for n in i16::MIN..=i16::MAX
         {
             let f = F::from_int(n);
