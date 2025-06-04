@@ -651,10 +651,18 @@ where
             *exp = U::zero();
             return
         }
+        let min_exp = target_exp.unwrap_or_else(U::zero);
+        if EXP_BASE.is_power_of_two()
+            && util::bitsize_of::<M>() + Self::BASE_PADDING > Self::MANTISSA_OP_SIZE
+            && let Some(min_lz) = <u32 as NumCast>::from(util::bitsize_of::<M>() + Self::BASE_PADDING - Self::MANTISSA_OP_SIZE - 1)
+            && let Some(shifts) = <usize as NumCast>::from(exp.saturating_sub(min_exp))
+        {
+            *exp = *exp - Self::shl_mantissa_without_loss(mantissa, Some(shifts), EXP_BASE.ilog2(), Some(min_lz));
+            return
+        }
         let base = M::from(EXP_BASE);
         if let Some(base) = base
         {
-            let min_exp = target_exp.unwrap_or_else(U::zero);
             while *exp > min_exp && (*mantissa >> (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)).is_zero()
             {
                 *exp = *exp - U::one();
@@ -670,6 +678,13 @@ where
             return
         }
         let max_exp = target_exp.unwrap_or_else(|| Self::max_exponent_bits());
+        if EXP_BASE.is_power_of_two()
+            && util::bitsize_of::<M>() > Self::MANTISSA_OP_SIZE
+            && let Some(max_lz) = <u32 as NumCast>::from(util::bitsize_of::<M>() - Self::MANTISSA_OP_SIZE - 1)
+            && let Some(shifts) = <usize as NumCast>::from(max_exp.saturating_sub(*exp))
+        {
+            *exp = *exp - Self::shr_mantissa_without_loss(mantissa, Some(shifts), EXP_BASE.ilog2(), Some(max_lz));
+        }
         if let Some(base) = M::from(EXP_BASE)
         {
             while *exp < max_exp && !(*mantissa >> Self::MANTISSA_OP_SIZE).is_zero()
@@ -2769,8 +2784,8 @@ where
     {
         if EXP_BASE.is_power_of_two()
         {
-            if !util::complementary_add_sub_assign(exp_offset, exp, Self::shl_mantissa_without_loss(&mut mantissa1, None, EXP_BASE.ilog2())).is_ok()
-                || !util::complementary_add_sub_assign(exp_offset, exp, Self::shr_mantissa_without_loss(&mut mantissa2, None, EXP_BASE.ilog2())).is_ok()
+            if !util::complementary_add_sub_assign(exp_offset, exp, Self::shl_mantissa_without_loss(&mut mantissa1, None, EXP_BASE.ilog2(), None)).is_ok()
+                || !util::complementary_add_sub_assign(exp_offset, exp, Self::shr_mantissa_without_loss(&mut mantissa2, None, EXP_BASE.ilog2(), None)).is_ok()
             {
                 return Err(Self::infinity())
             }
@@ -2808,8 +2823,8 @@ where
     fn mantissa_div(mut mantissa1: U, mut mantissa2: U, exp: &mut U, exp_offset: &mut U) -> Result<U, Self>
     {
         let mut shifts = FRAC_SIZE;
-        shifts -= Self::shl_mantissa_without_loss::<_, usize>(&mut mantissa1, Some(shifts), 1);
-        shifts -= Self::shr_mantissa_without_loss::<_, usize>(&mut mantissa2, Some(shifts), 1);
+        shifts -= Self::shl_mantissa_without_loss::<_, usize>(&mut mantissa1, Some(shifts), 1, None);
+        shifts -= Self::shr_mantissa_without_loss::<_, usize>(&mut mantissa2, Some(shifts), 1, None);
         let mut mantissa = Self::integral_div(mantissa1, mantissa2, exp, exp_offset)?;
         Self::mantissa_shl(&mut mantissa, shifts, exp, Some(exp_offset))?;
         Ok(mantissa)
@@ -2825,7 +2840,7 @@ where
         {
             return Ok(())
         }
-        shifts -= Self::shl_mantissa_without_loss::<_, usize>(mantissa, Some(shifts), 1);
+        shifts -= Self::shl_mantissa_without_loss::<_, usize>(mantissa, Some(shifts), 1, None);
         if EXP_BASE.is_power_of_two() && let Some(mut change) = U::from(shifts/EXP_BASE.ilog2() as usize)
         {
             if let Some(ofs) = exp_offset
@@ -2940,16 +2955,21 @@ where
         }
     }
 
-    fn shr_mantissa_without_loss<M: AnyInt, I: UInt>(mantissa: &mut M, shifts: Option<usize>, quanta: u32) -> I
+    fn shr_mantissa_without_loss<M: AnyInt, I: UInt>(mantissa: &mut M, shifts: Option<usize>, quanta: u32, max_lz: Option<u32>) -> I
     {
         if !mantissa.is_zero()
         {
             let mut i: u32 = mantissa.trailing_zeros();
+            if let Some(mlz) = max_lz
+            {
+                let lz = mantissa.leading_zeros();
+                i = i.min(mlz.saturating_sub(lz))
+            }
             if let Some(s) = shifts.and_then(<u32 as NumCast>::from)
             {
                 i = i.min(s)
             }
-            i = i - i % quanta;
+            i -= i % quanta;
             if i != 0 && let Some(o) = I::from(i/quanta)
             {
                 *mantissa = *mantissa >> i;
@@ -2959,11 +2979,11 @@ where
         I::zero()
     }
 
-    fn shl_mantissa_without_loss<M: AnyInt, I: UInt>(mantissa: &mut M, shifts: Option<usize>, quanta: u32) -> I
+    fn shl_mantissa_without_loss<M: AnyInt, I: UInt>(mantissa: &mut M, shifts: Option<usize>, quanta: u32, min_lz: Option<u32>) -> I
     {
         if !mantissa.is_zero()
         {
-            let mut i: u32 = mantissa.leading_zeros() - util::is_signed::<M>() as u32;
+            let mut i: u32 = mantissa.leading_zeros().saturating_sub(min_lz.unwrap_or(util::is_signed::<M>() as u32));
             if let Some(s) = shifts.and_then(<u32 as NumCast>::from)
             {
                 i = i.min(s)
@@ -2986,8 +3006,8 @@ where
         }
         if EXP_BASE.is_power_of_two()
         {
-            *exp_offset = *exp_offset + Self::shr_mantissa_without_loss(&mut mantissa1, None, EXP_BASE.ilog2());
-            *exp_offset = *exp_offset + Self::shr_mantissa_without_loss(&mut mantissa2, None, EXP_BASE.ilog2());
+            *exp_offset = *exp_offset + Self::shr_mantissa_without_loss(&mut mantissa1, None, EXP_BASE.ilog2(), None);
+            *exp_offset = *exp_offset + Self::shr_mantissa_without_loss(&mut mantissa2, None, EXP_BASE.ilog2(), None);
         }
         loop
         {
@@ -3012,7 +3032,7 @@ where
         }
         if EXP_BASE.is_power_of_two()
         {
-            let shift = Self::shr_mantissa_without_loss::<_, U>(&mut mantissa, None, EXP_BASE.ilog2());
+            let shift = Self::shr_mantissa_without_loss::<_, U>(&mut mantissa, None, EXP_BASE.ilog2(), None);
             *exp_offset = *exp_offset + (shift + shift);
         }
         loop
@@ -3055,8 +3075,8 @@ where
     fn mantissa_mul(mut mantissa1: U, mut mantissa2: U, exp: &mut U, exp_offset: &mut U) -> Result<U, Self>
     {
         let mut shifts = FRAC_SIZE;
-        shifts -= Self::shr_mantissa_without_loss::<_, usize>(&mut mantissa1, Some(shifts), 1);
-        shifts -= Self::shr_mantissa_without_loss::<_, usize>(&mut mantissa2, Some(shifts), 1);
+        shifts -= Self::shr_mantissa_without_loss::<_, usize>(&mut mantissa1, Some(shifts), 1, None);
+        shifts -= Self::shr_mantissa_without_loss::<_, usize>(&mut mantissa2, Some(shifts), 1, None);
         let mut mantissa = Self::integral_mul(mantissa1, mantissa2, exp_offset);
         match Self::mantissa_shr(&mut mantissa, shifts, exp, Some(exp_offset))
         {
@@ -3073,7 +3093,7 @@ where
     fn mantissa_squared(mut mantissa: U, exp: &mut U, exp_offset: &mut U) -> Result<U, Self>
     {
         let mut shifts = FRAC_SIZE;
-        shifts -= Self::shr_mantissa_without_loss::<_, usize>(&mut mantissa, Some(shifts/2), 1)*2;
+        shifts -= Self::shr_mantissa_without_loss::<_, usize>(&mut mantissa, Some(shifts/2), 1, None)*2;
         mantissa = Self::integral_squared(mantissa, exp_offset);
         match Self::mantissa_shr(&mut mantissa, shifts, exp, Some(exp_offset))
         {
@@ -3093,7 +3113,7 @@ where
         {
             return Ok(())
         }
-        shifts -= Self::shr_mantissa_without_loss::<_, usize>(mantissa, Some(shifts), 1);
+        shifts -= Self::shr_mantissa_without_loss::<_, usize>(mantissa, Some(shifts), 1, None);
         if EXP_BASE.is_power_of_two() && let Some(mut change) = U::from(shifts/EXP_BASE.ilog2() as usize)
         {
             if let Some(ofs) = &mut exp_offset
@@ -3345,7 +3365,7 @@ where
             {
                 match if let Some(m2) = &mut mantissa2
                 {
-                    Self::mantissa_pairs_div_base(mantissa1, *m2).map(|()| U::zero())
+                    Self::mantissa_pairs_div_base(mantissa1, *m2).map(|()| U::one())
                 }
                 else
                 {

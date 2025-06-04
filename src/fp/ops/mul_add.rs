@@ -84,7 +84,8 @@ where
                                 Err(done) => return done.with_sign(s0) + b
                             };
                             
-                            let mut e = match e.checked_add(&o)
+                            Self::normalize_mantissa_down(&mut e, &mut f, None);
+                            e = match e.checked_add(&o)
                             {
                                 Some(e) => e,
                                 None => return Self::infinity().with_sign(s0)
@@ -155,6 +156,6 @@ mod test
     fn bench_mul_add(bencher: &mut Bencher)
     {
         test_mul_add();
-        tests::bench_op3::<F, _>(bencher, MulAdd::mul_add)
+        tests::bench_op3::<F, _>(bencher, F::mul_add)
     }
 }

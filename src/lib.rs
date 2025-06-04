@@ -85,7 +85,7 @@
 //! assert_eq!(two + two, four);
 //! ```
 
-use num_traits::{Bounded, CheckedNeg, CheckedShl, CheckedShr, PrimInt, Signed, Unsigned};
+use num_traits::{Num, Bounded, CheckedNeg, CheckedShl, CheckedShr, PrimInt, Signed, Unsigned};
 
 moddef::moddef!(
     pub mod {
@@ -111,7 +111,7 @@ moddef::moddef!(
 #[cfg(test)]
 extern crate test;
 
-pub trait AnyInt = Bounded + PrimInt + CheckedShl + CheckedShr;
+pub trait AnyInt = Num + Bounded + PrimInt + CheckedShl + CheckedShr;
 pub trait UInt = Unsigned + AnyInt + core::fmt::Debug + core::fmt::Binary;
 pub trait Int = Signed + AnyInt + CheckedNeg;
 
@@ -696,16 +696,63 @@ mod tests
     #[bench]
     fn bench_to_uint_wrapping(bencher: &mut Bencher)
     {
-        let mut n = (u16::MIN..=u16::MAX)
-            .map(|n| (F::from_uint(n), n))
-            .collect::<Vec<_>>()
-            .into_iter()
-            .cycle();
+        bench_op1::<F, _>(bencher, |x| x.to_uint_wrapping::<u8>());
+        bench_op1::<F, _>(bencher, |x| x.to_uint_wrapping::<u16>());
+        bench_op1::<F, _>(bencher, |x| x.to_uint_wrapping::<u32>());
+        bench_op1::<F, _>(bencher, |x| x.to_uint_wrapping::<u64>());
+        bench_op1::<F, _>(bencher, |x| x.to_uint_wrapping::<u128>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_uint_wrapping::<u8>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_uint_wrapping::<u16>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_uint_wrapping::<u32>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_uint_wrapping::<u64>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_uint_wrapping::<u128>());
+    }
 
-        bencher.iter(|| {
-            let (f, n) = n.next().unwrap();
-            f.to_uint::<u8>()
-        });
+    #[bench]
+    fn bench_to_int_wrapping(bencher: &mut Bencher)
+    {
+        bench_op1::<F, _>(bencher, |x| x.to_int_wrapping::<i8>());
+        bench_op1::<F, _>(bencher, |x| x.to_int_wrapping::<i16>());
+        bench_op1::<F, _>(bencher, |x| x.to_int_wrapping::<i32>());
+        bench_op1::<F, _>(bencher, |x| x.to_int_wrapping::<i64>());
+        bench_op1::<F, _>(bencher, |x| x.to_int_wrapping::<i128>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_int_wrapping::<i8>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_int_wrapping::<i16>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_int_wrapping::<i32>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_int_wrapping::<i64>());
+        bench_op1_integers::<F, _>(bencher, |x| x.to_int_wrapping::<i128>());
+    }
+
+    #[bench]
+    fn bench_from_int(bencher: &mut Bencher)
+    {
+        let mut x8 = (i8::MIN..=i8::MAX).cycle();
+        let mut x16 = (i16::MIN..=i16::MAX).cycle();
+        let mut x32 = (i32::MIN..=i32::MAX).cycle();
+        let mut x64 = (i64::MIN..=i64::MAX).cycle();
+        let mut x128 = (i128::MIN..=i128::MAX).cycle();
+
+        bencher.iter(|| F::from_int(x8.next().unwrap()));
+        bencher.iter(|| F::from_int(x16.next().unwrap()));
+        bencher.iter(|| F::from_int(x32.next().unwrap()));
+        bencher.iter(|| F::from_int(x64.next().unwrap()));
+        bencher.iter(|| F::from_int(x128.next().unwrap()));
+    }
+
+    #[bench]
+    fn bench_from_uint(bencher: &mut Bencher)
+    {
+        let mut x8 = (u8::MIN..=u8::MAX).cycle();
+        let mut x16 = (u16::MIN..=u16::MAX).cycle();
+        let mut x32 = (u32::MIN..=u32::MAX).cycle();
+        let mut x64 = (u64::MIN..=u64::MAX).cycle();
+        let mut x128 = (u128::MIN..=u128::MAX).cycle();
+
+        bencher.iter(|| F::from_uint(x8.next().unwrap()));
+        bencher.iter(|| F::from_uint(x16.next().unwrap()));
+        bencher.iter(|| F::from_uint(x32.next().unwrap()));
+        bencher.iter(|| F::from_uint(x64.next().unwrap()));
+        bencher.iter(|| F::from_uint(x128.next().unwrap()));
     }
 
     #[test]
