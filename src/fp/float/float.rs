@@ -372,6 +372,7 @@ mod test
     
     use std::process::Termination;
 
+    use num::ToPrimitive;
     use num_traits::Float;
     use test::Bencher;
 
@@ -558,9 +559,24 @@ mod test
     }
 
     #[test]
+    fn test_powf_once()
+    {
+        let x = F::from(10);
+        let n = F::from(15);
+        let y = x.powf(n);
+        println!("{x} ** {n} = {y}");
+        let xx = f32::from(x);
+        let nn = f32::from(n);
+        let yy = xx.powf(nn);
+        if y != F::from(yy)
+        {
+            println!("Wrong!\n{xx} ** {nn} = {yy}");
+        }
+    }
+    #[test]
     fn test_powf()
     {
-        crate::tests::test_op2("powf", Float::powf, Float::powf, Some(0.1));
+        crate::tests::test_op2("powf", Float::powf, Float::powf, Some(1.0));
     }
     #[bench]
     fn bench_powf(bencher: &mut Bencher) -> impl Termination

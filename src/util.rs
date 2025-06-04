@@ -1,12 +1,33 @@
 #![allow(unused)]
 
-use core::ops::{Add, AddAssign, Div, MulAssign, Neg, Rem, Shl, Shr};
+use core::{alloc::Layout, ops::{Add, AddAssign, Div, MulAssign, Neg, Rem, Shl, Shr}};
 
 use num_traits::{CheckedShl, CheckedAdd, CheckedSub, Float, NumCast, One, Zero};
 
-use crate::{ieee754::{FpDouble, FpHalf, FpQuadruple, FpSingle}, AnyInt, Fp, Int, UInt};
+use crate::{ieee754::{FpDouble, FpHalf, FpQuadruple, FpSingle}, util::const_array::ConstArray, AnyInt, Fp, Int, UInt};
 
-pub(crate) fn do_nothing<T>(x: T) -> T
+moddef::moddef!(
+    mod {
+        const_array
+    }
+);
+
+const fn panic_in_rt()
+{
+    const fn ct()
+    {
+
+    }
+
+    fn rt()
+    {
+        panic!("Can only be ran in copile-time!")
+    }
+
+    core::intrinsics::const_eval_select((), ct, rt)
+}
+
+pub(crate) const fn do_nothing<T>(x: T) -> T
 {
     x
 }
@@ -435,7 +456,15 @@ pub const fn pow_ilog2(mut exponent: usize, base: usize) -> usize
             o += 1;
             d >>= 1;
         }
-        d *= base;
+        if let Some(dd) = d.checked_mul(base)
+        {
+            d = dd
+        }
+        else
+        {
+            o += d.ilog2() as usize;
+            d = base
+        }
         n -= 1
     }
 
@@ -640,4 +669,99 @@ where
     }
 
     r
+}
+
+const fn factorize_part<const N: usize>(
+    factor_sets: &mut ConstArray<[usize; N]>,
+    factors: [usize; N],
+    base: usize,
+    mut i: usize
+)
+{
+    if N <= 0
+    {
+        return
+    }
+
+    if N <= 1 || i >= N
+    {
+        if i == N
+        {
+            let mut prod = 1;
+            while i > 0
+            {
+                i -= 1;
+                prod *= factors[i];
+            }
+            if base == prod
+            {
+                factor_sets.push(factors);
+            }
+        }
+        return
+    }
+
+    let m = if i == 0
+    {
+        base
+    }
+    else
+    {
+        factors[i - 1]
+    };
+    let mut n = base.isqrt();
+    while n > 1
+    {
+        if base.is_multiple_of(n)
+        {
+            let mut new_factors = factors;
+            new_factors[i] = n;
+
+            factorize_part(factor_sets, new_factors, base, i + 1)
+        }
+        n -= 1
+    }
+}
+
+pub const fn factorize<const N: usize>(base: usize) -> &'static [[usize; N]]
+{
+    if N <= 0
+    {
+        return &[]
+    }
+
+    let mut factor_sets = ConstArray::new();
+    factorize_part(&mut factor_sets, [0; N], base, 0);
+    factor_sets.leak()
+}
+
+pub const fn base_padding(base: usize) -> usize
+{
+    bitsize_of::<usize>() - base.leading_zeros() as usize - 1
+}
+pub const fn base_factor_paddings<const N: usize>(factor_sets: &[[usize; N]]) -> &'static [[usize; N]]
+{
+    let mut padding_sets = ConstArray::new();
+    let mut i = 0;
+    let l = padding_sets.len();
+    while i < l
+    {
+        let mut paddings = [0; N];
+        let mut j = 0;
+        while j < N
+        {
+            paddings[j] = base_padding(factor_sets[i][j])
+        }
+        padding_sets.push(paddings);
+    }
+    padding_sets.leak()
+}
+
+#[cfg(test)]
+#[test]
+fn test_factorize()
+{
+    const Y: &[[usize; 3]] = factorize(24);
+
+    println!("{Y:?}");
 }

@@ -1,6 +1,7 @@
 #![cfg_attr(not(test), no_std)]
 #![feature(test)]
 #![allow(incomplete_features)]
+#![allow(internal_features)]
 #![feature(const_trait_impl)]
 #![feature(generic_const_exprs)]
 #![feature(trait_alias)]
@@ -16,6 +17,11 @@
 #![feature(decl_macro)]
 #![feature(more_float_constants)]
 #![feature(duration_millis_float)]
+#![feature(const_heap)]
+#![feature(core_intrinsics)]
+#![feature(alloc_layout_extra)]
+#![feature(layout_for_ptr)]
+#![feature(const_eval_select)]
 #![allow(clippy::excessive_precision)]
 
 //! # Custom Float
@@ -137,6 +143,7 @@ mod tests
     };
 
     pub type F = FpDouble;
+    // TODO: A lot of stuff is not working with dec's
     //pub type F = DecDouble;
 
     #[test]
@@ -179,6 +186,19 @@ mod tests
         let y = FpDouble::from_fp(d);
 
         assert!(y.approx_eq(x));
+    }
+
+    #[test]
+    fn test_dec_expb()
+    {
+        let d = DecDouble::from(2.0);
+        let y = d.expb();
+
+        println!("{y}");
+
+        let a = DecDouble::from(100.0);
+
+        assert!(y.approx_eq(a))
     }
 
     pub fn ttable<F: Float>() -> Vec<F>

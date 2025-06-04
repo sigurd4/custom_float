@@ -43,7 +43,7 @@ where
                         let mut f0: U = self.mantissa_bits();
                         let mut f1: U = rhs.mantissa_bits();
                 
-                        let mut e = match Self::exponent_add(e0, e1, &mut f0, &mut f1)
+                        let mut e = match Self::exponent_add(e0, e1, &mut f0, Some(&mut f1))
                         {
                             Ok(e) => e,
                             Err(done) => return done.with_sign(s)
@@ -56,6 +56,7 @@ where
                             Err(done) => return done.with_sign(s)
                         };
                         
+                        Self::normalize_mantissa_down(&mut e, &mut f, Some(o));
                         let mut e = match e.checked_add(&o)
                         {
                             Some(e) => e,
@@ -94,8 +95,8 @@ mod test
     #[test]
     fn test_mul_once()
     {
-        let a = F::from(1f32);
-        let b = F::from(1f32);
+        let a = F::from(0.3f32);
+        let b = F::from(0.2f32);
         let c = a * b;
         println!("{a} * {b} = {c}");
     }

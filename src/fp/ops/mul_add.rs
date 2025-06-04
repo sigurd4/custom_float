@@ -71,7 +71,7 @@ where
                             let mut f1 = a.mantissa_bits();
                             let mut f2 = b.mantissa_bits();
                     
-                            let mut e = match Self::exponent_add(e0, e1, &mut f0, &mut f1)
+                            let mut e = match Self::exponent_add(e0, e1, &mut f0, Some(&mut f1))
                             {
                                 Ok(e) => e,
                                 Err(done) => return done.with_sign(s0) + b

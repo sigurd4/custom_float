@@ -94,8 +94,8 @@ mod test
     #[test]
     fn test_div_once()
     {
-        let a = F::from(-28.460455);
-        let b = F::from(1.1754944e-38);
+        let a = F::from(4.0);
+        let b = F::from(2.0);
         let c = a / b;
         println!("{a} / {b} = {c}");
     }

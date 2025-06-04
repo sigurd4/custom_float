@@ -1,4 +1,4 @@
-use core::cmp::Ordering;
+use core::{cmp::Ordering, num::FpCategory};
 
 use num_traits::float::TotalOrder;
 
@@ -11,15 +11,11 @@ where
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering>
     {
-        if self.is_nan() || other.is_nan()
+        match (self.classify(), other.classify())
         {
-            return None
+            (FpCategory::Nan, _) | (_, FpCategory::Nan) => None,
+            (FpCategory::Zero, FpCategory::Zero) => Some(Ordering::Equal),
+            (_, _) => Some(self.total_cmp(other))
         }
-        if self.is_zero() && other.is_zero()
-        {
-            return Some(Ordering::Equal)
-        }
-        
-        Some(self.total_cmp(other))
     }
 }
