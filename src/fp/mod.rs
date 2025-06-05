@@ -3007,6 +3007,29 @@ where
         I::zero()
     }
 
+    fn mantissa_from_low_high(mut mantissa: U, overflow: U, exp: &mut U) -> U
+    {
+        assert!(EXP_BASE.is_power_of_two());
+        if overflow.is_zero()
+        {
+            return mantissa
+        }
+        let quanta = EXP_BASE.ilog2() as usize;
+        let mut lz = overflow.leading_zeros() as usize;
+        let mut shift = util::bitsize_of::<U>() - lz;
+        let extra = (quanta - shift % quanta) % quanta;
+        shift += extra;
+        lz -= extra;
+        if let Some(offs) = U::from(shift/quanta)
+        {
+            *exp = *exp + offs;
+            mantissa = util::rounding_div_2_pow(mantissa, shift);
+            return mantissa | (overflow << lz)
+        }
+        *exp = U::zero();
+        U::zero()
+    }
+
     fn integral_mul(mut mantissa1: U, mut mantissa2: U, exp: &mut U) -> U
     {
         if mantissa1.is_zero() || mantissa2.is_zero()
@@ -3017,26 +3040,8 @@ where
         {
             *exp = *exp + Self::shr_mantissa_without_loss(&mut mantissa1, None, EXP_BASE.ilog2(), None)
                 + Self::shr_mantissa_without_loss(&mut mantissa2, None, EXP_BASE.ilog2(), None);
-            let (mut mantissa, overflow) = util::widening_mul(mantissa1, mantissa2);
-
-            if overflow.is_zero()
-            {
-                return mantissa
-            }
-            let quanta = EXP_BASE.ilog2() as usize;
-            let mut lz = overflow.leading_zeros() as usize;
-            let mut shift = util::bitsize_of::<U>() - lz;
-            let extra = (quanta - shift % quanta) % quanta;
-            shift += extra;
-            lz -= extra;
-            if let Some(offs) = U::from(shift/quanta)
-            {
-                *exp = *exp + offs;
-                mantissa = util::rounding_div_2_pow(mantissa, shift);
-                return mantissa | (overflow << lz)
-            }
-            *exp = U::zero();
-            return U::zero()
+            let (mantissa, overflow) = util::widening_mul(mantissa1, mantissa2);
+            return Self::mantissa_from_low_high(mantissa, overflow, exp)
         }
         // TODO: This loop is slow!
         loop
