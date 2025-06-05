@@ -3032,14 +3032,8 @@ where
 
     fn integral_mul(mut mantissa1: U, mut mantissa2: U, exp: &mut U) -> U
     {
-        if mantissa1.is_zero() || mantissa2.is_zero()
-        {
-            return U::zero()
-        }
         if EXP_BASE.is_power_of_two()
         {
-            *exp = *exp + Self::shr_mantissa_without_loss(&mut mantissa1, None, EXP_BASE.ilog2(), None)
-                + Self::shr_mantissa_without_loss(&mut mantissa2, None, EXP_BASE.ilog2(), None);
             let (mantissa, overflow) = util::widening_mul(mantissa1, mantissa2);
             return Self::mantissa_from_low_high(mantissa, overflow, exp)
         }

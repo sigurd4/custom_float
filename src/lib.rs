@@ -160,12 +160,9 @@ mod tests
     };
 
     // TODO: Optimizations
-    // Multiplication is slow with binary
     // Addition/subtraction is slow with decimal
-    // Division is fast with both! :)
 
     pub type F = FpDouble;
-    // TODO: A lot of stuff is not working with dec's
     //pub type F = DecDouble;
 
     #[test]
