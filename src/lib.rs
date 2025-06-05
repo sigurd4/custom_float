@@ -22,6 +22,7 @@
 #![feature(alloc_layout_extra)]
 #![feature(layout_for_ptr)]
 #![feature(const_eval_select)]
+#![feature(bigint_helper_methods)]
 #![allow(clippy::excessive_precision)]
 
 //! # Custom Float
@@ -115,6 +116,22 @@ pub trait AnyInt = Num + Bounded + PrimInt + CheckedShl + CheckedShr + WrappingS
 pub trait UInt = Unsigned + AnyInt + core::fmt::Debug + core::fmt::Binary;
 pub trait Int = Signed + AnyInt + CheckedNeg;
 
+mod asm
+{
+    use crate::ieee754::FpDouble;
+
+    type F = FpDouble;
+
+    #[no_mangle]
+    fn asm_mul() -> F
+    {
+        let a = F::from(1.5);
+        let b = F::from(2.0);
+
+        a*b
+    }
+}
+
 #[cfg(test)]
 mod tests
 {
@@ -141,6 +158,11 @@ mod tests
         nvidia::Tf19,
         plot, Fp
     };
+
+    // TODO: Optimizations
+    // Multiplication is slow with binary
+    // Addition/subtraction is slow with decimal
+    // Division is fast with both! :)
 
     pub type F = FpDouble;
     // TODO: A lot of stuff is not working with dec's

@@ -76,19 +76,10 @@ where
                                 Ok(e) => e,
                                 Err(done) => return done.with_sign(s0) + b
                             };
-                    
-                            let mut o = U::zero();
-                            let mut f = match Self::mantissa_mul(f0, f1, &mut e, &mut o)
+                            let mut f = match Self::mantissa_mul(f0, f1, &mut e)
                             {
                                 Ok(e) => e,
                                 Err(done) => return done.with_sign(s0) + b
-                            };
-                            
-                            Self::normalize_mantissa_down(&mut e, &mut f, None);
-                            e = match e.checked_add(&o)
-                            {
-                                Some(e) => e,
-                                None => return Self::infinity().with_sign(s0)
                             };
 
                             e = Self::max_exponents(e, e2, &mut f, &mut f2);

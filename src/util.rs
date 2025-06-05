@@ -12,6 +12,85 @@ moddef::moddef!(
     }
 );
 
+fn widening_mul_fallback<U: UInt>(lhs: U, rhs: U) -> (U, U)
+{
+    let m = bitsize_of::<U>()/2;
+    let mask = (U::max_value() >> m);
+
+    let to_low_high = |x: U| [x & mask, x >> m];
+    let from_low_high = |x: [U; 2]| x[0] | (x[1] << m);
+    let scalar_mul = |low_high: [U; 2], k: U| {
+        let [x, c] = to_low_high(k*low_high[0]);
+        let [y, z] = to_low_high(k*low_high[1] + c);
+
+        [x, y, z]
+    };
+
+    let a = to_low_high(lhs);
+    let b = to_low_high(rhs);
+
+    let low = scalar_mul(a, b[0]);
+    let high = scalar_mul(a, b[1]);
+
+    let r0 = low[0];
+
+    let [r1, c] = to_low_high(low[1] + high[0]);
+    let [r2, c] = to_low_high(low[2] + high[1] + c);
+    let r3 = high[2] + c;
+
+    (from_low_high([r0, r1]), from_low_high([r2, r3]))
+}
+
+pub fn widening_mul<U: UInt>(lhs: U, rhs: U) -> (U, U)
+{
+    trait WideningMulSpec: UInt
+    {
+        fn widening_mul(self, rhs: Self) -> (Self, Self);
+    }
+    impl<U> WideningMulSpec for U
+    where
+        U: UInt
+    {
+        default fn widening_mul(self, rhs: Self) -> (Self, Self)
+        {
+            let (low, high) = widening_mul_fallback(self, rhs);
+            (low.into(), high)
+        }
+    }
+    macro_rules! impl_widening_mul {
+        ($($u:ty)*) => {
+            $(
+                impl WideningMulSpec for $u
+                {
+                    fn widening_mul(self, rhs: Self) -> (Self, Self)
+                    {
+                        self.widening_mul(rhs)
+                    }
+                }
+            )*
+        };
+    }
+    impl_widening_mul!(u8 u16 u32 u64 u128);
+
+    WideningMulSpec::widening_mul(lhs, rhs)
+}
+
+#[cfg(test)]
+#[test]
+fn test_widening_mul()
+{
+    for x1 in u8::MIN..u8::MAX
+    {
+        for x2 in u8::MIN..u8::MAX
+        {
+            assert_eq!(
+                u8::widening_mul(x1, x2),
+                widening_mul_fallback(x1, x2),
+            )
+        }
+    }
+}
+
 const fn panic_in_rt()
 {
     const fn ct()
@@ -21,7 +100,7 @@ const fn panic_in_rt()
 
     fn rt()
     {
-        panic!("Can only be ran in copile-time!")
+        panic!("Can only be ran in compile-time!")
     }
 
     core::intrinsics::const_eval_select((), ct, rt)
@@ -580,13 +659,14 @@ where
     T: Shr<u32, Output = T> + Rem<T, Output = T> + Shl<u32, Output = T> + Add<T, Output = T> + NumCast + PartialOrd + One + Copy + Shr<I, Output = T> + Shl<I, Output = T>
 {
     let two = T::one() << pow;
+    let y = x >> pow;
     if (x % two) << 1 > two
     {
-        (x >> pow) + T::one()
+        y + T::one()
     }
     else
     {
-        x >> pow
+        y
     }
 }
 

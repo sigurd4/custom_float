@@ -16,10 +16,11 @@ where
             [self, rhs],
             |[lhs, rhs]| [lhs*rhs],
             {
-                if self.to_bits() == rhs.to_bits()
+                // Slow! Better to avoid branching.
+                /*if self.to_bits() == rhs.to_bits()
                 {
                     return self.squared()
-                }
+                }*/
                 let s = self.is_sign_negative()^rhs.is_sign_negative();
                 match (self.classify(), rhs.classify())
                 {
@@ -48,19 +49,10 @@ where
                             Ok(e) => e,
                             Err(done) => return done.with_sign(s)
                         };
-                
-                        let mut o = U::zero();
-                        let mut f = match Self::mantissa_mul(f0, f1, &mut e, &mut o)
+                        let mut f = match Self::mantissa_mul(f0, f1, &mut e)
                         {
                             Ok(e) => e,
                             Err(done) => return done.with_sign(s)
-                        };
-                        
-                        Self::normalize_mantissa_down(&mut e, &mut f, Some(o));
-                        let mut e = match e.checked_add(&o)
-                        {
-                            Some(e) => e,
-                            None => return Self::infinity().with_sign(s)
                         };
                 
                         Self::normalize_mantissa(&mut e, &mut f, None);
@@ -86,6 +78,7 @@ where
 #[cfg(test)]
 mod test
 {
+    use core::f32::consts::{PI, TAU};
     use std::ops::Mul;
 
     use test::Bencher;
@@ -95,8 +88,8 @@ mod test
     #[test]
     fn test_mul_once()
     {
-        let a = F::from(0.3f32);
-        let b = F::from(0.2f32);
+        let a = F::from(PI);
+        let b = F::from(TAU);
         let c = a * b;
         println!("{a} * {b} = {c}");
     }
