@@ -5,7 +5,7 @@ use core::ops::Neg;
 use num_traits::{ConstZero, FloatConst, FromBytes, NumCast, ToBytes, Zero};
 
 use crate::util::Saturation;
-use crate::{util, AnyInt, Int, UInt};
+use crate::{util, AnyInt, FpRepr, Int, UInt};
 
 moddef::moddef!(
     mod {
@@ -20,7 +20,10 @@ moddef::moddef!(
         num,
         partial_eq,
         partial_ord,
+        pod for cfg(feature = "bytemuck"),
         signed,
+        transparent for cfg(feature = "bytemuck"),
+        zeroable for cfg(feature = "bytemuck")
     }
 );
 
@@ -109,8 +112,6 @@ use as_lossless as as_lossless;
 /// # Examples
 ///
 /// ```rust
-/// #![feature(generic_const_exprs)]
-///
 /// use custom_float::Fp;
 ///
 /// type FpSingle = Fp<u32, true, 8, 0, 23, 2>;
@@ -121,15 +122,15 @@ use as_lossless as as_lossless;
 /// assert_eq!(two + two, four);
 /// ```
 #[derive(Clone, Copy)]
-pub struct Fp<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize>(U)
+#[cfg_attr(feature = "bytemuck", derive(bytemuck::Pod, bytemuck::Zeroable))]
+#[repr(transparent)]
+pub struct Fp<U, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize>(U)
 where
-    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-    [(); EXP_BASE - 2]:;
+    U: FpRepr<SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>;
 
-impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+impl<U, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
-    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-    [(); EXP_BASE - 2]:
+    U: FpRepr<SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 {
     /// Size of floating-point number in bits
     pub const BIT_SIZE: usize = Self::SIGN_SIZE + Self::EXP_SIZE + Self::INT_SIZE + Self::FRAC_SIZE;
@@ -706,8 +707,7 @@ where
     #[must_use = "method returns a new number and does not mutate the original value"]
     pub fn from_fp<V: UInt, const S: bool, const E: usize, const I: usize, const F: usize, const B: usize>(fp: Fp<V, S, E, I, F, B>) -> Self
     where
-        [(); util::bitsize_of::<V>() - S as usize - E - I - F]:,
-        [(); B - 2]:
+        V: FpRepr<S, E, I, F, B>
     {
         let s = fp.is_sign_negative();
 
@@ -1288,8 +1288,6 @@ where
     /// # Examples
     ///
     /// ```
-    /// #![feature(generic_const_exprs)]
-    ///
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let v = FpSingle::from_bits(0x41480000);
@@ -1310,8 +1308,6 @@ where
     /// # Examples
     ///
     /// ```
-    /// #![feature(generic_const_exprs)]
-    ///
     /// use custom_float::ieee754::FpSingle;
     ///
     /// assert_ne!(FpSingle::from(1.0).to_bits(), FpSingle::from(1.0).to_uint().unwrap()); // to_bits() is not casting!
@@ -1330,8 +1326,6 @@ where
     /// # Examples
     ///
     /// ```
-    /// #![feature(generic_const_exprs)]
-    ///
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let bytes = FpSingle::from(12.5).to_be_bytes();
@@ -1352,8 +1346,6 @@ where
     /// # Examples
     ///
     /// ```
-    /// #![feature(generic_const_exprs)]
-    ///
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let bytes = FpSingle::from(12.5).to_le_bytes();
@@ -1380,8 +1372,6 @@ where
     /// # Examples
     ///
     /// ```
-    /// #![feature(generic_const_exprs)]
-    ///
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let bytes = FpSingle::from(12.5).to_ne_bytes();
@@ -1408,8 +1398,6 @@ where
     /// # Examples
     ///
     /// ```
-    /// #![feature(generic_const_exprs)]
-    ///
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let value = FpSingle::from_be_bytes(&[0x41, 0x48, 0x00, 0x00]);
@@ -1432,8 +1420,6 @@ where
     /// # Examples
     ///
     /// ```
-    /// #![feature(generic_const_exprs)]
-    ///
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let value = FpSingle::from_le_bytes(&[0x00, 0x00, 0x48, 0x41]);
@@ -1463,8 +1449,6 @@ where
     /// # Examples
     ///
     /// ```
-    /// #![feature(generic_const_exprs)]
-    ///
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let value = FpSingle::from_ne_bytes(if cfg!(target_endian = "big") {
@@ -1541,8 +1525,6 @@ where
     /// # Examples
     ///
     /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let nan = FpSingle::nan();
@@ -1561,8 +1543,6 @@ where
     /// # Examples
     ///
     /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let qnan = FpSingle::qnan();
@@ -1581,9 +1561,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let snan = FpSingle::snan();
@@ -1608,9 +1586,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let snan = FpSingle::snan();
@@ -1633,9 +1609,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let infinity = FpSingle::infinity();
@@ -1655,9 +1629,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    ///
+    /// ```rust
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let neg_infinity = FpSingle::neg_infinity();
@@ -1677,9 +1649,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let inf = FpSingle::infinity();
@@ -1701,9 +1671,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use std::f64;
     ///
@@ -1726,9 +1694,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use std::f64;
     ///
@@ -1756,9 +1722,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use std::f64;
     ///
@@ -1789,9 +1753,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use std::f64;
     ///
@@ -1809,9 +1771,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let nan = FpDouble::nan();
@@ -1832,9 +1792,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let f = FpSingle::from(7.0);
@@ -1859,9 +1817,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let f = FpSingle::from(7.0);
@@ -1887,9 +1843,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let min = FpSingle::min_positive_value(); // 1.17549435e-38f32
@@ -1918,9 +1872,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let min = FpDouble::min_positive_value(); // 2.2250738585072014e-308_f64
@@ -1951,9 +1903,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use std::num::FpCategory;
     ///
@@ -2028,9 +1978,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(3.99);
@@ -2060,9 +2008,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(3.01);
@@ -2100,9 +2046,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(3.3);
@@ -2145,9 +2089,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let f = FpSingle::from(3.3);
@@ -2196,9 +2138,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(3.3);
@@ -2224,9 +2164,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(3.5);
@@ -2249,9 +2187,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(3.5);
@@ -2280,9 +2216,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(3.5);
@@ -2312,9 +2246,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let nan = FpDouble::nan();
@@ -2349,9 +2281,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let nan = FpDouble::nan();
@@ -2390,8 +2320,6 @@ where
     /// # Examples
     ///
     /// ```rust
-    /// #![feature(generic_const_exprs)]
-    /// 
     /// use custom_float::ieee754::FpSingle;
     /// 
     /// // epsilon is the difference between 1.0 and the next number up.
@@ -2427,8 +2355,6 @@ where
     /// # Examples
     ///
     /// ```rust
-    /// #![feature(generic_const_exprs)]
-    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let x = FpSingle::one();
@@ -2618,9 +2544,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpSingle;
     /// 
     /// let x = FpSingle::from(1.0);
@@ -2682,9 +2606,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpSingle;
     /// 
     /// let x = FpSingle::from(1.0);
@@ -2746,9 +2668,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpSingle;
     /// 
     /// assert_eq!(FpSingle::from(1.0).midpoint(FpSingle::from(4.0)), FpSingle::from(2.5));
@@ -3461,9 +3381,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(2.0);
@@ -3524,9 +3442,7 @@ where
     /// 
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(2.0);
@@ -3549,9 +3465,7 @@ where
     /// 
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(2.0);
@@ -3693,9 +3607,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(2.0);
@@ -3717,9 +3629,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let positive = FpDouble::from(4.0);
@@ -3738,10 +3648,9 @@ where
         {
             fn _y(self) -> Self; 
         }
-        impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> SqrtSpec for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+        impl<U, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> SqrtSpec for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
         where
-            [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-            [(); EXP_BASE - 2]:
+            U: FpRepr<SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
         {
             default fn _y(self) -> Self
             {
@@ -3749,11 +3658,9 @@ where
             }
         }
         #[allow(clippy::identity_op)]
-        impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> SqrtSpec for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+        impl<U, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> SqrtSpec for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
         where
-            [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-            [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - 0 - FRAC_SIZE]:,
-            [(); EXP_BASE - 2]:
+            U: FpRepr<SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE> + FpRepr<SIGN_BIT, EXP_SIZE, 0, FRAC_SIZE, EXP_BASE>
         {
             fn _y(self) -> Self
             {
@@ -3823,9 +3730,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::{FpDouble, DecDouble};
     ///
     /// let f = FpDouble::from(2.0);
@@ -3971,9 +3876,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let one = FpDouble::one();
@@ -4017,9 +3920,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(2.0);
@@ -4044,9 +3945,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(2.0);
@@ -4101,9 +4000,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let one = FpDouble::one();
@@ -4150,9 +4047,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let ten = FpDouble::from(10.0);
@@ -4178,9 +4073,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::{FpDouble, DecDouble};
     ///
     /// let two = FpDouble::from(2.0);
@@ -4250,9 +4143,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let two = FpDouble::from(2.0);
@@ -4305,9 +4196,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let ten = FpDouble::from(10.0);
@@ -4350,9 +4239,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -4373,9 +4260,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -4396,9 +4281,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(1.0);
@@ -4450,9 +4333,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(1.0);
@@ -4507,9 +4388,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(3.0);
@@ -4542,9 +4421,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(8.0);
@@ -4589,9 +4466,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(2.0);
@@ -4775,9 +4650,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -4906,9 +4779,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -4930,9 +4801,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5006,9 +4875,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5211,9 +5078,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5404,9 +5269,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::one();
@@ -5608,9 +5471,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5655,9 +5516,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5681,9 +5540,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(7.0);
@@ -5734,9 +5591,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5778,9 +5633,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5843,9 +5696,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5897,9 +5748,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5990,9 +5839,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::one();
@@ -6045,9 +5892,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::one();
@@ -6113,9 +5958,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -6224,9 +6067,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// 
     /// let x = FpDouble::from(2.0);
@@ -6281,9 +6122,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// 
     /// let x = FpDouble::from(5.0f32);
@@ -6314,9 +6153,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(3.5);
@@ -6441,9 +6278,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// 
     /// let a = FpDouble::from(7.0);
@@ -6478,9 +6313,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpDouble;
     /// 
     /// let a = FpDouble::from(7.0);
@@ -6530,9 +6363,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::{FpSingle, FpDouble};
     /// use std::cmp::Ordering;
     ///
@@ -6604,9 +6435,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::{FpDouble, DecDouble};
     ///
     /// let f = FpDouble::from(2.0);
@@ -6646,9 +6475,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::{FpDouble, DecDouble};
     ///
     /// let f = FpDouble::from(2.0);
@@ -6707,9 +6534,7 @@ where
     ///
     /// # Examples
     ///
-    /// ```
-    /// #![feature(generic_const_exprs)]
-    /// 
+    /// ```rust
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let min = FpSingle::from(-2.0);
@@ -8437,11 +8262,9 @@ where
     }
 }
 
-impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+impl<U, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
-    [(); util::bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-    [(); EXP_BASE - 2]:,
-    U: ConstZero
+    U: FpRepr<SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE> + ConstZero
 {
     /// The additive identity element of `Self`, `0`.
     pub const ZERO: Self = Self::from_bits(U::ZERO);

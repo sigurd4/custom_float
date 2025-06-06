@@ -4,7 +4,7 @@ use core::{alloc::Layout, ops::{Add, AddAssign, Div, MulAssign, Neg, Rem, Shl, S
 
 use num_traits::{CheckedShl, CheckedAdd, CheckedSub, Float, NumCast, One, Zero};
 
-use crate::{ieee754::{FpDouble, FpHalf, FpQuadruple, FpSingle}, util::const_array::ConstArray, AnyInt, Fp, Int, UInt};
+use crate::{ieee754::{FpDouble, FpHalf, FpQuadruple, FpSingle}, util::const_array::ConstArray, AnyInt, Fp, FpRepr, Int, UInt};
 
 moddef::moddef!(
     mod {
@@ -148,10 +148,9 @@ pub(crate) trait Conversion//: Float
     const EXP_BASE: usize;
 }
 
-impl<U: UInt, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Conversion for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+impl<U, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> Conversion for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 where
-    [(); bitsize_of::<U>() - SIGN_BIT as usize - EXP_SIZE - INT_SIZE - FRAC_SIZE]:,
-    [(); EXP_BASE - 2]:
+    U: FpRepr<SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
 {
     type Bits = U;
     

@@ -74,8 +74,6 @@
 //! # Examples
 //!
 //! ```rust
-//! #![feature(generic_const_exprs)]
-//!
 //! use custom_float::Fp;
 //!
 //! type FpSingle = Fp<u32, true, 8, 0, 23, 2>;
@@ -108,6 +106,53 @@ moddef::moddef!(
         plot for cfg(test)
     }
 );
+
+#[doc(hidden)]
+mod private
+{
+    use crate::{util, UInt};
+
+    const fn is_repr<U: UInt>(sign_bit: bool, exp_size: usize, int_size: usize, frac_size: usize, exp_base: usize) -> bool
+    {
+        util::bitsize_of::<U>() >= (sign_bit as usize + exp_size + int_size + frac_size) && exp_base >= 2
+    }
+
+    trait IsRepr<const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize, const IS_REPR: bool>: UInt
+    {
+
+    }
+    impl<U, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> IsRepr<
+        SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE, {is_repr::<U>(SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE)}
+    > for U
+    where
+        U: UInt
+    {
+
+    }
+
+    #[doc(hidden)]
+    pub trait _FpRepr<const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize>: UInt
+    {
+        
+    }
+    impl<U, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> _FpRepr<SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE> for U
+    where
+        U: IsRepr<SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE, true>
+    {
+        
+    }
+}
+
+pub trait FpRepr<const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize>: private::_FpRepr<SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+{
+    
+}
+impl<U, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> FpRepr<SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE> for U
+where
+    U: private::_FpRepr<SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+{
+
+}
 
 #[cfg(test)]
 extern crate test;
@@ -161,6 +206,7 @@ mod tests
 
     // TODO: Optimizations
     // Addition/subtraction is slow with decimal
+    // Rem is slow!
 
     pub type F = FpDouble;
     //pub type F = DecDouble;
