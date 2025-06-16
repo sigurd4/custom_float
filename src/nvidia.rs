@@ -11,3 +11,16 @@ pub type Tf68 = Fp<u128, true, 15, 0, 52, 2>;
 
 // /// 132-bit tensor float using the exponent of FP256 and the mantissa of FP128
 //pub type Tf132 = Fp<u256, true, 19, 0, 112, 2>;
+
+#[cfg(test)]
+pub(crate) macro for_floats {
+    ($expr:expr) => {
+        crate::tests::for_floats!(
+            Tf19 in nvidia,
+            Tf35 in nvidia,
+            Tf68 in nvidia,
+            //Tf132 in nvidia
+            => $expr
+        )
+    }
+}

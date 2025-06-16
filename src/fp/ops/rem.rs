@@ -75,21 +75,20 @@ where
 #[cfg(test)]
 mod test
 {
-    use std::ops::Rem;
-
+    use core::ops::Rem;
     use test::Bencher;
 
-    use crate::tests::{self, F};
+    use crate::tests::{bench_op2, test_op2};
 
     #[test]
     fn test_rem()
     {
-        crate::tests::test_op2("rem", Rem::rem, Rem::rem, None)
+        test_op2!("rem", Rem::rem, None)
     }
     #[bench]
     fn bench_rem(bencher: &mut Bencher)
     {
         test_rem();
-        tests::bench_op2::<F, _>(bencher, Rem::rem)
+        bench_op2!(bencher, Rem::rem)
     }
 }

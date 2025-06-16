@@ -21,17 +21,17 @@ mod test
     use num_traits::Inv;
     use test::Bencher;
 
-    use crate::tests::{self, F};
+    use crate::tests::{bench_op1, test_op1};
 
     #[test]
     fn test_inv()
     {
-        crate::tests::test_op1("inv", Inv::inv, Inv::inv, None, Some(0.1..10.0))
+        test_op1!("inv", Inv::inv, None, Some(0.1..10.0))
     }
     #[bench]
     fn bench_inv(bencher: &mut Bencher)
     {
         test_inv();
-        tests::bench_op1::<F, _>(bencher, Inv::inv)
+        bench_op1!(bencher, Inv::inv)
     }
 }

@@ -12,7 +12,25 @@ exclude = ["plots"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["bytemuck"]
+default = [
+    "bytemuck",
+    #"ati",
+    #"g_711",
+    #"google",
+    #"ibm",
+    #"intel",
+    #"khronos",
+    #"nvidia",
+    #"pixar"
+]
+ati = []
+g_711 = []
+google = []
+ibm = []
+intel = []
+khronos = []
+nvidia = []
+pixar = []
 bytemuck = ["dep:bytemuck"]
 use_std_float = []
 

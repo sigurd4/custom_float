@@ -28,15 +28,16 @@ where
 #[cfg(test)]
 mod test
 {
-    use std::ops::Add;
-
+    use core::ops::Add;
     use test::Bencher;
 
-    use crate::tests::{self, F};
+    use crate::{ieee754::FpDouble, tests::{bench_op2, test_op2}};
 
     #[test]
     fn test_add_once()
     {
+        type F = FpDouble;
+
         let a = F::from(1f32);
         let b = F::from(-16f32);
         let c = a + b;
@@ -45,12 +46,12 @@ mod test
     #[test]
     fn test_add()
     {
-        crate::tests::test_op2("add", Add::add, Add::add, Some(0.000001))
+        test_op2!("add", Add::add, Some(0.001))
     }
     #[bench]
     fn bench_add(bencher: &mut Bencher)
     {
         test_add();
-        tests::bench_op2::<F, _>(bencher, Add::add)
+        bench_op2!(bencher, Add::add)
     }
 }

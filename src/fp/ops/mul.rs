@@ -81,11 +81,13 @@ mod test
 
     use test::Bencher;
 
-    use crate::tests::{self, F};
+    use crate::{ieee754::FpDouble, tests::{bench_op2, test_op2}};
     
     #[test]
     fn test_mul_once()
     {
+        type F = FpDouble;
+
         let a = F::from(PI);
         let b = F::from(TAU);
         let c = a * b;
@@ -94,12 +96,12 @@ mod test
     #[test]
     fn test_mul()
     {
-        crate::tests::test_op2("mul", Mul::mul, Mul::mul, None)
+        test_op2!("mul", Mul::mul, None)
     }
     #[bench]
     fn bench_mul(bencher: &mut Bencher)
     {
         test_mul();
-        tests::bench_op2::<F, _>(bencher, Mul::mul)
+        bench_op2!(bencher, Mul::mul)
     }
 }

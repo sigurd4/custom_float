@@ -52,6 +52,7 @@ macro_rules! as_lossless {
             {
                 return as_lossless
             }
+            #[allow(clippy::redundant_closure_call)]
             let y = (|| $fn)();
             #[cfg(all(debug_assertions, test))]
             if let Some([as_lossless]) = _as_lossless
@@ -112,6 +113,8 @@ use as_lossless as as_lossless;
 /// # Examples
 ///
 /// ```rust
+/// #![feature(generic_const_exprs)]
+/// 
 /// use custom_float::Fp;
 ///
 /// type FpSingle = Fp<u32, true, 8, 0, 23, 2>;
@@ -705,7 +708,7 @@ where
     /// Converts from one custom floating-point number to another.
     /// Rounding errors may occurr.
     #[must_use = "method returns a new number and does not mutate the original value"]
-    pub fn from_fp<V: UInt, const S: bool, const E: usize, const I: usize, const F: usize, const B: usize>(fp: Fp<V, S, E, I, F, B>) -> Self
+    pub fn from_fp<V, const S: bool, const E: usize, const I: usize, const F: usize, const B: usize>(fp: Fp<V, S, E, I, F, B>) -> Self
     where
         V: FpRepr<S, E, I, F, B>
     {
@@ -1287,7 +1290,9 @@ where
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let v = FpSingle::from_bits(0x41480000);
@@ -1307,7 +1312,9 @@ where
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// assert_ne!(FpSingle::from(1.0).to_bits(), FpSingle::from(1.0).to_uint().unwrap()); // to_bits() is not casting!
@@ -1325,7 +1332,9 @@ where
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let bytes = FpSingle::from(12.5).to_be_bytes();
@@ -1345,7 +1354,9 @@ where
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let bytes = FpSingle::from(12.5).to_le_bytes();
@@ -1371,7 +1382,9 @@ where
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let bytes = FpSingle::from(12.5).to_ne_bytes();
@@ -1397,7 +1410,9 @@ where
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let value = FpSingle::from_be_bytes(&[0x41, 0x48, 0x00, 0x00]);
@@ -1419,7 +1434,9 @@ where
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let value = FpSingle::from_le_bytes(&[0x00, 0x00, 0x48, 0x41]);
@@ -1448,7 +1465,9 @@ where
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let value = FpSingle::from_ne_bytes(if cfg!(target_endian = "big") {
@@ -1524,7 +1543,9 @@ where
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let nan = FpSingle::nan();
@@ -1542,7 +1563,9 @@ where
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let qnan = FpSingle::qnan();
@@ -1562,6 +1585,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let snan = FpSingle::snan();
@@ -1587,6 +1612,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let snan = FpSingle::snan();
@@ -1610,6 +1637,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let infinity = FpSingle::infinity();
@@ -1630,6 +1659,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let neg_infinity = FpSingle::neg_infinity();
@@ -1650,6 +1681,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let inf = FpSingle::infinity();
@@ -1672,6 +1705,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use std::f64;
     ///
@@ -1695,6 +1730,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use std::f64;
     ///
@@ -1723,6 +1760,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use std::f64;
     ///
@@ -1754,6 +1793,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use std::f64;
     ///
@@ -1772,6 +1813,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let nan = FpDouble::nan();
@@ -1793,6 +1836,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let f = FpSingle::from(7.0);
@@ -1818,6 +1863,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let f = FpSingle::from(7.0);
@@ -1844,6 +1891,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let min = FpSingle::min_positive_value(); // 1.17549435e-38f32
@@ -1873,6 +1922,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let min = FpDouble::min_positive_value(); // 2.2250738585072014e-308_f64
@@ -1904,6 +1955,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use std::num::FpCategory;
     ///
@@ -1979,6 +2032,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(3.99);
@@ -2009,6 +2064,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(3.01);
@@ -2047,6 +2104,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(3.3);
@@ -2090,6 +2149,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let f = FpSingle::from(3.3);
@@ -2139,6 +2200,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(3.3);
@@ -2165,6 +2228,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(3.5);
@@ -2188,6 +2253,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(3.5);
@@ -2217,6 +2284,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(3.5);
@@ -2247,6 +2316,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let nan = FpDouble::nan();
@@ -2282,6 +2353,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let nan = FpDouble::nan();
@@ -2320,6 +2393,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     /// 
     /// // epsilon is the difference between 1.0 and the next number up.
@@ -2355,6 +2430,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let x = FpSingle::one();
@@ -2545,6 +2622,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     /// 
     /// let x = FpSingle::from(1.0);
@@ -2607,6 +2686,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     /// 
     /// let x = FpSingle::from(1.0);
@@ -2669,6 +2750,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     /// 
     /// assert_eq!(FpSingle::from(1.0).midpoint(FpSingle::from(4.0)), FpSingle::from(2.5));
@@ -2676,14 +2759,14 @@ where
     /// ```
     #[must_use = "method returns a new number and does not mutate the original value"]
     #[inline]
-    pub fn midpoint(self, other: Self) -> Self
+    pub fn midpoint(self, rhs: Self) -> Self
     {
         let half = Self::from(0.5);
 
         let lo = Self::min_positive_value()*Self::from_uint(2u8);
         let hi = Self::max_value()*half;
 
-        let (a, b) = (self, other);
+        let (a, b) = (self, rhs);
         let abs_a = a.abs();
         let abs_b = b.abs();
 
@@ -2712,12 +2795,12 @@ where
     fn integral_div(mut mantissa1: U, mut mantissa2: U, exp: &mut U, exp_offset: &mut U) -> Result<U, Self>
     {
         if EXP_BASE.is_power_of_two()
+            && (
+                util::complementary_add_sub_assign(exp_offset, exp, Self::shl_mantissa_without_loss(&mut mantissa1, None, EXP_BASE.ilog2(), None)).is_err()
+                || util::complementary_add_sub_assign(exp_offset, exp, Self::shr_mantissa_without_loss(&mut mantissa2, None, EXP_BASE.ilog2(), None)).is_err()
+            )
         {
-            if !util::complementary_add_sub_assign(exp_offset, exp, Self::shl_mantissa_without_loss(&mut mantissa1, None, EXP_BASE.ilog2(), None)).is_ok()
-                || !util::complementary_add_sub_assign(exp_offset, exp, Self::shr_mantissa_without_loss(&mut mantissa2, None, EXP_BASE.ilog2(), None)).is_ok()
-            {
-                return Err(Self::infinity())
-            }
+            return Err(Self::infinity())
         }
         loop
         {
@@ -3336,7 +3419,7 @@ where
                     *mantissa1 = *mantissa1/base;
                     continue 'lp1
                 }
-                else if lz as usize > Self::BASE_PADDING
+                else if lz > Self::BASE_PADDING
                 {
                     *mantissa2 = *mantissa2*base;
                     continue 'lp1
@@ -3382,6 +3465,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(2.0);
@@ -3443,6 +3528,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(2.0);
@@ -3466,6 +3553,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(2.0);
@@ -3578,24 +3667,21 @@ where
                 {
                     pow_sign(self, n_s && !x_s).cbrt()
                 }
+                else if !SIGN_BIT && xabs < one
+                {
+                    let xabs_log = xabs.recip().logb();
+        
+                    let n_xabs_log = xabs_log*n;
+                    
+                    n_xabs_log.expb().recip()
+                }
                 else
                 {
-                    if !SIGN_BIT && xabs < one
-                    {
-                        let xabs_log = xabs.recip().logb();
-            
-                        let n_xabs_log = xabs_log*n;
-                        
-                        n_xabs_log.expb().recip()
-                    }
-                    else
-                    {
-                        let xabs_log = xabs.logb();
-            
-                        let n_xabs_log = xabs_log*n;
-                        
-                        n_xabs_log.expb()
-                    }
+                    let xabs_log = xabs.logb();
+        
+                    let n_xabs_log = xabs_log*n;
+                    
+                    n_xabs_log.expb()
                 }
             }
         }
@@ -3608,6 +3694,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(2.0);
@@ -3630,6 +3718,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let positive = FpDouble::from(4.0);
@@ -3731,6 +3821,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::{FpDouble, DecDouble};
     ///
     /// let f = FpDouble::from(2.0);
@@ -3841,10 +3933,6 @@ where
                         if !Self::IS_INT_IMPLICIT
                         {
                             bits = bits + Self::shift_int(U::one())
-                        }
-                        else
-                        {
-
                         };
                         let mut y = Self::from_bits(bits);
                         if let Some(z) = z
@@ -3877,6 +3965,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let one = FpDouble::one();
@@ -3921,6 +4011,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(2.0);
@@ -3946,6 +4038,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(2.0);
@@ -4001,6 +4095,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let one = FpDouble::one();
@@ -4048,6 +4144,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let ten = FpDouble::from(10.0);
@@ -4074,6 +4172,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::{FpDouble, DecDouble};
     ///
     /// let two = FpDouble::from(2.0);
@@ -4114,7 +4214,7 @@ where
                 let base = U::from(EXP_BASE).unwrap();
                 if e.is_zero() && Self::IS_INT_IMPLICIT
                 {
-                    while (f >> Self::MANTISSA_OP_SIZE - Self::BASE_PADDING).is_zero()
+                    while (f >> (Self::MANTISSA_OP_SIZE - Self::BASE_PADDING)).is_zero()
                     {
                         y -= Self::one();
                         f = f*base;
@@ -4144,6 +4244,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let two = FpDouble::from(2.0);
@@ -4197,6 +4299,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let ten = FpDouble::from(10.0);
@@ -4240,6 +4344,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -4261,6 +4367,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -4282,6 +4390,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(1.0);
@@ -4334,6 +4444,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(1.0);
@@ -4389,6 +4501,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(3.0);
@@ -4422,6 +4536,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(8.0);
@@ -4467,6 +4583,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(2.0);
@@ -4651,6 +4769,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -4780,6 +4900,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -4802,6 +4924,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -4876,6 +5000,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5079,6 +5205,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5270,6 +5398,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::one();
@@ -5472,6 +5602,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5517,6 +5649,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5541,6 +5675,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::from(7.0);
@@ -5592,6 +5728,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5634,6 +5772,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5697,6 +5837,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5749,6 +5891,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -5840,6 +5984,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::one();
@@ -5893,6 +6039,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let x = FpDouble::one();
@@ -5959,6 +6107,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// use num::traits::FloatConst;
     ///
@@ -6068,6 +6218,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// 
     /// let x = FpDouble::from(2.0);
@@ -6123,6 +6275,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// 
     /// let x = FpDouble::from(5.0f32);
@@ -6154,6 +6308,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let f = FpDouble::from(3.5);
@@ -6279,6 +6435,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// 
     /// let a = FpDouble::from(7.0);
@@ -6314,6 +6472,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     /// 
     /// let a = FpDouble::from(7.0);
@@ -6364,6 +6524,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::{FpSingle, FpDouble};
     /// use std::cmp::Ordering;
     ///
@@ -6436,6 +6598,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::{FpDouble, DecDouble};
     ///
     /// let f = FpDouble::from(2.0);
@@ -6476,6 +6640,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::{FpDouble, DecDouble};
     ///
     /// let f = FpDouble::from(2.0);
@@ -6535,6 +6701,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpSingle;
     ///
     /// let min = FpSingle::from(-2.0);
@@ -6816,8 +6984,7 @@ where
                 }
                 else
                 {
-                    let x1p_1022 = Self::from(f64::from_bits(0x0010000000000000));
-                    x1p_1022
+                    Self::from(f64::from_bits(0x0010000000000000))
                 };
             
                 y.with_sign(s)
@@ -8280,145 +8447,145 @@ mod test
     use num::zero;
     use test::Bencher;
 
-    use crate::{g_711::FpG711, ieee754::{FpDouble, FpHalf}, tests::{self, F}, Fp};
+    use crate::{ieee754::{FpDouble, FpHalf}, tests::{self, bench_op1, test_op1, test_op1_for}, Fp};
 
     #[test]
     fn test_ln_gamma()
     {
-        crate::tests::test_op1("gamma", f32::gamma, Fp::gamma, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*4.5..7.0))
+        test_op1!("ln_gamma", |x| x.ln_gamma().0, None, Some(-4.5..20.0));
     }
     #[bench]
     fn bench_ln_gamma(bencher: &mut Bencher) -> impl Termination
     {
         test_ln_gamma();
-        tests::bench_op1::<F, _>(bencher, Fp::ln_gamma)
+        bench_op1!(bencher, Fp::ln_gamma)
     }
 
     #[test]
     fn test_gamma()
     {
-        crate::tests::test_op1("ln_gamma", |x| f32::ln_gamma(x).0, |x| Fp::ln_gamma(x).0, None, Some(-(crate::tests::F::SIGN_SIZE as f32)*4.5..20.0));
+        test_op1!("gamma", |x| x.gamma(), None, Some(-4.5..7.0))
     }
     #[bench]
     fn bench_gamma(bencher: &mut Bencher) -> impl Termination
     {
         test_gamma();
-        tests::bench_op1::<F, _>(bencher, Fp::gamma)
+        bench_op1!(bencher, Fp::gamma)
     }
     
     #[test]
     fn test_j0()
     {
-        crate::tests::test_op1("j0", libm::j0f, Fp::j0, Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*20.0..20.0))
+        test_op1!("j0", libm::j0f, Fp::j0, Some(0.1), Some(-20.0..20.0))
     }
     #[bench]
     fn bench_j0(bencher: &mut Bencher) -> impl Termination
     {
         test_j0();
-        tests::bench_op1::<F, _>(bencher, Fp::j0)
+        bench_op1!(bencher, Fp::j0)
     }
     
     #[test]
     fn test_y0()
     {
-        //crate::tests::test_op1("y0", libm::y0f, |x| crate::tests::F::from(x.y0_extra_sign().1 as u8), Some(0.1), Some(0.01..20.0))
-        //crate::tests::test_op1("y0", libm::y0f, |x| x.y0_extra_sign().0, Some(0.1), Some(0.01..20.0))
-        crate::tests::test_op1("y0", libm::y0f, Fp::y0, Some(0.1), Some(0.01..20.0))
+        test_op1!("y0", libm::y0f, Fp::y0, Some(0.1), Some(0.01..20.0))
     }
     #[bench]
     fn bench_y0(bencher: &mut Bencher) -> impl Termination
     {
         test_y0();
-        tests::bench_op1::<F, _>(bencher, Fp::y0)
+        bench_op1!(bencher, Fp::y0)
     }
     
     #[test]
     fn test_j1()
     {
-        crate::tests::test_op1("j1", libm::j1f, Fp::j1, Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*20.0..20.0))
+        test_op1!("j1", libm::j1f, Fp::j1, Some(0.1), Some(-20.0..20.0))
     }
     #[bench]
     fn bench_j1(bencher: &mut Bencher) -> impl Termination
     {
         test_j1();
-        tests::bench_op1::<F, _>(bencher, Fp::j1)
+        bench_op1!(bencher, Fp::j1)
     }
     
     #[test]
     fn test_y1()
     {
-        crate::tests::test_op1("y1", libm::y1f, Fp::y1, Some(0.1), Some(0.1..20.0))
+        test_op1!("y1", libm::y1f, Fp::y1, Some(0.1), Some(0.1..20.0))
     }
     #[bench]
     fn bench_y1(bencher: &mut Bencher) -> impl Termination
     {
         test_y1();
-        tests::bench_op1::<F, _>(bencher, Fp::y1)
+        bench_op1!(bencher, Fp::y1)
     }
     
     #[test]
     fn test_j2()
     {
-        crate::tests::test_op1("j2", |x| libm::jnf(2, x), |x| x.jn(2), Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*20.0..20.0))
+        test_op1!("j2", |x| libm::jnf(2, x), |x| x.jn(2), Some(0.1), Some(-20.0..20.0))
     }
     #[bench]
     fn bench_j2(bencher: &mut Bencher) -> impl Termination
     {
         test_j2();
-        tests::bench_op1::<F, _>(bencher, |x| x.jn(2))
+        bench_op1!(bencher, |x| x.jn(2))
     }
     
     #[test]
     fn test_y2()
     {
-        crate::tests::test_op1("y2", |x| libm::ynf(2, x), |x| x.yn(2), Some(0.1), Some(1.0..20.0))
+        test_op1!("y2", |x| libm::ynf(2, x), |x| x.yn(2), Some(0.1), Some(1.0..20.0))
     }
     #[bench]
     fn bench_y2(bencher: &mut Bencher) -> impl Termination
     {
         test_y2();
-        tests::bench_op1::<F, _>(bencher, |x| x.yn(2))
+        bench_op1!(bencher, |x| x.yn(2))
     }
     
     #[test]
     fn test_j3()
     {
-        crate::tests::test_op1("j3", |x| libm::jnf(3, x), |x| x.jn(3), Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*20.0..20.0))
+        test_op1!("j3", |x| libm::jnf(3, x), |x| x.jn(3), Some(0.1), Some(-20.0..20.0))
     }
     #[bench]
     fn bench_j3(bencher: &mut Bencher) -> impl Termination
     {
         test_j3();
-        tests::bench_op1::<F, _>(bencher, |x| x.jn(3))
+        bench_op1!(bencher, |x| x.jn(3))
     }
     
     #[test]
     fn test_y3()
     {
-        crate::tests::test_op1("y3", |x| libm::ynf(3, x), |x| x.yn(3), Some(0.1), Some(1.0..20.0))
+        test_op1!("y3", |x| libm::ynf(3, x), |x| x.yn(3), Some(0.1), Some(1.0..20.0))
     }
     #[bench]
     fn bench_y3(bencher: &mut Bencher) -> impl Termination
     {
         test_y3();
-        tests::bench_op1::<F, _>(bencher, |x| x.yn(3))
+        bench_op1!(bencher, |x| x.yn(3))
     }
     
     #[test]
     fn test_erf()
     {
-        crate::tests::test_op1("erf", libm::erff, Fp::erf, Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0))
+        test_op1!("erf", libm::erff, Fp::erf, Some(0.1), Some(-5.0..5.0))
     }
     #[bench]
     fn bench_erf(bencher: &mut Bencher) -> impl Termination
     {
         test_erf();
-        tests::bench_op1::<F, _>(bencher, Fp::erf)
+        bench_op1!(bencher, Fp::erf)
     }
 
     #[test]
     fn test_erfc_once()
     {
+        type F = FpDouble;
+
         let x = F::from(0.9);
 
         let y = x.erfc();
@@ -8429,20 +8596,20 @@ mod test
     #[test]
     fn test_erfc()
     {
-        crate::tests::test_op1("erfc", libm::erfcf, Fp::erfc, Some(0.1), Some(-(crate::tests::F::SIGN_SIZE as f32)*5.0..5.0))
+        test_op1!("erfc", libm::erfcf, Fp::erfc, Some(0.1), Some(-5.0..5.0))
     }
     #[bench]
     fn bench_erfc(bencher: &mut Bencher) -> impl Termination
     {
         test_erfc();
-        tests::bench_op1::<F, _>(bencher, Fp::erfc)
+        bench_op1!(bencher, Fp::erfc)
     }
 
     #[test]
     fn test_next_up_down()
     {
-        crate::tests::test_op1("next_up", f32::next_up, Fp::next_up, None, Some(-10.0..10.0));
-        crate::tests::test_op1("next_down", f32::next_down, Fp::next_down, None, Some(-10.0..10.0));
+        test_op1!("next_up", |x| x.next_up(), None, Some(-10.0..10.0));
+        test_op1!("next_down", |x| x.next_down(), None, Some(-10.0..10.0));
 
         type F = Fp<u8, true, 3, 1, 3, {usize::MAX}>;
 
@@ -8494,7 +8661,7 @@ mod test
     fn bench_next_up_down(bencher: &mut Bencher) -> impl Termination
     {
         test_next_up_down();
-        tests::bench_op1::<F, _>(bencher, Fp::next_up);
-        tests::bench_op1::<F, _>(bencher, Fp::next_down)
+        bench_op1!(bencher, Fp::next_up);
+        bench_op1!(bencher, Fp::next_down)
     }
 }

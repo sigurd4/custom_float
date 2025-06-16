@@ -14,6 +14,8 @@ where
     /// # Examples
     ///
     /// ```rust
+    /// #![feature(generic_const_exprs)]
+    /// 
     /// use custom_float::ieee754::FpDouble;
     ///
     /// let m = FpDouble::from(10.0);
@@ -122,11 +124,13 @@ mod test
     use num_traits::MulAdd;
     use test::Bencher;
 
-    use crate::tests::{self, F};
+    use crate::{ieee754::FpDouble, tests::{bench_op3, test_op3}};
     
     #[test]
     fn test_mul_add_once()
     {
+        type F = FpDouble;
+
         let a = F::from(2f32);
         let b = F::from(2f32);
         let c = F::from(2f32);
@@ -136,12 +140,12 @@ mod test
     #[test]
     fn test_mul_add()
     {
-        crate::tests::test_op3("mul_add", MulAdd::mul_add, MulAdd::mul_add, Some(0.001))
+        test_op3!("mul_add", MulAdd::mul_add, Some(0.001))
     }
     #[bench]
     fn bench_mul_add(bencher: &mut Bencher)
     {
         test_mul_add();
-        tests::bench_op3::<F, _>(bencher, F::mul_add)
+        bench_op3!(bencher, MulAdd::mul_add)
     }
 }

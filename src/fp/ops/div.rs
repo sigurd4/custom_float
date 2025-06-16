@@ -87,11 +87,13 @@ mod test
 
     use test::Bencher;
 
-    use crate::tests::{self, F};
+    use crate::{ieee754::FpDouble, tests::{bench_op2, test_op2}};
 
     #[test]
     fn test_div_once()
     {
+        type F = FpDouble;
+        
         let a = F::from(4.0);
         let b = F::from(2.0);
         let c = a / b;
@@ -101,12 +103,12 @@ mod test
     #[test]
     fn test_div()
     {
-        crate::tests::test_op2("div", Div::div, Div::div, None)
+        test_op2!("div", Div::div, None)
     }
     #[bench]
     fn bench_div(bencher: &mut Bencher)
     {
         test_div();
-        tests::bench_op2::<F, _>(bencher, Div::div)
+        bench_op2!(bencher, Div::div)
     }
 }

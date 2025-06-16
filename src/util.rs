@@ -53,8 +53,7 @@ pub fn widening_mul<U: UInt>(lhs: U, rhs: U) -> (U, U)
     {
         default fn widening_mul(self, rhs: Self) -> (Self, Self)
         {
-            let (low, high) = widening_mul_fallback(self, rhs);
-            (low.into(), high)
+            widening_mul_fallback(self, rhs)
         }
     }
     macro_rules! impl_widening_mul {
@@ -314,7 +313,7 @@ pub const fn icbrt(a: usize) -> usize
     #[inline]
     const fn guess(x: usize) -> usize
     {
-        1 << ((x.ilog2() + 2) / 3)
+        1 << x.ilog2().div_ceil(3)
     }
 
     #[inline]
@@ -757,7 +756,7 @@ const fn factorize_part<const N: usize>(
     mut i: usize
 )
 {
-    if N <= 0
+    if N == 0
     {
         return
     }
@@ -804,7 +803,7 @@ const fn factorize_part<const N: usize>(
 
 pub const fn factorize<const N: usize>(base: usize) -> &'static [[usize; N]]
 {
-    if N <= 0
+    if N == 0
     {
         return &[]
     }
@@ -829,9 +828,11 @@ pub const fn base_factor_paddings<const N: usize>(factor_sets: &[[usize; N]]) ->
         let mut j = 0;
         while j < N
         {
-            paddings[j] = base_padding(factor_sets[i][j])
+            paddings[j] = base_padding(factor_sets[i][j]);
+            j += 1
         }
         padding_sets.push(paddings);
+        i += 1;
     }
     padding_sets.leak()
 }

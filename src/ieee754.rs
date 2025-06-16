@@ -25,3 +25,19 @@ pub type DecDouble = Fp<u64, true, 13, 16, 34, 10>;
 
 /// Decimal quadruple-precision floating-point format, known as decimal128
 pub type DecQuadruple = Fp<u128, true, 17, 34, 76, 10>;
+
+#[cfg(test)]
+pub(crate) macro for_floats {
+    ($f:ident, $dir:ident, $expr:expr) => {
+        crate::tests::for_floats!(
+            FpHalf in ieee754,
+            FpSingle in ieee754,
+            FpDouble in ieee754,
+            FpQuadruple in ieee754,
+            //FpOctuple in ieee754,
+            DecSingle in ieee754,
+            DecDouble in ieee754,
+            DecQuadruple in ieee754 => $f, $dir, $expr
+        )
+    }
+}

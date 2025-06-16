@@ -74,6 +74,8 @@
 //! # Examples
 //!
 //! ```rust
+//! #![feature(generic_const_exprs)]
+//! 
 //! use custom_float::Fp;
 //!
 //! type FpSingle = Fp<u32, true, 8, 0, 23, 2>;
@@ -88,15 +90,15 @@ use num_traits::{Bounded, CheckedNeg, CheckedShl, CheckedShr, Num, PrimInt, Sign
 
 moddef::moddef!(
     pub mod {
-        ati,
-        g_711,
-        google,
-        ibm,
+        ati for cfg(feature = "ati"),
+        g_711 for cfg(feature = "g_711"),
+        google for cfg(feature = "google"),
+        ibm for cfg(feature = "ibm"),
         ieee754,
-        intel,
-        khronos,
-        nvidia,
-        pixar
+        intel for cfg(feature = "intel"),
+        khronos for cfg(feature = "khronos"),
+        nvidia for cfg(feature = "nvidia"),
+        pixar for cfg(feature = "pixar")
     },
     flat(pub) mod {
         fp
@@ -193,40 +195,31 @@ mod tests
     use test::Bencher;
 
     use crate::{
-        ati::Fp24,
-        g_711::FpG711,
-        google::{Bf16, Bf32, Bf8},
-        ibm::{HFpLong, HFpShort},
-        ieee754::{DecDouble, FpDouble, FpHalf, FpQuadruple, FpSingle},
-        intel::Fp80,
-        khronos::KhronosFp11,
-        nvidia::Tf19,
-        plot, Fp
+        ieee754::*, plot, Fp
     };
 
     // TODO: Optimizations
     // Addition/subtraction is slow with decimal
     // Rem is slow!
 
-    pub type F = FpDouble;
-    //pub type F = DecDouble;
-
     #[test]
     fn it_works()
     {
+        type F = FpDouble;
+
         let one = F::one();
-        let mut x = [0.0; 8].map(|x| F::from(x));
+        let mut x = [0.0; 8].map(F::from);
         x[0] = one + one + one;
         x[1] = one + F::from(0.5);
         x[2] = one;
 
-        println!("{:?}", x);
+        println!("{x:?}");
 
         //let mut y = [Complex::zero(); 5];
         //x.real_fft(&mut y);
         //x.real_ifft(&y);
 
-        //println!("{:?}", x);
+        //println!("{x:?}");
     }
 
     #[test]
@@ -235,14 +228,14 @@ mod tests
         let x = 1e-1;
         let d = DecDouble::from(x);
 
-        println!("{:e}", d);
+        println!("{d:e}");
 
         let e = d.exp_bits() as i64 - DecDouble::exp_bias() as i64;
         let i = d.int_bits();
         let f = d.frac_bits();
 
         let y = (i as f64 + f as f64/2.0f64.powi(DecDouble::FRAC_SIZE as i32))*10.0f64.powi(e as i32);
-        println!("{:e}", y);
+        println!("{y:e}");
 
         let x = x.into();
 
@@ -334,14 +327,65 @@ mod tests
     where
         F: Float
     {
-        (match tol
+        (!match tol
         {
-            Some(tol) => !((a - b).abs() > tol),
-            None => !(a != b)
+            Some(tol) => (a - b).abs() > tol,
+            None => a != b
         }) || a.is_nan() && b.is_nan()
     }
 
-    pub fn test_op3(fn_name: &str, op1: impl Fn(f32, f32, f32) -> f32, op2: impl Fn(F, F, F) -> F, d: Option<f32>)
+    pub macro for_floats {
+        ($($type:tt in $category:tt),+ => $f:ident, $dir:ident, $expr:expr) => {
+            $(
+                {
+                    pub type $f = crate:: $category :: $type;
+                    pub const $dir: &str = concat!("plots/", stringify!($category), "/", stringify!($type));
+    
+                    $expr
+                }
+            )*
+        }
+    }
+
+    pub macro for_all_floats {
+        ($f:ident, $dir:ident, $expr:expr) => {
+            {
+                #[cfg(feature = "ati")]
+                crate::ati::for_floats!($f, $dir, $expr);
+                #[cfg(feature = "g_711")]
+                crate::g_711::for_floats!($f, $dir, $expr);
+                #[cfg(feature = "google")]
+                crate::google::for_floats!($f, $dir, $expr);
+                #[cfg(feature = "ibm")]
+                crate::ibm::for_floats!($f, $dir, $expr);
+                crate::ieee754::for_floats!($f, $dir, $expr);
+                #[cfg(feature = "intel")]
+                crate::intel::for_floats!($f, $dir, $expr);
+                #[cfg(feature = "khronos")]
+                crate::khronos::for_floats!($f, $dir, $expr);
+                #[cfg(feature = "nvidia")]
+                crate::nvidia::for_floats!($f, $dir, $expr);
+                #[cfg(feature = "pixar")]
+                crate::pixar::for_floats!($f, $dir, $expr);
+            }
+        }
+    }
+
+    pub macro test_op3 {
+        ($($args:tt)*) => {
+            test_op3_for!(F, $($args)*)
+        }
+    }
+    pub macro test_op3_for {
+        ($f:ident, $fn_name:expr, $op:expr, $difference:expr) => {
+            test_op3_for!($f, $fn_name, $op, $op, $difference)
+        },
+        ($f:ident, $fn_name:expr, $op1:expr, $op2:expr, $difference:expr) => {
+            for_all_floats!($f, _DIR, test_op3::<$f>($fn_name, $op1, $op2, $difference))
+        }
+    }
+
+    pub fn test_op3<F: Float>(fn_name: &str, op1: impl Fn(f32, f32, f32) -> f32, op2: impl Fn(F, F, F) -> F, d: Option<f32>)
     {
         for f0 in crate::tests::ttable()
         {
@@ -349,14 +393,14 @@ mod tests
             {
                 for f2 in crate::tests::ttable()
                 {
-                    let fp0 = F::from(f0);
-                    let fp1 = F::from(f1);
-                    let fp2 = F::from(f2);
+                    let fp0 = F::from(f0).unwrap();
+                    let fp1 = F::from(f1).unwrap();
+                    let fp2 = F::from(f2).unwrap();
 
                     //println!("{} ? {} ? {}", f0, f1, f2);
 
                     let s = op1(f0, f1, f2);
-                    let sp: f32 = op2(fp0, fp1, fp2).into();
+                    let sp: f32 = op2(fp0, fp1, fp2).to_f32().unwrap();
 
                     if !matches(s, sp, d)
                     {
@@ -368,26 +412,40 @@ mod tests
                         {
                             println!("y is subnormal");
                         }
-                        println!("{:?} ? {:?} ? {:?} == {:?} != {:?}", f0, f1, f2, s, sp);
+                        println!("{f0:?} ? {f1:?} ? {f2:?} == {s:?} != {sp:?}");
                     }
                 }
             }
         }
     }
 
-    pub fn test_op2(fn_name: &str, op1: impl Fn(f32, f32) -> f32, op2: impl Fn(F, F) -> F, d: Option<f32>)
+    pub macro test_op2 {
+        ($($args:tt)*) => {
+            test_op2_for!(F, $($args)*)
+        }
+    }
+    pub macro test_op2_for {
+        ($f:ident, $fn_name:expr, $op:expr, $difference:expr) => {
+            test_op2_for!($f, $fn_name, $op, $op, $difference)
+        },
+        ($f:ident, $fn_name:expr, $op1:expr, $op2:expr, $difference:expr) => {
+            for_all_floats!($f, _DIR, test_op2::<$f>($fn_name, $op1, $op2, $difference))
+        }
+    }
+
+    pub fn test_op2<F: Float>(fn_name: &str, op1: impl Fn(f32, f32) -> f32, op2: impl Fn(F, F) -> F, d: Option<f32>)
     {
         for f0 in crate::tests::ttable()
         {
             for f1 in crate::tests::ttable()
             {
-                let fp0 = F::from(f0);
-                let fp1 = F::from(f1);
+                let fp0 = F::from(f0).unwrap();
+                let fp1 = F::from(f1).unwrap();
 
                 //println!("{} ? {}", f0, f1);
 
                 let s = op1(f0, f1);
-                let sp: f32 = op2(fp0, fp1).into();
+                let sp: f32 = op2(fp0, fp1).to_f32().unwrap();
 
                 if !matches(s, sp, d)
                 {
@@ -399,20 +457,34 @@ mod tests
                     {
                         println!("y is subnormal");
                     }
-                    println!("{:?} ? {:?} == {:?} != {:?}", f0, f1, s, sp);
+                    println!("{f0:?} ? {f1:?} == {s:?} != {sp:?}");
                 }
             }
         }
     }
 
-    pub fn test_op1(fn_name: &str, op1: impl Fn(f32) -> f32, op2: impl Fn(F) -> F, d: Option<f32>, r: Option<Range<f32>>)
+    pub macro test_op1 {
+        ($($args:tt)*) => {
+            test_op1_for!(F, $($args)*)
+        }
+    }
+    pub macro test_op1_for {
+        ($f:ident, $fn_name:expr, $op:expr, $difference:expr, $range:expr) => {
+            test_op1_for!($f, $fn_name, $op, $op, $difference, $range)
+        },
+        ($f:ident, $fn_name:expr, $op1:expr, $op2:expr, $difference:expr, $range:expr) => {
+            for_all_floats!($f, DIR, test_op1::<$f>(DIR, $fn_name, $op1, $op2, $difference, $range))
+        }
+    }
+
+    pub fn test_op1<F: Float>(plot_target: &str, fn_name: &str, op1: impl Fn(f32) -> f32, op2: impl Fn(F) -> F, d: Option<f32>, r: Option<Range<f32>>)
     {
         for f0 in ttable::<f32>()
         {
-            let fp0 = F::from(f0);
+            let fp0 = F::from(f0).unwrap();
 
             let s = op1(f0);
-            let sp: f32 = op2(fp0).into();
+            let sp: f32 = op2(fp0).to_f32().unwrap();
 
             if !matches(s, sp, d)
             {
@@ -424,20 +496,21 @@ mod tests
                 {
                     println!("y is subnormal");
                 }
-                println!("{:e} ? == {:e} != {:e}", f0, s, sp);
+                println!("{f0:e} ? == {s:e} != {sp:e}");
             }
         }
 
         if let Some(r) = r
         {
             #[cfg(debug_assertions)]
-            plot_approx(fn_name, r.clone(), &op1, |x| op2(Fp::from(x)).into());
+            plot_approx(plot_target, fn_name, r.clone(), &op1, |x| op2(F::from(x).unwrap()).to_f32().unwrap());
             #[cfg(debug_assertions)]
-            plot_err(fn_name, r.clone(), &op1, |x| op2(Fp::from(x)).into());
+            plot_err(plot_target, fn_name, r.clone(), &op1, |x| op2(F::from(x).unwrap()).to_f32().unwrap());
             #[cfg(not(debug_assertions))]
             {
                 const NANOS_PER_MILLIS: f64 = 1e6;
                 plot_bench(
+                    plot_target,
                     fn_name,
                     r,
                     |x| {
@@ -451,7 +524,7 @@ mod tests
                         Instant::now().duration_since(t0).div_f64(M as f64/NANOS_PER_MILLIS).as_millis_f32()
                     },
                     |x| {
-                        let x = Fp::from(x);
+                        let x = F::from(x).unwrap();
                         let t0 = Instant::now();
 
                         for _ in 0..M
@@ -466,6 +539,17 @@ mod tests
         }
     }
 
+    pub macro bench_op1 {
+        ($($args:tt)*) => {
+            bench_op1_for!(F, $($args)*)
+        }
+    }
+    pub macro bench_op1_for {
+        ($f:ident, $bencher:expr, $op:expr) => {
+            for_all_floats!($f, _DIR, bench_op1::<$f, _>($bencher, $op))
+        }
+    }
+
     pub fn bench_op1<F, O>(bencher: &mut Bencher, mut op: impl FnMut(F) -> O)
     where
         F: Float
@@ -476,6 +560,17 @@ mod tests
             .cycle();
 
         bencher.iter(|| op(x.next().unwrap()));
+    }
+
+    pub macro bench_op2 {
+        ($($args:tt)*) => {
+            bench_op2_for!(F, $($args)*)
+        }
+    }
+    pub macro bench_op2_for {
+        ($f:ident, $bencher:expr, $op:expr) => {
+            for_all_floats!($f, _DIR, bench_op2::<$f, _>($bencher, $op))
+        }
     }
 
     pub fn bench_op2<F, O>(bencher: &mut Bencher, mut op: impl FnMut(F, F) -> O)
@@ -496,6 +591,17 @@ mod tests
             let (lhs, rhs) = x.next().unwrap();
             op(lhs, rhs)
         });
+    }
+
+    pub macro bench_op3 {
+        ($($args:tt)*) => {
+            bench_op3_for!(F, $($args)*)
+        }
+    }
+    pub macro bench_op3_for {
+        ($f:ident, $bencher:expr, $op:expr) => {
+            for_all_floats!($f, _DIR, bench_op3::<$f, _>($bencher, $op))
+        }
     }
 
     pub fn bench_op3<F, O>(bencher: &mut Bencher, mut op: impl FnMut(F, F, F) -> O)
@@ -521,6 +627,17 @@ mod tests
         });
     }
 
+    pub macro bench_op1_integers {
+        ($($args:tt)*) => {
+            bench_op1_integers_for!(F, $($args)*)
+        }
+    }
+    pub macro bench_op1_integers_for {
+        ($f:ident, $bencher:expr, $op:expr) => {
+            for_all_floats!($f, DIR, bench_op1_integers::<$f, _>($bencher, $op));
+        }
+    }
+
     fn bench_op1_integers<F, O>(bencher: &mut Bencher, op: impl Fn(F) -> O)
     where
         F: From<u16> + Copy
@@ -537,10 +654,9 @@ mod tests
 
     const M: usize = 64;
     const N: usize = 1024;
-    const PLOT_TARGET: &str = "plots";
 
     #[allow(unused)]
-    pub fn plot_err<R>(fn_name: &str, range: R, func: impl Fn(f32) -> f32, approx: impl Fn(f32) -> f32)
+    pub fn plot_err<R>(plot_target: &str, fn_name: &str, range: R, func: impl Fn(f32) -> f32, approx: impl Fn(f32) -> f32)
     where
         R: RangeBounds<f32> + LinspaceArray<f32, N>
     {
@@ -552,8 +668,9 @@ mod tests
         let e = y_approx.into_iter().zip(y).map(|(y_approx, y)| y_approx - y).next_chunk().unwrap();
 
         let plot_title: &str = &format!("{fn_name}(x) error");
-        let plot_path: &str = &format!("{PLOT_TARGET}/error/{fn_name}_error.png");
+        let plot_path: &str = &format!("{plot_target}/error/{fn_name}_error.jpg");
 
+        let _ = std::fs::create_dir_all(format!("{plot_target}/error"));
         plot::plot_curves(plot_title, plot_path, [x], [e]).expect("Plot error");
 
         /*let (avg_error, max_abs_error) = y.zip(y_approx)
@@ -567,7 +684,7 @@ mod tests
     }
 
     #[allow(unused)]
-    pub fn plot_approx<R>(fn_name: &str, range: R, func: impl Fn(f32) -> f32, approx: impl Fn(f32) -> f32)
+    pub fn plot_approx<R>(plot_target: &str, fn_name: &str, range: R, func: impl Fn(f32) -> f32, approx: impl Fn(f32) -> f32)
     where
         R: RangeBounds<f32> + LinspaceArray<f32, N>
     {
@@ -577,8 +694,9 @@ mod tests
         let y = x.map(func);
 
         let plot_title: &str = &format!("{fn_name}(x)");
-        let plot_path: &str = &format!("{PLOT_TARGET}/{fn_name}.png");
+        let plot_path: &str = &format!("{plot_target}/{fn_name}.jpg");
 
+        let _ = std::fs::create_dir_all(plot_target);
         plot::plot_curves(plot_title, plot_path, [x, x], [y, y_approx]).expect("Plot error");
 
         /*let (avg_error, max_abs_error) = y.zip(y_approx)
@@ -592,7 +710,7 @@ mod tests
     }
 
     #[allow(unused)]
-    pub fn plot_bench<R>(fn_name: &str, range: R, func: impl Fn(f32) -> f32, approx: impl Fn(f32) -> f32)
+    pub fn plot_bench<R>(plot_target: &str, fn_name: &str, range: R, func: impl Fn(f32) -> f32, approx: impl Fn(f32) -> f32)
     where
         R: RangeBounds<f32> + LinspaceArray<f32, N>
     {
@@ -602,8 +720,9 @@ mod tests
         let y = x.map(func);
 
         let plot_title: &str = &format!("{fn_name}(x) benchmark");
-        let plot_path: &str = &format!("{PLOT_TARGET}/bench/{fn_name}_bench.png");
+        let plot_path: &str = &format!("{plot_target}/bench/{fn_name}_bench.jpg");
 
+        let _ = std::fs::create_dir_all(format!("{plot_target}/bench"));
         plot::plot_curves(plot_title, plot_path, [x, x], [y, y_approx]).expect("Plot error");
 
         /*let (avg_error, max_abs_error) = y.zip(y_approx)
@@ -619,77 +738,81 @@ mod tests
     #[test]
     fn int_bit()
     {
-        let x = Fp80::from(2.0);
+        type F = FpDouble;
+
+        let x = F::from(2.0);
         println!("{}", x.int_bits());
-        println!("{}", x);
-        println!("{:b}", x)
+        println!("{x}");
+        println!("{x:b}")
     }
 
     #[test]
     fn test_ident()
     {
-        test_op1("ident", |x| x, |x| x, None, Some(-5.0..20.0))
+        test_op1!("ident", |x| x, |x| x, None, Some(-5.0..20.0))
     }
     #[bench]
     fn bench_ident(bencher: &mut Bencher) -> impl Termination
     {
         test_ident();
-        bench_op1::<F, _>(bencher, |x| x);
+        bench_op1!(bencher, |x| x);
     }
 
     #[test]
     fn test_to_f16()
     {
-        test_op1("to_f16", |x| (x as f16) as _, |x| (<f16 as From<_>>::from(x) as f32).into(), None, Some(-5.0..20.0))
+        test_op1!("to_f16", |x| (x as f16) as _, |x| (<f16 as From<_>>::from(x) as f32).into(), None, Some(-5.0..20.0))
     }
     #[bench]
     fn bench_to_f16(bencher: &mut Bencher) -> impl Termination
     {
         test_to_f16();
-        bench_op1::<F, _>(bencher, <f16 as From<_>>::from);
+        bench_op1!(bencher, <f16 as From<_>>::from);
     }
 
     #[test]
     fn test_to_f32()
     {
-        test_op1("to_f32", |x| (x as f32) as _, |x| <f32 as From<_>>::from(x).into(), None, Some(-5.0..20.0))
+        test_op1!("to_f32", |x| x as _, |x| <f32 as From<_>>::from(x).into(), None, Some(-5.0..20.0))
     }
     #[bench]
     fn bench_to_f32(bencher: &mut Bencher) -> impl Termination
     {
         test_to_f32();
-        bench_op1::<F, _>(bencher, <f32 as From<_>>::from);
+        bench_op1!(bencher, <f32 as From<_>>::from);
     }
 
     #[test]
     fn test_to_f64()
     {
-        test_op1("to_f64", |x| (x as f64) as _, |x| (<f64 as From<_>>::from(x) as f32).into(), None, Some(-5.0..20.0))
+        test_op1!("to_f64", |x| (x as f64) as _, |x| (<f64 as From<_>>::from(x) as f32).into(), None, Some(-5.0..20.0))
     }
     #[bench]
     fn bench_to_f64(bencher: &mut Bencher) -> impl Termination
     {
         test_to_f64();
-        bench_op1::<F, _>(bencher, <f64 as From<_>>::from);
+        bench_op1!(bencher, <f64 as From<_>>::from);
     }
 
     #[test]
     fn test_to_f128()
     {
-        test_op1("to_f128", |x| (x as f128) as f32, |x| (<f128 as From<_>>::from(x) as f32).into(), None, Some(-5.0..20.0))
+        test_op1!("to_f128", |x| (x as f128) as f32, |x| (<f128 as From<_>>::from(x) as f32).into(), None, Some(-5.0..20.0))
     }
     #[bench]
     fn bench_to_f128(bencher: &mut Bencher) -> impl Termination
     {
         test_to_f128();
-        bench_op1::<F, _>(bencher, <f128 as From<_>>::from);
+        bench_op1!(bencher, <f128 as From<_>>::from);
     }
 
     #[test]
     fn test_to_uint_once()
     {
+        type F = FpDouble;
+
         let f = F::from_uint(1u8);
-        println!("{:?}", f);
+        println!("{f:?}");
         println!("{:?}", f.to_uint::<u8>());
         println!("{:?}", f.to_uint_wrapping::<u8>())
     }
@@ -697,8 +820,10 @@ mod tests
     #[test]
     fn test_to_int_once()
     {
+        type F = FpDouble;
+
         let f = F::from_uint(128u8);
-        println!("{:?}", f);
+        println!("{f:?}");
         println!("{:?}", f.to_int::<i8>());
         println!("{:?}", f.to_int_wrapping::<i8>())
     }
@@ -706,88 +831,91 @@ mod tests
     #[test]
     fn test_to_int()
     {
-        test_op1("to_uint", |x| (x as u8) as f32, |x| F::from_uint(x.to_uint_wrapping::<u8>()), None, Some(-16.0..16.0));
-        test_op1("to_int", |x| (x as i8) as f32, |x| F::from_int(x.to_int_wrapping::<i8>()), None, Some(-16.0..16.0));
-        for n in i16::MIN..=i16::MAX
-        {
-            let f = F::from_int(n);
-            assert_eq!(f.to_uint::<u8>(), NumCast::from(n));
-            assert_eq!(f.to_uint_wrapping::<u8>(), n as u8);
+        test_op1!("to_uint", |x| (x as u8) as f32, |x| Fp::from_uint(x.to_uint_wrapping::<u8>()), None, Some(-16.0..16.0));
+        test_op1!("to_int", |x| (x as i8) as f32, |x| Fp::from_int(x.to_int_wrapping::<i8>()), None, Some(-16.0..16.0));
 
-            let f = F::from_int(n);
-            assert_eq!(f.to_int::<i8>(), NumCast::from(n));
-            assert_eq!(f.to_int_wrapping::<i8>(), n as i8);
-        }
-        for n in u16::MIN..=u16::MAX
-        {
-            let f = F::from_uint(n);
-            assert_eq!(f.to_uint::<u8>(), NumCast::from(n));
-            assert_eq!(f.to_uint_wrapping::<u8>(), n as u8);
-
-            let f = F::from_uint(n);
-            assert_eq!(f.to_int::<i8>(), NumCast::from(n));
-            assert_eq!(f.to_int_wrapping::<i8>(), n as i8);
-        }
+        for_all_floats!(F, DIR, {
+            for n in i16::MIN..=i16::MAX
+            {
+                let f = F::from_int(n);
+                assert_eq!(f.to_uint::<u8>(), NumCast::from(n));
+                assert_eq!(f.to_uint_wrapping::<u8>(), n as u8);
+    
+                let f = F::from_int(n);
+                assert_eq!(f.to_int::<i8>(), NumCast::from(n));
+                assert_eq!(f.to_int_wrapping::<i8>(), n as i8);
+            }
+            for n in u16::MIN..=u16::MAX
+            {
+                let f = F::from_uint(n);
+                assert_eq!(f.to_uint::<u8>(), NumCast::from(n));
+                assert_eq!(f.to_uint_wrapping::<u8>(), n as u8);
+    
+                let f = F::from_uint(n);
+                assert_eq!(f.to_int::<i8>(), NumCast::from(n));
+                assert_eq!(f.to_int_wrapping::<i8>(), n as i8);
+            }
+        })
     }
 
     #[bench]
     fn bench_to_uint(bencher: &mut Bencher)
     {
-        bench_op1::<F, _>(bencher, |x| x.to_uint::<u8>());
-        bench_op1::<F, _>(bencher, |x| x.to_uint::<u16>());
-        bench_op1::<F, _>(bencher, |x| x.to_uint::<u32>());
-        bench_op1::<F, _>(bencher, |x| x.to_uint::<u64>());
-        bench_op1::<F, _>(bencher, |x| x.to_uint::<u128>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_uint::<u8>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_uint::<u16>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_uint::<u32>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_uint::<u64>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_uint::<u128>());
+        bench_op1!(bencher, |x| x.to_uint::<u8>());
+        bench_op1!(bencher, |x| x.to_uint::<u16>());
+        bench_op1!(bencher, |x| x.to_uint::<u32>());
+        bench_op1!(bencher, |x| x.to_uint::<u64>());
+        bench_op1!(bencher, |x| x.to_uint::<u128>());
+        bench_op1_integers!(bencher, |x| x.to_uint::<u8>());
+        bench_op1_integers!(bencher, |x| x.to_uint::<u16>());
+        bench_op1_integers!(bencher, |x| x.to_uint::<u32>());
+        bench_op1_integers!(bencher, |x| x.to_uint::<u64>());
+        bench_op1_integers!(bencher, |x| x.to_uint::<u128>());
     }
 
     #[bench]
     fn bench_to_int(bencher: &mut Bencher)
     {
-        bench_op1::<F, _>(bencher, |x| x.to_int::<i8>());
-        bench_op1::<F, _>(bencher, |x| x.to_int::<i16>());
-        bench_op1::<F, _>(bencher, |x| x.to_int::<i32>());
-        bench_op1::<F, _>(bencher, |x| x.to_int::<i64>());
-        bench_op1::<F, _>(bencher, |x| x.to_int::<i128>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_int::<i8>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_int::<i16>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_int::<i32>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_int::<i64>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_int::<i128>());
+        bench_op1!(bencher, |x| x.to_int::<i8>());
+        bench_op1!(bencher, |x| x.to_int::<i16>());
+        bench_op1!(bencher, |x| x.to_int::<i32>());
+        bench_op1!(bencher, |x| x.to_int::<i64>());
+        bench_op1!(bencher, |x| x.to_int::<i128>());
+        bench_op1_integers!(bencher, |x| x.to_int::<i8>());
+        bench_op1_integers!(bencher, |x| x.to_int::<i16>());
+        bench_op1_integers!(bencher, |x| x.to_int::<i32>());
+        bench_op1_integers!(bencher, |x| x.to_int::<i64>());
+        bench_op1_integers!(bencher, |x| x.to_int::<i128>());
     }
 
     #[bench]
     fn bench_to_uint_wrapping(bencher: &mut Bencher)
     {
-        bench_op1::<F, _>(bencher, |x| x.to_uint_wrapping::<u8>());
-        bench_op1::<F, _>(bencher, |x| x.to_uint_wrapping::<u16>());
-        bench_op1::<F, _>(bencher, |x| x.to_uint_wrapping::<u32>());
-        bench_op1::<F, _>(bencher, |x| x.to_uint_wrapping::<u64>());
-        bench_op1::<F, _>(bencher, |x| x.to_uint_wrapping::<u128>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_uint_wrapping::<u8>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_uint_wrapping::<u16>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_uint_wrapping::<u32>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_uint_wrapping::<u64>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_uint_wrapping::<u128>());
+        bench_op1!(bencher, |x| x.to_uint_wrapping::<u8>());
+        bench_op1!(bencher, |x| x.to_uint_wrapping::<u16>());
+        bench_op1!(bencher, |x| x.to_uint_wrapping::<u32>());
+        bench_op1!(bencher, |x| x.to_uint_wrapping::<u64>());
+        bench_op1!(bencher, |x| x.to_uint_wrapping::<u128>());
+        bench_op1_integers!(bencher, |x| x.to_uint_wrapping::<u8>());
+        bench_op1_integers!(bencher, |x| x.to_uint_wrapping::<u16>());
+        bench_op1_integers!(bencher, |x| x.to_uint_wrapping::<u32>());
+        bench_op1_integers!(bencher, |x| x.to_uint_wrapping::<u64>());
+        bench_op1_integers!(bencher, |x| x.to_uint_wrapping::<u128>());
     }
 
     #[bench]
     fn bench_to_int_wrapping(bencher: &mut Bencher)
     {
-        bench_op1::<F, _>(bencher, |x| x.to_int_wrapping::<i8>());
-        bench_op1::<F, _>(bencher, |x| x.to_int_wrapping::<i16>());
-        bench_op1::<F, _>(bencher, |x| x.to_int_wrapping::<i32>());
-        bench_op1::<F, _>(bencher, |x| x.to_int_wrapping::<i64>());
-        bench_op1::<F, _>(bencher, |x| x.to_int_wrapping::<i128>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_int_wrapping::<i8>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_int_wrapping::<i16>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_int_wrapping::<i32>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_int_wrapping::<i64>());
-        bench_op1_integers::<F, _>(bencher, |x| x.to_int_wrapping::<i128>());
+        bench_op1!(bencher, |x| x.to_int_wrapping::<i8>());
+        bench_op1!(bencher, |x| x.to_int_wrapping::<i16>());
+        bench_op1!(bencher, |x| x.to_int_wrapping::<i32>());
+        bench_op1!(bencher, |x| x.to_int_wrapping::<i64>());
+        bench_op1!(bencher, |x| x.to_int_wrapping::<i128>());
+        bench_op1_integers!(bencher, |x| x.to_int_wrapping::<i8>());
+        bench_op1_integers!(bencher, |x| x.to_int_wrapping::<i16>());
+        bench_op1_integers!(bencher, |x| x.to_int_wrapping::<i32>());
+        bench_op1_integers!(bencher, |x| x.to_int_wrapping::<i64>());
+        bench_op1_integers!(bencher, |x| x.to_int_wrapping::<i128>());
     }
 
     #[bench]
@@ -799,11 +927,13 @@ mod tests
         let mut x64 = (i64::MIN..=i64::MAX).cycle();
         let mut x128 = (i128::MIN..=i128::MAX).cycle();
 
-        bencher.iter(|| F::from_int(x8.next().unwrap()));
-        bencher.iter(|| F::from_int(x16.next().unwrap()));
-        bencher.iter(|| F::from_int(x32.next().unwrap()));
-        bencher.iter(|| F::from_int(x64.next().unwrap()));
-        bencher.iter(|| F::from_int(x128.next().unwrap()));
+        for_all_floats!(F, DIR, {
+            bencher.iter(|| F::from_int(x8.next().unwrap()));
+            bencher.iter(|| F::from_int(x16.next().unwrap()));
+            bencher.iter(|| F::from_int(x32.next().unwrap()));
+            bencher.iter(|| F::from_int(x64.next().unwrap()));
+            bencher.iter(|| F::from_int(x128.next().unwrap()));
+        })
     }
 
     #[bench]
@@ -815,11 +945,13 @@ mod tests
         let mut x64 = (u64::MIN..=u64::MAX).cycle();
         let mut x128 = (u128::MIN..=u128::MAX).cycle();
 
-        bencher.iter(|| F::from_uint(x8.next().unwrap()));
-        bencher.iter(|| F::from_uint(x16.next().unwrap()));
-        bencher.iter(|| F::from_uint(x32.next().unwrap()));
-        bencher.iter(|| F::from_uint(x64.next().unwrap()));
-        bencher.iter(|| F::from_uint(x128.next().unwrap()));
+        for_all_floats!(F, DIR, {
+            bencher.iter(|| F::from_uint(x8.next().unwrap()));
+            bencher.iter(|| F::from_uint(x16.next().unwrap()));
+            bencher.iter(|| F::from_uint(x32.next().unwrap()));
+            bencher.iter(|| F::from_uint(x64.next().unwrap()));
+            bencher.iter(|| F::from_uint(x128.next().unwrap()));
+        })
     }
 
     #[test]
@@ -832,7 +964,7 @@ mod tests
         let mut x_prev = x;
         while x.is_finite()
         {
-            println!("{}", x);
+            println!("{x}");
             x = x.next_up();
             if x.is_finite()
             {

@@ -28,21 +28,20 @@ where
 #[cfg(test)]
 mod test
 {
-    use std::ops::Sub;
-
+    use core::ops::Sub;
     use test::Bencher;
 
-    use crate::tests::{self, F};
+    use crate::tests::{bench_op2, test_op2};
 
     #[test]
     fn test_sub()
     {
-        crate::tests::test_op2("sub", Sub::sub, Sub::sub, None)
+        test_op2!("sub", Sub::sub, None)
     }
     #[bench]
     fn bench_sub(bencher: &mut Bencher)
     {
         test_sub();
-        tests::bench_op2::<F, _>(bencher, Sub::sub)
+        bench_op2!(bencher, Sub::sub)
     }
 }

@@ -61,12 +61,12 @@ pub fn plot_curves<const N: usize, const M: usize>(
                     .zip(y),
                 &color
             ))?
-        .label(format!("{}", i))
+        .label(format!("{i}"))
         .legend(move |(x, y)| Rectangle::new([(x + 5, y - 5), (x + 15, y + 5)], color.mix(0.5).filled()));
     }
     
     chart.configure_series_labels()
-        .border_style(&BLACK)
+        .border_style(BLACK)
         .draw()?;
         
     // To avoid the IO failure being ignored silently, we manually call the present function
@@ -123,7 +123,7 @@ pub fn plot_curve_2d<const NX: usize, const NY: usize>(
         .legend(|(x, y)| Rectangle::new([(x + 5, y - 5), (x + 15, y + 5)], BLUE.mix(0.5).filled()));
     
     chart.configure_series_labels()
-        .border_style(&BLACK)
+        .border_style(BLACK)
         .draw()?;
     
     // To avoid the IO failure being ignored silently, we manually call the present function
@@ -186,7 +186,7 @@ pub fn plot_parametric_curve_2d<const NU: usize, const NV: usize>(
                 let mut sum_theta = 0.0;
                 let mut n_theta = 0;
                 let points: Vec<(T, T, T)> = polygon.point_iter()
-                    .into_iter()
+                    .iter()
                     .map(|&(u, [x, y, z], v)| {
                         let theta = v.atan2(u);
                         if theta.is_finite()
@@ -210,7 +210,7 @@ pub fn plot_parametric_curve_2d<const NU: usize, const NV: usize>(
         .legend(|(x, y)| Rectangle::new([(x + 5, y - 5), (x + 15, y + 5)], BLUE.mix(0.5).filled()));
     
     chart.configure_series_labels()
-        .border_style(&BLACK)
+        .border_style(BLACK)
         .draw()?;
     
     // To avoid the IO failure being ignored silently, we manually call the present function
@@ -259,13 +259,13 @@ where
             SurfaceSeries::xoz(
                 r.into_iter(),
                 theta.into_iter(),
-                |r, theta| f(r, theta),
+                f,
             )
             //.style_func(&|&c| HSLColor(c as f64, 1.0, 0.5).mix(0.2).filled())
             .map(|polygon| {
                 let mut sum_theta = 0.0;
                 let points: Vec<(T, T, T)> = polygon.point_iter()
-                    .into_iter()
+                    .iter()
                     .map(|&(r, z, theta)| {sum_theta += theta; (r*theta.cos(), z, r*theta.sin())})
                     .collect();
                 let avg_theta = sum_theta / points.len() as T;
@@ -277,7 +277,7 @@ where
         .legend(|(x, y)| Rectangle::new([(x + 5, y - 5), (x + 15, y + 5)], BLUE.mix(0.5).filled()));
     
     chart.configure_series_labels()
-        .border_style(&BLACK)
+        .border_style(BLACK)
         .draw()?;
     
     // To avoid the IO failure being ignored silently, we manually call the present function
@@ -334,13 +334,13 @@ pub fn plot_parametric_curve_2d_rad<const NU: usize, const NV: usize>(
             SurfaceSeries::xoz(
                 u.into_iter(),
                 v.into_iter(),
-                |u, v| f(u, v),
+                f,
             )
             //.style_func(&|&c| HSLColor(c as f64, 1.0, 0.5).mix(0.2).filled())
             .map(|polygon| {
                 let mut sum_theta = 0.0;
                 let points: Vec<(T, T, T)> = polygon.point_iter()
-                    .into_iter()
+                    .iter()
                     .map(|&(_, [r, theta, z], _)| {sum_theta += theta; (r*theta.cos(), z, r*theta.sin())})
                     .collect();
                 let avg_theta = sum_theta / points.len() as T;
@@ -352,7 +352,7 @@ pub fn plot_parametric_curve_2d_rad<const NU: usize, const NV: usize>(
         .legend(|(x, y)| Rectangle::new([(x + 5, y - 5), (x + 15, y + 5)], BLUE.mix(0.5).filled()));
     
     chart.configure_series_labels()
-        .border_style(&BLACK)
+        .border_style(BLACK)
         .draw()?;
     
     // To avoid the IO failure being ignored silently, we manually call the present function

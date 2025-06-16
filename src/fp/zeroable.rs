@@ -15,13 +15,23 @@ mod test
 {
     use bytemuck::Zeroable;
 
-    use crate::tests::F;
+    use crate::tests::for_all_floats;
 
     #[test]
-    fn zeroable_in_pod()
+    fn zeroable()
     {
-        let x = Option::<F>::zeroed();
+        for_all_floats!(F, _DIR, {
+            let x = F::zeroed();
+            assert!(x.is_zero())
+        })
+    }
 
-        assert_eq!(x, None)
+    #[test]
+    fn zeroable_in_option()
+    {
+        for_all_floats!(F, _DIR, {
+            let x = Option::<F>::zeroed();
+            assert_eq!(x, None)
+        })
     }
 }
