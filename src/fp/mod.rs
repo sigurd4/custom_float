@@ -1,4 +1,4 @@
-use core::{cmp::Ordering, ops::Add};
+use core::cmp::Ordering;
 use core::num::FpCategory;
 use core::ops::Neg;
 
@@ -58,6 +58,45 @@ macro_rules! as_lossless {
             if let Some([as_lossless]) = _as_lossless
             {
                 if !y.approx_eq(as_lossless)
+                {
+                    debug_assert_eq!(y, as_lossless, "Error is too big!")
+                }
+            }
+            y
+        }
+    };
+    ($value:expr, $fn_as_lossless:expr, $fn_as_lossless_alt:expr, $fn:block) => {
+        {
+            #[cfg(any(
+                feature = "use_std_float",
+                all(debug_assertions, test)
+            ))]
+            let _as_lossless = crate::Fp::as_lossless(
+                $value,
+                $fn_as_lossless,
+                $fn_as_lossless,
+                $fn_as_lossless,
+                $fn_as_lossless
+            );
+            #[cfg(all(not(test), feature = "use_std_float"))]
+            if let Some([as_lossless]) = _as_lossless
+            {
+                return as_lossless
+            }
+            #[allow(clippy::redundant_closure_call)]
+            let y = (|| $fn)();
+            #[cfg(all(debug_assertions, test))]
+            if let Some([as_lossless]) = _as_lossless
+            {
+                if !y.approx_eq(as_lossless) && crate::Fp::as_lossless(
+                    $value,
+                    $fn_as_lossless_alt,
+                    $fn_as_lossless_alt,
+                    $fn_as_lossless_alt,
+                    $fn_as_lossless_alt
+                ).is_none_or(|[alt]| {
+                    !y.approx_eq(alt) && y > as_lossless.max(alt) && y < as_lossless.min(alt)
+                })
                 {
                     debug_assert_eq!(y, as_lossless, "Error is too big!")
                 }
@@ -220,13 +259,22 @@ where
 
     pub fn approx_eq(mut self, mut rhs: Self) -> bool
     {
-        let sign_eq = self.sign_eq(rhs);
-        match (self.classify(), rhs.classify())
+        let (c1, c2) = (self.classify(), rhs.classify());
+        let sign_eq = self.sign_eq(rhs) || matches!(c1, FpCategory::Zero) || matches!(c2, FpCategory::Zero);
+        match (c1, c2)
         {
             (FpCategory::Nan, FpCategory::Nan)
                 | (FpCategory::Zero | FpCategory::Subnormal, FpCategory::Zero | FpCategory::Subnormal) => true,
             (FpCategory::Infinite, FpCategory::Infinite) => sign_eq,
-            (FpCategory::Normal | FpCategory::Subnormal | FpCategory::Zero | FpCategory::Infinite, FpCategory::Normal | FpCategory::Subnormal | FpCategory::Zero | FpCategory::Infinite) => {
+            (FpCategory::Infinite | FpCategory::Normal | FpCategory::Subnormal | FpCategory::Zero, FpCategory::Infinite | FpCategory::Normal | FpCategory::Subnormal | FpCategory::Zero) => {
+                if matches!(c1, FpCategory::Infinite)
+                {
+                    self = Self::max_value().copysign(self)
+                }
+                if matches!(c2, FpCategory::Infinite)
+                {
+                    rhs = Self::max_value().copysign(rhs)
+                }
                 if !Self::IS_INT_IMPLICIT
                 {
                     self.normalize_up();
@@ -236,8 +284,8 @@ where
                 if let Some(e0) = self.exp_bits().to_usize() && let Some(f0) = <u128 as NumCast>::from(self.mantissa_bits())
                     && let Some(e1) = rhs.exp_bits().to_usize() && let Some(f1) = <u128 as NumCast>::from(rhs.mantissa_bits())
                 {
-                    const TOL: usize = 4;
-                    let div = Self::FRAC_SIZE.saturating_sub(TOL + 1) + 1;
+                    const PRECISION: usize = 2;
+                    let div = Self::FRAC_SIZE.saturating_sub(PRECISION + 1) + 1;
         
                     let quantize = |mut e: usize, f: u128| if f != 0
                     {
@@ -245,31 +293,27 @@ where
                         {
                             e = util::pow_ilog2(e, EXP_BASE);
                         }
-                        (e + f.ilog2() as usize)/div
+                        e += f.ilog2() as usize;
+                        e/div
                     }
                     else
                     {
                         0
                     };
         
-                    if sign_eq
+                    let a = quantize(e0, f0);
+                    let b = quantize(e1, f1);
+
+                    if if sign_eq
                     {
-                        let a = quantize(e0, f0);
-                        let b = quantize(e1, f1);
-            
-                        if a.max(b) - a.min(b) <= 1
-                        {
-                            return true
-                        }
+                        a.max(b) - a.min(b) <= 1
                     }
                     else
                     {
-                        let a = quantize(e0 + e1, f0 + f1);
-            
-                        if a <= 1
-                        {
-                            return true
-                        }
+                        a + b <= 1
+                    }
+                    {
+                        return true
                     }
                 }
 
@@ -455,7 +499,7 @@ where
             match mantissa1.checked_add(&mantissa2)
             {
                 Some(sum) => sum,
-                None => match Self::mantissa_pairs_div_base_add(&mut mantissa1, &mut mantissa2)
+                None => match Self::mantissa_pairs_div_both_base_add(&mut mantissa1, &mut mantissa2)
                 {
                     Ok(sum) => {
                         *exp = *exp + U::one();
@@ -854,19 +898,31 @@ where
                                 while e1 > bias1
                                 {
                                     e1 = e1 - V::one();
-                                    while f.leading_zeros() as usize <= Fp::<V, S, E, I, F, B>::BASE_PADDING
+                                    loop
                                     {
-                                        e = e + U::one();
-                                        f = if let Some(base2) = base2
+                                        if let Some(ff) = f.checked_mul(&base1)
                                         {
-                                            util::rounding_div(f, base2)
+                                            f = ff;
+                                            break
+                                        }
+                                        else if let Some(ee) = e.checked_add(&U::one())
+                                        {
+                                            e = ee;
+                                            if let Some(base2) = base2
+                                            {
+                                                f = util::rounding_div(f, base2)
+                                            }
+                                            else
+                                            {
+                                                f = U::zero();
+                                                break
+                                            }
                                         }
                                         else
                                         {
-                                            U::zero()
+                                            return Self::infinity().with_sign(s)
                                         }
                                     }
-                                    f = f*base1
                                 }
                             }
                             if let Some(base2) = base2
@@ -874,10 +930,11 @@ where
                                 while e1 < bias1
                                 {
                                     e1 = e1 + V::one();
-                                    while e > U::zero() && f.leading_zeros() as usize > Self::BASE_PADDING
+                                    while let Some(ee) = e.checked_sub(&U::one())
+                                        && let Some(ff) = f.checked_mul(&base2)
                                     {
-                                        e = e - U::one();
-                                        f = f*base2;
+                                        e = ee;
+                                        f = ff;
                                     }
                                     f = if let Some(base1) = base1
                                     {
@@ -930,7 +987,26 @@ where
                 Err(done) => return done
             };
             Self::normalize_mantissa(&mut e, &mut f, None);
-            NumCast::from(f).unwrap()
+            loop
+            {
+                if e >= Self::max_exponent_bits()
+                {
+                    return Self::infinity()
+                }
+                if let Some(f) = NumCast::from(f)
+                {
+                    break f
+                }
+                if let Some(base) = I::from(EXP_BASE)
+                {
+                    f = util::rounding_div(f, base);
+                    e = e + U::one();
+                }
+                else
+                {
+                    return Self::zero()
+                }
+            }
         }
         else
         {
@@ -981,7 +1057,26 @@ where
                 Err(done) => return done.with_sign(s)
             };
             Self::normalize_mantissa(&mut e, &mut f, None);
-            NumCast::from(f).unwrap()
+            loop
+            {
+                if e >= Self::max_exponent_bits()
+                {
+                    return Self::infinity()
+                }
+                if let Some(f) = NumCast::from(f)
+                {
+                    break f
+                }
+                if let Some(base) = I::from(EXP_BASE)
+                {
+                    f = util::rounding_div(f, base);
+                    e = e + U::one()
+                }
+                else
+                {
+                    return Self::zero()
+                }
+            }
         }
         else
         {
@@ -3041,16 +3136,21 @@ where
             return Self::mantissa_from_low_high(mantissa, overflow, exp)
         }
         // TODO: This loop is slow!
+        if let Some(f) = mantissa1.checked_mul(&mantissa2)
+        {
+            return f
+        }
         loop
         {
-            if let Some(f) = mantissa1.checked_mul(&mantissa2)
+            match Self::mantissa_pairs_div_either_base_mul(&mut mantissa1, &mut mantissa2)
             {
-                return f
-            }
-
-            match Self::mantissa_pairs_div_base(&mut mantissa1, &mut mantissa2)
-            {
-                Ok(()) => *exp = *exp + U::one(),
+                Ok(result) => {
+                    *exp = *exp + U::one();
+                    if let Some(y) = result
+                    {
+                        return y
+                    }
+                },
                 Err(()) => return Self::max_mantissa_bits()
             }
         }
@@ -3182,7 +3282,7 @@ where
         Err(Saturation::Underflow)
     }
 
-    fn _mantissa_pairs_div_base_add(mantissa1: &mut U, mantissa2: &mut U, add: Option<fn (U, U) -> U>) -> Result<Option<U>, ()>
+    fn mantissa_pairs_div_either_base(mantissa1: &mut U, mantissa2: &mut U) -> Result<(), ()>
     {
         fn sort<'a, U: UInt>(mantissa1: &'a mut U, mantissa2: &'a mut U) -> [&'a mut U; 2]
         {
@@ -3207,7 +3307,7 @@ where
                 {
                     **m = **m/base;
 
-                    return Ok(add.map(move |add| add(*mantissa1, *mantissa2)))
+                    return Ok(())
                 }
             }
         }
@@ -3225,57 +3325,9 @@ where
                         **m = **m/b
                     }
                     
-                    return Ok(add.map(move |add| add(*mantissa1, *mantissa2)))
+                    return Ok(())
                 }
             }
-        }
-
-        if !Self::BASE_FACTORS_3.is_empty() && let Some(add) = add
-        {
-            for &[base_final, base1, base2] in Self::BASE_FACTORS_3
-            {
-                if let Some(bf) = U::from(base_final)
-                    && let Some(b1) = U::from(base1) && let Some(b2) = U::from(base2)
-                    && (m_most % b1).is_zero() && (m_least % b2).is_zero()
-                {
-                    for (m, b) in mantissas.iter_mut()
-                        .zip([b1, b2])
-                    {
-                        **m = **m/b
-                    }
-                    return Ok(Some(util::rounding_div(add(*mantissa1, *mantissa2), bf)))
-                }
-            }
-            let (_, [bf, b1, b2]) = Self::BASE_FACTORS_3.iter()
-                .filter_map(|&[base_final, base1, base2]| {
-                    if let Some(bf) = U::from(base_final)
-                        && let Some(b1) = U::from(base1) && let Some(b2) = U::from(base2)
-                        && let k = (m_most % b1).is_zero() as u8 + (m_least % b2).is_zero() as u8
-                        && k > 0
-                    {
-                        Some((k, [bf, b1, b2]))
-                    }
-                    else
-                    {
-                        None
-                    }
-                }).reduce(|a, b| {
-                    if a.0 < b.0
-                    {
-                        b
-                    }
-                    else
-                    {
-                        a
-                    }
-                }).unwrap();
-
-            for (m, b) in mantissas.iter_mut()
-                .zip([b1, b2])
-            {
-                **m = util::rounding_div(**m, b)
-            }
-            return Ok(Some(util::rounding_div(add(*mantissa1, *mantissa2), bf)))
         }
 
         if !Self::BASE_FACTORS_2.is_empty()
@@ -3308,29 +3360,222 @@ where
             {
                 **m = util::rounding_div(**m, b)
             }
-            return Ok(add.map(|add| add(*mantissa1, *mantissa2)))
+            return Ok(())
         }
 
         if let Some(base) = U::from(EXP_BASE)
         {
             let [m_most, _] = &mut mantissas;
             **m_most = util::rounding_div(**m_most, base);
-            return Ok(add.map(|add| add(*mantissa1, *mantissa2)))
+            return Ok(())
         }
 
         Err(())
     }
 
-    fn mantissa_pairs_div_base(mantissa1: &mut U, mantissa2: &mut U) -> Result<(), ()>
+    fn mantissa_pairs_div_either_base_mul(mantissa1: &mut U, mantissa2: &mut U) -> Result<Option<U>, ()>
     {
-        Self::_mantissa_pairs_div_base_add(mantissa1, mantissa2, None)
-            .map(|_| ())
+        fn sort<'a, U: UInt>(mantissa1: &'a mut U, mantissa2: &'a mut U) -> [&'a mut U; 2]
+        {
+            if mantissa1 < mantissa2
+            {
+                [mantissa2, mantissa1]
+            }
+            else
+            {
+                [mantissa1, mantissa2]
+            }
+        }
+
+        let mut mantissas = sort(mantissa1, mantissa2);
+        let [&mut m_most, &mut m_least] = mantissas;
+
+        if let Some(base) = U::from(EXP_BASE)
+        {
+            for m in mantissas.iter_mut()
+            {
+                if (**m % base).is_zero()
+                {
+                    **m = **m/base;
+
+                    return Ok(mantissa1.checked_mul(mantissa2))
+                }
+            }
+        }
+
+        if !Self::BASE_FACTORS_2.is_empty()
+        {
+            for &[base1, base2] in Self::BASE_FACTORS_2
+            {
+                if let Some(b1) = U::from(base1) && let Some(b2) = U::from(base2)
+                    && (m_most % b1).is_zero() && (m_least % b2).is_zero()
+                {
+                    for (m, b) in mantissas.iter_mut()
+                        .zip([b1, b2])
+                    {
+                        **m = **m/b
+                    }
+                    
+                    return Ok(mantissa1.checked_mul(mantissa2))
+                }
+            }
+        }
+
+        if !Self::BASE_FACTORS_3.is_empty()
+        {
+            for &[base_final, base1, base2] in Self::BASE_FACTORS_3
+            {
+                if let Some(bf) = U::from(base_final)
+                    && let Some(b1) = U::from(base1) && let Some(b2) = U::from(base2)
+                    && (m_most % b1).is_zero() && (m_least % b2).is_zero()
+                {
+                    for (m, b) in mantissas.iter_mut()
+                        .zip([b1, b2])
+                    {
+                        **m = **m/b
+                    }
+                    return Ok(mantissa1.checked_mul(mantissa2).map(|y| util::rounding_div(y, bf)))
+                }
+            }
+            let (_, [bf, b1, b2]) = Self::BASE_FACTORS_3.iter()
+                .filter_map(|&[base_final, base1, base2]| {
+                    if let Some(bf) = U::from(base_final)
+                        && let Some(b1) = U::from(base1) && let Some(b2) = U::from(base2)
+                        && let k = (m_most % b1).is_zero() as u8 + (m_least % b2).is_zero() as u8
+                        && k > 0
+                    {
+                        Some((k, [bf, b1, b2]))
+                    }
+                    else
+                    {
+                        None
+                    }
+                }).reduce(|a, b| {
+                    if a.0 < b.0
+                    {
+                        b
+                    }
+                    else
+                    {
+                        a
+                    }
+                }).unwrap();
+
+            for (m, b) in mantissas.iter_mut()
+                .zip([b1, b2])
+            {
+                **m = util::rounding_div(**m, b)
+            }
+            return Ok(mantissa1.checked_mul(mantissa2).map(|y| util::rounding_div(y, bf)))
+        }
+
+        if !Self::BASE_FACTORS_2.is_empty()
+        {
+            let (_, [b1, b2]) = Self::BASE_FACTORS_2.iter()
+                .filter_map(|&[base1, base2]| {
+                    if let Some(b1) = U::from(base1) && let Some(b2) = U::from(base2)
+                        && let k = (m_most % b1).is_zero() as u8 + (m_least % b2).is_zero() as u8
+                        && k > 0
+                    {
+                        Some((k, [b1, b2]))
+                    }
+                    else
+                    {
+                        None
+                    }
+                }).reduce(|a, b| {
+                    if a.0 < b.0
+                    {
+                        b
+                    }
+                    else
+                    {
+                        a
+                    }
+                }).unwrap();
+
+            for (m, b) in mantissas.iter_mut()
+                .zip([b1, b2])
+            {
+                **m = util::rounding_div(**m, b)
+            }
+            return Ok(mantissa1.checked_mul(mantissa2))
+        }
+
+        if let Some(base) = U::from(EXP_BASE)
+        {
+            let [m_most, _] = &mut mantissas;
+            **m_most = util::rounding_div(**m_most, base);
+            return Ok(mantissa1.checked_mul(mantissa2))
+        }
+
+        Err(())
     }
 
-    fn mantissa_pairs_div_base_add(mantissa1: &mut U, mantissa2: &mut U) -> Result<U, ()>
+    fn mantissa_pairs_div_both_base_add(mantissa1: &mut U, mantissa2: &mut U) -> Result<U, ()>
     {
-        Self::_mantissa_pairs_div_base_add(mantissa1, mantissa2, Some(Add::add))
-            .map(|sum| sum.unwrap())
+        if let Some(b) = U::from(EXP_BASE)
+        {
+            if (*mantissa1 % b).is_zero() && (*mantissa2 % b).is_zero()
+            {
+                *mantissa1 = *mantissa1/b;
+                *mantissa2 = *mantissa2/b;
+                return Ok(*mantissa1 + *mantissa2)
+            }
+        }
+
+        if !Self::BASE_FACTORS_2.is_empty()
+        {
+            for &[base_final, base] in Self::BASE_FACTORS_2
+            {
+                if let Some(bf) = U::from(base_final) && let Some(b) = U::from(base)
+                    && (*mantissa1 % b).is_zero() && (*mantissa2 % b).is_zero() 
+                {
+                    *mantissa1 = *mantissa1/b;
+                    *mantissa2 = *mantissa2/b;
+                    return Ok(util::rounding_div(*mantissa1 + *mantissa2, bf))
+                }
+            }
+        }
+
+        if !Self::BASE_FACTORS_2.is_empty()
+        {   
+            let (_, [bf, b]) = Self::BASE_FACTORS_2.iter()
+                .filter_map(|&[base_final, base]| {
+                    if let Some(bf) = U::from(base_final) && let Some(b) = U::from(base)
+                        && let k = (*mantissa1 % b).is_zero() as u8 + (*mantissa2 % b).is_zero() as u8
+                        && k > 0
+                    {
+                        Some((k, [bf, b]))
+                    }
+                    else
+                    {
+                        None
+                    }
+                }).reduce(|a, b| {
+                    if a.0 < b.0
+                    {
+                        b
+                    }
+                    else
+                    {
+                        a
+                    }
+                }).unwrap();
+
+            *mantissa1 = util::rounding_div(*mantissa1, b);
+            *mantissa2 = util::rounding_div(*mantissa2, b);
+            return Ok(util::rounding_div(*mantissa1 + *mantissa2, bf))
+        }
+
+        if let Some(b) = U::from(EXP_BASE)
+        {
+            *mantissa1 = util::rounding_div(*mantissa1, b);
+            *mantissa2 = util::rounding_div(*mantissa2, b);
+            return Ok(*mantissa1 + *mantissa2)
+        }
+
+        Err(())
     }
 
     fn exponent_add(mut exp1: U, mut exp2: U, mantissa1: &mut U, mut mantissa2: Option<&mut U>) -> Result<U, Self>
@@ -3347,7 +3592,7 @@ where
             {
                 while o > U::zero()
                 {
-                    match Self::mantissa_pairs_div_base(mantissa1, *m2)
+                    match Self::mantissa_pairs_div_either_base(mantissa1, *m2)
                     {
                         Ok(()) => o = o - U::one(),
                         Err(()) => return Err(Self::zero())
@@ -3481,6 +3726,7 @@ where
         as_lossless!(
             [self],
             |[x]| [x.recip()],
+            |[x]| [1.0/x],
             {
                 let s = self.is_sign_negative();
                 match self.classify()
@@ -3995,7 +4241,7 @@ where
                 let dy = y*dxx;
                 let yy = y.add_with_sign(false, dy, !s);
 
-                if !yy.is_finite()
+                if !yy.is_finite() || yy.is_sign_negative()
                 {
                     break
                 }

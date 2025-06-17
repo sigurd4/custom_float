@@ -184,7 +184,7 @@ mod tests
 {
     #![allow(unused)]
 
-    use core::{f64::consts::*, ops::Neg};
+    use core::{cmp::Ordering, f64::consts::*, ops::Neg};
     use std::{
         ops::{Range, RangeBounds}, process::Termination, time::{Instant, SystemTime}
     };
@@ -195,7 +195,7 @@ mod tests
     use test::Bencher;
 
     use crate::{
-        ieee754::*, plot, Fp
+        ieee754::*, plot, Fp, FpRepr
     };
 
     // TODO: Optimizations
@@ -323,15 +323,47 @@ mod tests
             .collect()
     }
 
-    pub(crate) fn matches<F>(a: F, b: F, tol: Option<F>) -> bool
+    pub fn ptable<F: Float>() -> Vec<(f32, F)>
+    {
+        trait PTableSpec: Float
+        {
+            fn _filter(x: &(f32, Self)) -> bool;
+        }
+        impl<F: Float> PTableSpec for F
+        {
+            default fn _filter(&(f, fp): &(f32, Self)) -> bool
+            {
+                fp.to_f32().is_some_and(|x| matches!(x.total_cmp(&f), Ordering::Equal))
+            }
+        }
+        impl<U, const SIGN_BIT: bool, const EXP_SIZE: usize, const INT_SIZE: usize, const FRAC_SIZE: usize, const EXP_BASE: usize> PTableSpec for Fp<U, SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+        where
+            U: FpRepr<SIGN_BIT, EXP_SIZE, INT_SIZE, FRAC_SIZE, EXP_BASE>
+        {
+            fn _filter(&(f, fp): &(f32, Self)) -> bool
+            {
+                matches!(f.total_cmp(&fp.into()), Ordering::Equal)
+                    && matches!(Self::from(f).total_cmp(fp), Ordering::Equal)
+            }
+        }
+
+        crate::tests::ttable::<f32>()
+            .into_iter()
+            .zip(crate::tests::ttable::<F>())
+            .filter(F::_filter)
+            .collect()
+
+    }
+
+    pub(crate) fn matches<F>(answer: F, result: F, tol: Option<F>) -> bool
     where
         F: Float
     {
-        (!match tol
+        (!match tol.map(|d| d.abs().max((answer*d).abs()))
         {
-            Some(tol) => (a - b).abs() > tol,
-            None => a != b
-        }) || a.is_nan() && b.is_nan()
+            Some(tol) => (answer - result).abs() > tol,
+            None => answer != result
+        }) || answer.is_nan() && result.is_nan()
     }
 
     pub macro for_floats {
@@ -381,24 +413,19 @@ mod tests
             test_op3_for!($f, $fn_name, $op, $op, $difference)
         },
         ($f:ident, $fn_name:expr, $op1:expr, $op2:expr, $difference:expr) => {
-            for_all_floats!($f, _DIR, test_op3::<$f>($fn_name, $op1, $op2, $difference))
+            for_all_floats!($f, DIR, test_op3::<$f>(DIR, $fn_name, $op1, $op2, $difference))
         }
     }
 
-    pub fn test_op3<F: Float>(fn_name: &str, op1: impl Fn(f32, f32, f32) -> f32, op2: impl Fn(F, F, F) -> F, d: Option<f32>)
+    pub fn test_op3<F: Float>(plot_target: &str, fn_name: &str, op1: impl Fn(f32, f32, f32) -> f32, op2: impl Fn(F, F, F) -> F, d: Option<f32>)
     {
-        for f0 in crate::tests::ttable()
+        println!("{plot_target}/{fn_name}");
+        for (f0, fp0) in crate::tests::ptable()
         {
-            for f1 in crate::tests::ttable()
+            for (f1, fp1) in crate::tests::ptable()
             {
-                for f2 in crate::tests::ttable()
+                for (f2, fp2) in crate::tests::ptable()
                 {
-                    let fp0 = F::from(f0).unwrap();
-                    let fp1 = F::from(f1).unwrap();
-                    let fp2 = F::from(f2).unwrap();
-
-                    //println!("{} ? {} ? {}", f0, f1, f2);
-
                     let s = op1(f0, f1, f2);
                     let sp: f32 = op2(fp0, fp1, fp2).to_f32().unwrap();
 
@@ -417,6 +444,7 @@ mod tests
                 }
             }
         }
+        println!()
     }
 
     pub macro test_op2 {
@@ -429,21 +457,17 @@ mod tests
             test_op2_for!($f, $fn_name, $op, $op, $difference)
         },
         ($f:ident, $fn_name:expr, $op1:expr, $op2:expr, $difference:expr) => {
-            for_all_floats!($f, _DIR, test_op2::<$f>($fn_name, $op1, $op2, $difference))
+            for_all_floats!($f, DIR, test_op2::<$f>(DIR, $fn_name, $op1, $op2, $difference))
         }
     }
 
-    pub fn test_op2<F: Float>(fn_name: &str, op1: impl Fn(f32, f32) -> f32, op2: impl Fn(F, F) -> F, d: Option<f32>)
+    pub fn test_op2<F: Float>(plot_target: &str, fn_name: &str, op1: impl Fn(f32, f32) -> f32, op2: impl Fn(F, F) -> F, d: Option<f32>)
     {
-        for f0 in crate::tests::ttable()
+        println!("{plot_target}/{fn_name}");
+        for (f0, fp0) in crate::tests::ptable()
         {
-            for f1 in crate::tests::ttable()
+            for (f1, fp1) in crate::tests::ptable()
             {
-                let fp0 = F::from(f0).unwrap();
-                let fp1 = F::from(f1).unwrap();
-
-                //println!("{} ? {}", f0, f1);
-
                 let s = op1(f0, f1);
                 let sp: f32 = op2(fp0, fp1).to_f32().unwrap();
 
@@ -461,6 +485,7 @@ mod tests
                 }
             }
         }
+        println!()
     }
 
     pub macro test_op1 {
@@ -479,10 +504,9 @@ mod tests
 
     pub fn test_op1<F: Float>(plot_target: &str, fn_name: &str, op1: impl Fn(f32) -> f32, op2: impl Fn(F) -> F, d: Option<f32>, r: Option<Range<f32>>)
     {
-        for f0 in ttable::<f32>()
+        println!("{plot_target}/{fn_name}");
+        for (f0, fp0) in crate::tests::ptable()
         {
-            let fp0 = F::from(f0).unwrap();
-
             let s = op1(f0);
             let sp: f32 = op2(fp0).to_f32().unwrap();
 
@@ -499,6 +523,7 @@ mod tests
                 println!("{f0:e} ? == {s:e} != {sp:e}");
             }
         }
+        println!();
 
         if let Some(r) = r
         {

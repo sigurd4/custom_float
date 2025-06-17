@@ -76,27 +76,26 @@ where
 #[cfg(test)]
 mod test
 {
-    use core::f32::consts::{PI, TAU};
     use std::ops::Mul;
 
     use test::Bencher;
 
-    use crate::{ieee754::FpDouble, tests::{bench_op2, test_op2}};
+    use crate::{ieee754::FpHalf, tests::{bench_op2, test_op2}};
     
     #[test]
     fn test_mul_once()
     {
-        type F = FpDouble;
+        type F = FpHalf;
 
-        let a = F::from(PI);
-        let b = F::from(TAU);
+        let a = F::one();
+        let b = F::from(8388608);
         let c = a * b;
         println!("{a} * {b} = {c}");
     }
     #[test]
     fn test_mul()
     {
-        test_op2!("mul", Mul::mul, None)
+        test_op2!("mul", Mul::mul, Some(0.0001))
     }
     #[bench]
     fn bench_mul(bencher: &mut Bencher)

@@ -219,7 +219,7 @@ where
     From: Conversion,
     To: Conversion
 {
-    if From::SIGN_BIT && !To::SIGN_BIT
+    if (From::SIGN_BIT && !To::SIGN_BIT)
         || From::INT_SIZE > To::INT_SIZE
         || From::FRAC_SIZE > To::FRAC_SIZE
     {
@@ -237,14 +237,14 @@ where
         {
             return false
         }
-        let mut b = From::EXP_BASE/To::EXP_BASE;
+        let mut b = (From::EXP_BASE/To::EXP_BASE).ilog2();
         let mut a = To::EXP_SIZE;
         while b != 0 && a % 2 == 0
         {
             a >>= 1;
             b -= 1
         }
-        b <= u32::MAX as usize || match From::EXP_SIZE.checked_shl(b as u32)
+        match From::EXP_SIZE.checked_shl(b)
         {
             Some(b) => b <= a,
             None => false

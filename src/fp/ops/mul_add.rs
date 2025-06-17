@@ -34,6 +34,7 @@ where
         as_lossless!(
             [self, a, b],
             |[a, b, c]| [a.mul_add(b, c)],
+            |[a, b, c]| [a*b + c],
             {
                 let s0 = self.is_sign_negative()^a.is_sign_negative();
                 let s1 = b.is_sign_negative();
@@ -77,7 +78,7 @@ where
                             };
                             let mut f = match Self::mantissa_mul(f0, f1, &mut e)
                             {
-                                Ok(e) => e,
+                                Ok(f) => f,
                                 Err(done) => return done.with_sign(s0) + b
                             };
 
@@ -121,19 +122,19 @@ where
 #[cfg(test)]
 mod test
 {
-    use num_traits::MulAdd;
+    use num_traits::{FloatConst, MulAdd};
     use test::Bencher;
 
-    use crate::{ieee754::FpDouble, tests::{bench_op3, test_op3}};
+    use crate::{ieee754::*, tests::{bench_op3, test_op3}};
     
     #[test]
     fn test_mul_add_once()
     {
-        type F = FpDouble;
+        type F = FpSingle;
 
-        let a = F::from(2f32);
-        let b = F::from(2f32);
-        let c = F::from(2f32);
+        let a = F::SQRT_2();
+        let b = F::SQRT_2();
+        let c = F::from(1.1920929e-7);
         let d = a.mul_add(b, c);
         println!("{a} * {b} + {c} = {d}");
     }

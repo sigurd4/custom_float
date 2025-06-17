@@ -14,14 +14,14 @@ exclude = ["plots"]
 [features]
 default = [
     "bytemuck",
-    #"ati",
-    #"g_711",
-    #"google",
-    #"ibm",
-    #"intel",
-    #"khronos",
-    #"nvidia",
-    #"pixar"
+    "ati",
+    "g_711",
+    "google",
+    "ibm",
+    "intel",
+    "khronos",
+    "nvidia",
+    "pixar"
 ]
 ati = []
 g_711 = []

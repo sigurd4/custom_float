@@ -14,13 +14,27 @@ pub type Tf68 = Fp<u128, true, 15, 0, 52, 2>;
 
 #[cfg(test)]
 pub(crate) macro for_floats {
-    ($expr:expr) => {
+    ($f:ident, $dir:ident, $expr:expr) => {
         crate::tests::for_floats!(
             Tf19 in nvidia,
             Tf35 in nvidia,
-            Tf68 in nvidia,
+            Tf68 in nvidia
             //Tf132 in nvidia
-            => $expr
+            => $f, $dir, $expr
         )
+    }
+}
+
+#[cfg(test)]
+mod test
+{
+    use crate::{nvidia::Tf19, util};
+
+    #[test]
+    fn conversion()
+    {
+        assert!(!util::is_float_conversion_mutually_lossless::<Tf19, f16>());
+        assert!(!util::is_float_conversion_mutually_lossless::<Tf19, f32>());
+        assert!(!util::is_float_conversion_mutually_lossless::<Tf19, f64>());
     }
 }

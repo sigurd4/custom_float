@@ -5,9 +5,9 @@ pub type Fp80 = Fp<u128, true, 15, 1, 63, 2>;
 
 #[cfg(test)]
 pub(crate) macro for_floats {
-    ($expr:expr) => {
+    ($f:ident, $dir:ident, $expr:expr) => {
         crate::tests::for_floats!(
-            Fp80 in intel => $expr
+            Fp80 in intel => $f, $dir, $expr
         )
     }
 }

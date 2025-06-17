@@ -21,7 +21,18 @@ mod test
     use num_traits::Inv;
     use test::Bencher;
 
-    use crate::tests::{bench_op1, test_op1};
+    use crate::{khronos::KhronosFp10, tests::{bench_op1, test_op1}};
+
+    #[test]
+    fn test_inv_once()
+    {
+        type F = KhronosFp10;
+
+        let x = -F::one();
+        let y = x.inv();
+
+        println!("1 / {x} = {y}")
+    }
 
     #[test]
     fn test_inv()

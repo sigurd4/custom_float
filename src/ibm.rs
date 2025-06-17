@@ -8,10 +8,10 @@ pub type HFpLong = Fp<u64, true, 7, 0, 56, 2>;
 
 #[cfg(test)]
 pub(crate) macro for_floats {
-    ($expr:expr) => {
+    ($f:ident, $dir:ident, $expr:expr) => {
         crate::tests::for_floats!(
             HFpShort in ibm,
-            HFpLong in ibm => $expr
+            HFpLong in ibm => $f, $dir, $expr
         )
     }
 }

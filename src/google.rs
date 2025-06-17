@@ -17,13 +17,13 @@ pub type Bf128 = Fp<u128, true, 19, 0, 108, 2>;
 
 #[cfg(test)]
 pub(crate) macro for_floats {
-    ($expr:expr) => {
+    ($f:ident, $dir:ident, $expr:expr) => {
         crate::tests::for_floats!(
             Bf8 in google,
             Bf16 in google,
             Bf32 in google,
             Bf64 in google,
-            Bf128 in google => $expr
+            Bf128 in google => $f, $dir, $expr
         )
     }
 }
