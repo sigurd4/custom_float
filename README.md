@@ -119,6 +119,7 @@ You can see comparisons with this library's floats and the standard library's in
 - Make more and more of the functions work at compile-time.
     - This is currently difficult because my code is very generic, and relies on traits from the `num-traits` crate (that are not const-traits, because those are experimental). Once rust's const-traits are a stable language-feature, you'll see more of this.
 - Stabilize large bases. Currently i mostly just test base 2 and 10. For large bases (say, 1000) you tend to get integer overflow.
+- Stabilize very small floats (for example the 8-bit FpG711). Very small floats have terrible numeric accuracy right now for many rational functions.
 - Stabilize edge cases like unsigned floats, exponentless floats (fixed-point, really), and mantissaless floats (just exponentials?).
 - Bigfloats? (maybe for a separate crate)
 - Serde-integration
