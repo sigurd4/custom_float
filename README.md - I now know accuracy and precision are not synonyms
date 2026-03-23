@@ -108,9 +108,9 @@ This crate is obviously slower than the primitive floats in the standard library
 
 You can see comparisons with this library's floats and the standard library's in the [plots/bench](https://github.com/sigurd4/custom_float/tree/master/plots/bench) folder. For some methods not found in `std`/`core`, i use `libm` instead as a comparison.
 
-## Accuracy
+## Precision
 
-The accuracy is obviously dependent on the size of your float's mantissa and its base, and its range depends on the size of its exponent. But given a float with a (practically) infinite resolution, some functions on here still give an error. My goal is to make that error as small as possible. The accuracy of all of the floating point operations are not perfect, but work well enough to be usable.
+The precision is dependent on the size of your float's mantissa and its base, and its range depends on the size of its exponent. But given a float with a (practically) infinite resolution, some functions on here still give an error. My goal is to make that error as small as possible. The precision of all of the floating point operations are not perfect, but work well enough to be usable.
 
 You can see comparisons with this library's floats and the standard library's in the [plots](https://github.com/sigurd4/custom_float/tree/master/plots) folder, and error in the [plots/error](https://github.com/sigurd4/custom_float/tree/master/plots/error). For some methods not found in `std`/`core`, i use `libm` instead as a comparison.
 
@@ -119,7 +119,7 @@ You can see comparisons with this library's floats and the standard library's in
 - Make more and more of the functions work at compile-time.
     - This is currently difficult because my code is very generic, and relies on traits from the `num-traits` crate (that are not const-traits, because those are experimental). Once rust's const-traits are a stable language-feature, you'll see more of this.
 - Stabilize large bases. Currently i mostly just test base 2 and 10. For large bases (say, 1000) you tend to get integer overflow.
-- Stabilize very small floats (for example the 8-bit FpG711). Very small floats have terrible numeric accuracy right now for many rational functions.
+- Stabilize very small floats (for example the 8-bit FpG711). Very small floats have terrible numeric precision right now for many rational functions.
 - Stabilize edge cases like unsigned floats, exponentless floats (fixed-point, really), and mantissaless floats (just exponentials?).
 - Bigfloats? (maybe for a separate crate)
 - Serde-integration
