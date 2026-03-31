@@ -43,5 +43,5 @@ serde = {version = "*", optional = true}
 [dev-dependencies]
 num = "0.4.3"
 plotters = "0.3.7"
-linspace = "0.1.1"
+linspace = "0.2.7"
 libm = "0.2.15"
